@@ -1,5 +1,5 @@
 -- GROW GARDEN BOT - DELTA EXECUTOR
--- GUI Lengkap dengan Fitur Lengkap
+-- Dengan Tombol Mini Floating
 
 if _G.GardenBot then return end
 _G.GardenBot = true
@@ -8,6 +8,7 @@ _G.GardenBot = true
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 -- Create Main GUI
 local ScreenGui = Instance.new("ScreenGui")
@@ -15,13 +16,33 @@ ScreenGui.Name = "GardenBotGUI"
 ScreenGui.Parent = CoreGui
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- Main Window
+-- TOMBOL MINI (Floating Button)
+local MiniButton = Instance.new("TextButton")
+MiniButton.Size = UDim2.new(0, 50, 0, 50)
+MiniButton.Position = UDim2.new(0, 20, 0, 20)
+MiniButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+MiniButton.Text = "🌻"
+MiniButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MiniButton.TextSize = 20
+MiniButton.Font = Enum.Font.GothamBold
+MiniButton.BorderSizePixel = 0
+MiniButton.ZIndex = 100
+MiniButton.Parent = ScreenGui
+
+-- Make mini button rounded
+MiniButton.AutoButtonColor = false
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(1, 0)
+corner.Parent = MiniButton
+
+-- Main Window (Initially Hidden)
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 350, 0, 400)
 MainFrame.Position = UDim2.new(0.5, -175, 0.5, -200)
 MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 MainFrame.BorderSizePixel = 0
 MainFrame.Visible = false
+MainFrame.ZIndex = 90
 MainFrame.Parent = ScreenGui
 
 -- Title Bar
@@ -29,6 +50,7 @@ local TitleBar = Instance.new("Frame")
 TitleBar.Size = UDim2.new(1, 0, 0, 30)
 TitleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 TitleBar.BorderSizePixel = 0
+TitleBar.ZIndex = 91
 TitleBar.Parent = MainFrame
 
 local TitleText = Instance.new("TextLabel")
@@ -38,6 +60,7 @@ TitleText.Text = "🌻 GROW GARDEN BOT 🌻"
 TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 TitleText.Font = Enum.Font.GothamBold
 TitleText.TextSize = 14
+TitleText.ZIndex = 92
 TitleText.Parent = TitleBar
 
 -- Close Button
@@ -47,10 +70,12 @@ CloseButton.Position = UDim2.new(1, -30, 0, 0)
 CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
 CloseButton.Text = "X"
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.ZIndex = 92
 CloseButton.Parent = TitleBar
 
 CloseButton.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
+    MiniButton.Visible = true
 end)
 
 -- Content Area
@@ -60,6 +85,7 @@ ScrollFrame.Position = UDim2.new(0, 5, 0, 35)
 ScrollFrame.BackgroundTransparency = 1
 ScrollFrame.ScrollBarThickness = 5
 ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 600)
+ScrollFrame.ZIndex = 91
 ScrollFrame.Parent = MainFrame
 
 -- Auto Farming Section
@@ -69,6 +95,7 @@ local function CreateSection(title, yPosition)
     sectionFrame.Position = UDim2.new(0, 5, 0, yPosition)
     sectionFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
     sectionFrame.BorderSizePixel = 0
+    sectionFrame.ZIndex = 91
     sectionFrame.Parent = ScrollFrame
     
     local sectionText = Instance.new("TextLabel")
@@ -79,6 +106,7 @@ local function CreateSection(title, yPosition)
     sectionText.Font = Enum.Font.GothamBold
     sectionText.TextSize = 12
     sectionText.TextXAlignment = Enum.TextXAlignment.Left
+    sectionText.ZIndex = 92
     sectionText.Parent = sectionFrame
     
     return sectionFrame
@@ -90,6 +118,7 @@ local function CreateToggle(text, yPos, callback)
     toggleFrame.Size = UDim2.new(1, -20, 0, 25)
     toggleFrame.Position = UDim2.new(0, 10, 0, yPos)
     toggleFrame.BackgroundTransparency = 1
+    toggleFrame.ZIndex = 91
     toggleFrame.Parent = ScrollFrame
     
     local toggleButton = Instance.new("TextButton")
@@ -100,6 +129,8 @@ local function CreateToggle(text, yPos, callback)
     toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     toggleButton.Font = Enum.Font.Gotham
     toggleButton.TextSize = 11
+    toggleButton.ZIndex = 92
+    toggleButton.AutoButtonColor = false
     toggleButton.Parent = toggleFrame
     
     local toggleText = Instance.new("TextLabel")
@@ -110,6 +141,7 @@ local function CreateToggle(text, yPos, callback)
     toggleText.Font = Enum.Font.Gotham
     toggleText.TextSize = 12
     toggleText.TextXAlignment = Enum.TextXAlignment.Left
+    toggleText.ZIndex = 92
     toggleText.Parent = toggleFrame
     
     local isToggled = false
@@ -196,30 +228,107 @@ local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -10, 0, 20)
 statusLabel.Position = UDim2.new(0, 5, 0, 350)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Status: Ready - Press RightShift"
+statusLabel.Text = "Status: Ready - Click 🌻 button"
 statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 statusLabel.Font = Enum.Font.Gotham
 statusLabel.TextSize = 11
+statusLabel.ZIndex = 92
 statusLabel.Parent = ScrollFrame
 
--- Toggle GUI with RightShift
-UserInputService.InputBegan:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.RightShift then
-        MainFrame.Visible = not MainFrame.Visible
+-- TOMBOL MINI CLICK EVENT
+MiniButton.MouseButton1Click:Connect(function()
+    MainFrame.Visible = true
+    MiniButton.Visible = false
+end)
+
+-- DRAGGABLE TOMBOL MINI
+local draggingMini = false
+local dragInputMini
+local dragStartMini
+local startPosMini
+
+MiniButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        draggingMini = true
+        dragStartMini = input.Position
+        startPosMini = MiniButton.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                draggingMini = false
+            end
+        end)
+    end
+end)
+
+MiniButton.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInputMini = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInputMini and draggingMini then
+        local delta = input.Position - dragStartMini
+        MiniButton.Position = UDim2.new(
+            startPosMini.X.Scale, 
+            startPosMini.X.Offset + delta.X,
+            startPosMini.Y.Scale, 
+            startPosMini.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- DRAGGABLE MAIN WINDOW
+local draggingMain = false
+local dragInputMain
+local dragStartMain
+local startPosMain
+
+TitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        draggingMain = true
+        dragStartMain = input.Position
+        startPosMain = MainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                draggingMain = false
+            end
+        end)
+    end
+end)
+
+TitleBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInputMain = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInputMain and draggingMain then
+        local delta = input.Position - dragStartMain
+        MainFrame.Position = UDim2.new(
+            startPosMain.X.Scale, 
+            startPosMain.X.Offset + delta.X,
+            startPosMain.Y.Scale, 
+            startPosMain.Y.Offset + delta.Y
+        )
     end
 end)
 
 -- Notification
 game:GetService("StarterGui"):SetCore("SendNotification", {
     Title = "Grow Garden Bot",
-    Text = "GUI Loaded Successfully! Press RightShift",
+    Text = "Tombol mini muncul! Klik 🌻 untuk buka menu",
     Duration = 5
 })
 
 print("========================================")
-print("🎉 GROW GARDEN GUI BERHASIL DIBUAT!")
-print("📋 Fitur: Auto Plant, Water, Harvest, Sell")
-print("🎮 Press RIGHT SHIFT to open/close GUI")
+print("🎉 GROW GARDEN BOT DENGAN TOMBOL MINI!")
+print("🌻 Klik tombol hijau di pojok kiri atas")
+print("🚀 Fitur lengkap: Plant, Water, Harvest, Sell")
+print("📍 Tombol bisa di-drag ke mana saja")
 print("========================================")
 
 -- Anti AFK

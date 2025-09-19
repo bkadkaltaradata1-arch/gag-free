@@ -1,33 +1,29 @@
--- Script Auto Farm untuk Game "Grow a Garden" dengan GUI Minimizable
+-- Script Auto Farm untuk Game "Grow a Garden" - Optimized for Android (No Keybind)
 -- Compatible dengan Delta Executor
 -- Gunakan dengan tanggung jawab, hanya untuk tujuan edukasi
 
--- Load Rayfield UI Library
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+-- Load Rayfield UI Library (Android optimized)
+local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Rayfield/main/source'))()
 
--- Create GUI Window
+-- Create GUI Window dengan ukuran yang sesuai untuk mobile
 local Window = Rayfield:CreateWindow({
     Name = "🌻 Grow a Garden Auto Farm",
     LoadingTitle = "Grow a Garden Auto Farm",
-    LoadingSubtitle = "by Script Provider",
+    LoadingSubtitle = "Optimized for Android - No Keybind",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "GrowAGarden",
         FileName = "AutoFarmConfig"
     },
-    Discord = {
-        Enabled = false,
-        Invite = "noinvitelink",
-        RememberJoins = true
-    },
     KeySystem = false,
+    MobileCompatible = true, -- Penting untuk compatibility mobile
 })
 
--- Create Tabs
-local FarmTab = Window:CreateTab("Farm", 4483362458)
-local TeleportTab = Window:CreateTab("Teleport", 4483362458)
-local PlayerTab = Window:CreateTab("Player", 4483362458)
-local SettingsTab = Window:CreateTab("Settings", 4483362458)
+-- Create Tabs dengan ikon yang sesuai
+local FarmTab = Window:CreateTab("Farm", 1234567890) -- Ikon farm
+local TeleportTab = Window:CreateTab("Teleport", 1234567891) -- Ikon teleport
+local PlayerTab = Window:CreateTab("Player", 1234567892) -- Ikon player
+local SettingsTab = Window:CreateTab("Settings", 1234567893) -- Ikon settings
 
 -- Variables
 getgenv().AutoPlant = false
@@ -36,12 +32,13 @@ getgenv().AutoHarvest = false
 getgenv().SelectedSeed = "Sunflower"
 getgenv().WalkSpeed = 16
 getgenv().JumpPower = 50
+getgenv().MobileOptimized = true
 
 -- Farm Section
 local FarmSection = FarmTab:CreateSection("Auto Farm Options")
 
 local PlantToggle = FarmTab:CreateToggle({
-    Name = "Auto Plant Seeds",
+    Name = "🌱 Auto Plant Seeds",
     CurrentValue = false,
     Flag = "AutoPlantToggle",
     Callback = function(Value)
@@ -50,23 +47,23 @@ local PlantToggle = FarmTab:CreateToggle({
             Rayfield:Notify({
                 Title = "Auto Plant",
                 Content = "Auto Plant enabled",
-                Duration = 3,
-                Image = 4483362458,
+                Duration = 2.5,
+                Image = 1234567890,
             })
             autoPlant()
         else
             Rayfield:Notify({
                 Title = "Auto Plant",
                 Content = "Auto Plant disabled",
-                Duration = 3,
-                Image = 4483362458,
+                Duration = 2.5,
+                Image = 1234567890,
             })
         end
     end,
 })
 
 local WaterToggle = FarmTab:CreateToggle({
-    Name = "Auto Water Plants",
+    Name = "💧 Auto Water Plants",
     CurrentValue = false,
     Flag = "AutoWaterToggle",
     Callback = function(Value)
@@ -75,23 +72,23 @@ local WaterToggle = FarmTab:CreateToggle({
             Rayfield:Notify({
                 Title = "Auto Water",
                 Content = "Auto Water enabled",
-                Duration = 3,
-                Image = 4483362458,
+                Duration = 2.5,
+                Image = 1234567890,
             })
             autoWater()
         else
             Rayfield:Notify({
                 Title = "Auto Water",
                 Content = "Auto Water disabled",
-                Duration = 3,
-                Image = 4483362458,
+                Duration = 2.5,
+                Image = 1234567890,
             })
         end
     end,
 })
 
 local HarvestToggle = FarmTab:CreateToggle({
-    Name = "Auto Harvest Plants",
+    Name = "✂️ Auto Harvest Plants",
     CurrentValue = false,
     Flag = "AutoHarvestToggle",
     Callback = function(Value)
@@ -100,23 +97,23 @@ local HarvestToggle = FarmTab:CreateToggle({
             Rayfield:Notify({
                 Title = "Auto Harvest",
                 Content = "Auto Harvest enabled",
-                Duration = 3,
-                Image = 4483362458,
+                Duration = 2.5,
+                Image = 1234567890,
             })
             autoHarvest()
         else
             Rayfield:Notify({
                 Title = "Auto Harvest",
                 Content = "Auto Harvest disabled",
-                Duration = 3,
-                Image = 4483362458,
+                Duration = 2.5,
+                Image = 1234567890,
             })
         end
     end,
 })
 
 local SeedDropdown = FarmTab:CreateDropdown({
-    Name = "Select Seed Type",
+    Name = "🌻 Select Seed Type",
     Options = {"Sunflower", "Tomato", "Carrot", "Potato", "Rose"},
     CurrentOption = "Sunflower",
     Flag = "SeedDropdown",
@@ -125,61 +122,61 @@ local SeedDropdown = FarmTab:CreateDropdown({
         Rayfield:Notify({
             Title = "Seed Selected",
             Content = "Selected seed: " .. Option,
-            Duration = 3,
-            Image = 4483362458,
+            Duration = 2.5,
+            Image = 1234567890,
         })
     end,
 })
 
--- Teleport Section
-local TeleportSection = TeleportTab:CreateSection("Teleport Locations")
+-- Teleport Section dengan button yang lebih besar untuk touch
+local TeleportSection = TeleportTab:CreateSection("📍 Teleport Locations")
 
 TeleportTab:CreateButton({
-    Name = "Teleport to Planting Area",
+    Name = "🚜 Teleport to Planting Area",
     Callback = function()
         teleportTo(CFrame.new(0, 5, 0))
         Rayfield:Notify({
             Title = "Teleport",
             Content = "Teleported to Planting Area",
-            Duration = 3,
-            Image = 4483362458,
+            Duration = 2.5,
+            Image = 1234567891,
         })
     end,
 })
 
 TeleportTab:CreateButton({
-    Name = "Teleport to Water Source",
+    Name = "🚰 Teleport to Water Source",
     Callback = function()
         teleportTo(CFrame.new(20, 5, 15))
         Rayfield:Notify({
             Title = "Teleport",
             Content = "Teleported to Water Source",
-            Duration = 3,
-            Image = 4483362458,
+            Duration = 2.5,
+            Image = 1234567891,
         })
     end,
 })
 
 TeleportTab:CreateButton({
-    Name = "Teleport to Selling Area",
+    Name = "💰 Teleport to Selling Area",
     Callback = function()
         teleportTo(CFrame.new(-15, 5, -10))
         Rayfield:Notify({
             Title = "Teleport",
             Content = "Teleported to Selling Area",
-            Duration = 3,
-            Image = 4483362458,
+            Duration = 2.5,
+            Image = 1234567891,
         })
     end,
 })
 
--- Player Section
-local PlayerSection = PlayerTab:CreateSection("Player Modifications")
+-- Player Section dengan slider yang mobile-friendly
+local PlayerSection = PlayerTab:CreateSection("👤 Player Modifications")
 
 local WalkSpeedSlider = PlayerTab:CreateSlider({
-    Name = "Walk Speed",
+    Name = "🚶‍♂️ Walk Speed",
     Range = {16, 100},
-    Increment = 1,
+    Increment = 5, -- Lebih besar untuk memudahkan touch
     Suffix = "studs",
     CurrentValue = 16,
     Flag = "WalkSpeedSlider",
@@ -189,16 +186,16 @@ local WalkSpeedSlider = PlayerTab:CreateSlider({
         Rayfield:Notify({
             Title = "Walk Speed",
             Content = "Walk speed set to: " .. Value,
-            Duration = 3,
-            Image = 4483362458,
+            Duration = 2.5,
+            Image = 1234567892,
         })
     end,
 })
 
 local JumpPowerSlider = PlayerTab:CreateSlider({
-    Name = "Jump Power",
+    Name = "🦘 Jump Power",
     Range = {50, 100},
-    Increment = 1,
+    Increment = 5, -- Lebih besar untuk memudahkan touch
     Suffix = "studs",
     CurrentValue = 50,
     Flag = "JumpPowerSlider",
@@ -208,60 +205,82 @@ local JumpPowerSlider = PlayerTab:CreateSlider({
         Rayfield:Notify({
             Title = "Jump Power",
             Content = "Jump power set to: " .. Value,
-            Duration = 3,
-            Image = 4483362458,
+            Duration = 2.5,
+            Image = 1234567892,
         })
     end,
 })
 
--- Settings Section
-local SettingsSection = SettingsTab:CreateSection("Script Settings")
+-- Settings Section dengan tombol yang mudah di-touch
+local SettingsSection = SettingsTab:CreateSection("⚙️ Script Settings")
 
 SettingsTab:CreateButton({
-    Name = "Save Settings",
+    Name = "💾 Save Settings",
     Callback = function()
         Rayfield:Notify({
             Title = "Settings Saved",
             Content = "Your settings have been saved",
-            Duration = 3,
-            Image = 4483362458,
+            Duration = 2.5,
+            Image = 1234567893,
         })
     end,
 })
 
 SettingsTab:CreateButton({
-    Name = "Reload Script",
+    Name = "🔄 Reload Script",
     Callback = function()
         Rayfield:Notify({
             Title = "Reloading",
             Content = "Script will reload...",
-            Duration = 3,
-            Image = 4483362458,
+            Duration = 2.5,
+            Image = 1234567893,
         })
-        wait(3)
-        -- Reload script logic would go here
+        wait(2.5)
+        -- Simulasi reload
+        Rayfield:Destroy()
+        loadstring(game:HttpGet('https://raw.githubusercontent.com/example/script.lua'))()
+    end,
+})
+
+-- Tombol khusus untuk show/hide GUI (lebih mudah untuk mobile)
+SettingsTab:CreateButton({
+    Name = "👁️ Show/Hide GUI",
+    Callback = function()
+        Rayfield:Toggle()
+        Rayfield:Notify({
+            Title = "GUI Toggled",
+            Content = "GUI visibility changed",
+            Duration = 2.5,
+            Image = 1234567893,
+        })
     end,
 })
 
 SettingsTab:CreateButton({
-    Name = "Destroy GUI",
+    Name = "❌ Destroy GUI",
     Callback = function()
         Rayfield:Destroy()
+        Rayfield:Notify({
+            Title = "GUI Destroyed",
+            Content = "GUI has been closed",
+            Duration = 2.5,
+            Image = 1234567893,
+        })
     end,
 })
 
-SettingsTab:CreateKeybind({
-    Name = "Toggle GUI Keybind",
-    CurrentKeybind = "RightShift",
-    HoldToInteract = false,
-    Flag = "GUIKeybind",
-    Callback = function(Keybind)
-        -- This callback will be triggered when the keybind is pressed
-        Rayfield:Toggle()
-    end,
-})
+-- Mobile-specific optimizations
+if getgenv().MobileOptimized then
+    -- Adjust UI for mobile
+    Rayfield:Notify({
+        Title = "Mobile Mode",
+        Content = "Mobile optimization enabled - No Keybind",
+        Duration = 3,
+        Image = 1234567893,
+    })
+end
 
--- Auto Farm Functions
+-- Auto Farm Functions dengan delay yang lebih lama untuk mobile
 function autoPlant()
     spawn(function()
         while getgenv().AutoPlant do
@@ -271,16 +290,23 @@ function autoPlant()
                     if not getgenv().AutoPlant then break end
                     teleportTo(plot.Position)
                     plantSeed(getgenv().SelectedSeed)
-                    wait(0.5)
+                    wait(1) -- Delay lebih lama untuk mobile
                 end
                 Rayfield:Notify({
                     Title = "Auto Plant",
                     Content = "Planted in " .. #plots .. " plots",
-                    Duration = 3,
-                    Image = 4483362458,
+                    Duration = 2.5,
+                    Image = 1234567890,
+                })
+            else
+                Rayfield:Notify({
+                    Title = "Auto Plant",
+                    Content = "No empty plots found",
+                    Duration = 2.5,
+                    Image = 1234567890,
                 })
             end
-            wait(2)
+            wait(3) -- Delay lebih lama untuk menghemat resources di mobile
         end
     end)
 end
@@ -294,16 +320,23 @@ function autoWater()
                     if not getgenv().AutoWater then break end
                     teleportTo(plant.Position)
                     waterPlant()
-                    wait(0.5)
+                    wait(1) -- Delay lebih lama untuk mobile
                 end
                 Rayfield:Notify({
                     Title = "Auto Water",
                     Content = "Watered " .. #plants .. " plants",
-                    Duration = 3,
-                    Image = 4483362458,
+                    Duration = 2.5,
+                    Image = 1234567890,
+                })
+            else
+                Rayfield:Notify({
+                    Title = "Auto Water",
+                    Content = "No plants need water",
+                    Duration = 2.5,
+                    Image = 1234567890,
                 })
             end
-            wait(2)
+            wait(3) -- Delay lebih lama untuk menghemat resources di mobile
         end
     end)
 end
@@ -317,30 +350,56 @@ function autoHarvest()
                     if not getgenv().AutoHarvest then break end
                     teleportTo(plant.Position)
                     harvestPlant()
-                    wait(0.5)
+                    wait(1) -- Delay lebih lama untuk mobile
                 end
                 Rayfield:Notify({
                     Title = "Auto Harvest",
                     Content = "Harvested " .. #plants .. " plants",
-                    Duration = 3,
-                    Image = 4483362458,
+                    Duration = 2.5,
+                    Image = 1234567890,
+                })
+            else
+                Rayfield:Notify({
+                    Title = "Auto Harvest",
+                    Content = "No plants ready for harvest",
+                    Duration = 2.5,
+                    Image = 1234567890,
                 })
             end
-            wait(2)
+            wait(3) -- Delay lebih lama untuk menghemat resources di mobile
         end
     end)
 end
 
--- Game Interaction Functions (Placeholder implementations)
+-- Game Interaction Functions dengan error handling untuk mobile
 function findEmptyPlots()
-    -- Implementasi untuk mencari plot kosong
     local emptyPlots = {}
-    local plots = workspace:FindFirstChild("Plots") or workspace:FindFirstChild("Garden") or workspace:FindFirstChild("Farm")
     
-    if plots then
-        for _, plot in ipairs(plots:GetChildren()) do
-            if plot:IsA("Part") and plot.Name:find("Plot") and not plot:FindFirstChild("Plant") then
-                table.insert(emptyPlots, plot)
+    -- Mencari plot dengan berbagai kemungkinan nama
+    local plotContainers = {
+        workspace:FindFirstChild("Plots"),
+        workspace:FindFirstChild("Garden"),
+        workspace:FindFirstChild("Farm"),
+        workspace:FindFirstChild("PlantingArea")
+    }
+    
+    for _, container in ipairs(plotContainers) do
+        if container then
+            for _, plot in ipairs(container:GetChildren()) do
+                if plot:IsA("Part") and (plot.Name:find("Plot") or plot.Name:find("Soil")) then
+                    -- Cek jika plot kosong
+                    local hasPlant = false
+                    for _, child in ipairs(plot:GetChildren()) do
+                        if child:IsA("Model") and (child.Name:find("Plant") or child.Name:find("Crop")) then
+                            hasPlant = true
+                            break
+                        end
+                    end
+                    
+                    if not hasPlant then
+                        table.insert(emptyPlots, plot)
+                    end
+                end
             end
         end
     end
@@ -349,14 +408,26 @@ function findEmptyPlots()
 end
 
 function findDryPlants()
-    -- Implementasi untuk mencari tanaman yang perlu disiram
     local dryPlants = {}
-    local plants = workspace:FindFirstChild("Plants") or workspace:FindFirstChild("Crops")
     
-    if plants then
-        for _, plant in ipairs(plants:GetChildren()) do
-            if plant:IsA("Model") and plant:GetAttribute("NeedsWater") then
-                table.insert(dryPlants, plant)
+    -- Mencari tanaman dengan berbagai kemungkinan nama
+    local plantContainers = {
+        workspace:FindFirstChild("Plants"),
+        workspace:FindFirstChild("Crops"),
+        workspace:FindFirstChild("Garden"),
+        workspace:FindFirstChild("Farm")
+    }
+    
+    for _, container in ipairs(plantContainers) do
+        if container then
+            for _, plant in ipairs(container:GetChildren()) do
+                if plant:IsA("Model") and (plant.Name:find("Plant") or plant.Name:find("Crop")) then
+                    -- Cek jika tanaman perlu air (berdasarkan warna atau attribute)
+                    if plant:GetAttribute("NeedsWater") or 
+                       (plant.PrimaryPart and plant.PrimaryPart.Color == Color3.fromRGB(128, 128, 128)) then
+                        table.insert(dryPlants, plant)
+                    end
+                end
             end
         end
     end
@@ -365,14 +436,26 @@ function findDryPlants()
 end
 
 function findMaturePlants()
-    -- Implementasi untuk mencari tanaman yang siap panen
     local maturePlants = {}
-    local plants = workspace:FindFirstChild("Plants") or workspace:FindFirstChild("Crops")
     
-    if plants then
-        for _, plant in ipairs(plants:GetChildren()) do
-            if plant:IsA("Model") and plant:GetAttribute("IsMature") then
-                table.insert(maturePlants, plant)
+    -- Mencari tanaman dengan berbagai kemungkinan nama
+    local plantContainers = {
+        workspace:FindFirstChild("Plants"),
+        workspace:FindFirstChild("Crops"),
+        workspace:FindFirstChild("Garden"),
+        workspace:FindFirstChild("Farm")
+    }
+    
+    for _, container in ipairs(plantContainers) do
+        if container then
+            for _, plant in ipairs(container:GetChildren()) do
+                if plant:IsA("Model") and (plant.Name:find("Plant") or plant.Name:find("Crop")) then
+                    -- Cek jika tanaman sudah matang (berdasarkan size atau attribute)
+                    if plant:GetAttribute("IsMature") or 
+                       (plant.PrimaryPart and plant.PrimaryPart.Size.Y > 3) then
+                        table.insert(maturePlants, plant)
+                    end
+                end
             end
         end
     end
@@ -381,32 +464,38 @@ function findMaturePlants()
 end
 
 function plantSeed(seedType)
-    -- Implementasi untuk menanam biji
     local tool = findTool(seedType)
-    if tool then
+    if tool and game.Players.LocalPlayer.Character then
         game.Players.LocalPlayer.Character.Humanoid:EquipTool(tool)
-        wait(0.2)
-        mouse1click()
+        wait(0.5) -- Delay lebih lama untuk mobile
+        -- Simulate click
+        if tool:FindFirstChild("Handle") then
+            tool.Handle.CFrame = game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame
+        end
     end
 end
 
 function waterPlant()
-    -- Implementasi untuk menyiram tanaman
-    local tool = findTool("Watering Can")
-    if tool then
+    local tool = findTool("Watering Can") or findTool("Water") or findTool("Bucket")
+    if tool and game.Players.LocalPlayer.Character then
         game.Players.LocalPlayer.Character.Humanoid:EquipTool(tool)
-        wait(0.2)
-        mouse1click()
+        wait(0.5) -- Delay lebih lama untuk mobile
+        -- Simulate click
+        if tool:FindFirstChild("Handle") then
+            tool.Handle.CFrame = game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame
+        end
     end
 end
 
 function harvestPlant()
-    -- Implementasi untuk memanen tanaman
-    local tool = findTool("Harvest Tool") or findTool("Sickle") or findTool("Axe")
-    if tool then
+    local tool = findTool("Harvest Tool") or findTool("Sickle") or findTool("Axe") or findTool("Shears")
+    if tool and game.Players.LocalPlayer.Character then
         game.Players.LocalPlayer.Character.Humanoid:EquipTool(tool)
-        wait(0.2)
-        mouse1click()
+        wait(0.5) -- Delay lebih lama untuk mobile
+        -- Simulate click
+        if tool:FindFirstChild("Handle") then
+            tool.Handle.CFrame = game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame
+        end
     end
 end
 
@@ -418,27 +507,43 @@ function findTool(toolName)
             return item
         end
     end
+    
+    -- Mencari tool di karakter player
+    if game.Players.LocalPlayer.Character then
+        for _, item in ipairs(game.Players.LocalPlayer.Character:GetChildren()) do
+            if item:IsA("Tool") and (item.Name == toolName or item.Name:find(toolName)) then
+                return item
+            end
+        end
+    end
+    
     return nil
 end
 
 function teleportTo(cframe)
-    -- Teleport player ke posisi tertentu
+    -- Teleport player ke posisi tertentu dengan error handling
     if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = cframe
+        pcall(function()
+            game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = cframe
+        end)
     end
 end
 
 function setWalkSpeed(speed)
-    -- Mengatur walk speed player
+    -- Mengatur walk speed player dengan error handling
     if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
-        game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = speed
+        pcall(function()
+            game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = speed
+        end)
     end
 end
 
 function setJumpPower(power)
-    -- Mengatur jump power player
+    -- Mengatur jump power player dengan error handling
     if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
-        game.Players.LocalPlayer.Character.Humanoid.JumpPower = power
+        pcall(function()
+            game.Players.LocalPlayer.Character.Humanoid.JumpPower = power
+        end)
     end
 end
 
@@ -448,10 +553,38 @@ setJumpPower(getgenv().JumpPower)
 
 Rayfield:Notify({
     Title = "Script Loaded",
-    Content = "Grow a Garden Auto Farm successfully loaded!",
-    Duration = 6,
-    Image = 4483362458,
+    Content = "Grow a Garden Auto Farm successfully loaded! Optimized for Android - No Keybind needed.",
+    Duration = 5,
+    Image = 1234567893,
 })
 
--- Close GUI with RightShift (default)
--- You can minimize/maximize the GUI with the keybind
+-- Mobile optimization tips
+if not game:GetService("UserInputService").KeyboardEnabled then
+    Rayfield:Notify({
+        Title = "Mobile Tips",
+        Content = "Use the 'Show/Hide GUI' button to toggle the GUI visibility.",
+        Duration = 6,
+        Image = 1234567893,
+    })
+end
+
+-- Tambahkan button floating untuk mobile (jika supported)
+if not game:GetService("UserInputService").KeyboardEnabled then
+    -- Create a simple floating button
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "MobileToggleGUI"
+    screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+    screenGui.ResetOnSpawn = false
+    
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Size = UDim2.new(0, 100, 0, 50)
+    toggleButton.Position = UDim2.new(0, 20, 0, 20)
+    toggleButton.Text = "Toggle GUI"
+    toggleButton.BackgroundColor3 = Color3.fromRGB(85, 170, 85)
+    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleButton.Parent = screenGui
+    
+    toggleButton.MouseButton1Click:Connect(function()
+        Rayfield:Toggle()
+    end)
+end

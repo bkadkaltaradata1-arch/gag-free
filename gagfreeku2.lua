@@ -1,19 +1,52 @@
--- GROW GARDEN BOT - DELTA EXECUTOR ANDROID FIX
--- Fixed Auto Harvest function
+-- GROW GARDEN BOT - SMART EVENT DETECTION
+-- Auto detect event names untuk berbagai game
 
 if _G.GardenBot then return end
 _G.GardenBot = true
 
-print("🌻 Starting Garden Bot for Android...")
+print("🌻 Starting Smart Garden Bot...")
 
 -- Services
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
-local localPlayer = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local localPlayer = Players.LocalPlayer
 
--- Variables untuk auto functions
+-- Deteksi Event Names Otomatis
+local function FindEvent(eventNames)
+    for _, eventName in ipairs(eventNames) do
+        local event = ReplicatedStorage:FindFirstChild(eventName) 
+                    or ReplicatedStorage:FindFirstChild("Events") and ReplicatedStorage.Events:FindFirstChild(eventName)
+                    or ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild(eventName)
+        
+        if event and event:IsA("RemoteEvent") then
+            print("✅ Found event: " .. eventName)
+            return event
+        end
+    end
+    return nil
+end
+
+-- Deteksi semua event yang mungkin
+local PlantEvents = {"PlantSeed", "Plant", "AddSeed", "SowSeed", "PlantCrop"}
+local WaterEvents = {"WaterPlant", "Water", "Hydrate", "WaterCrop", "Irrigate"}
+local HarvestEvents = {"HarvestPlant", "Harvest", "Collect", "PickCrop", "Gather"}
+local SellEvents = {"SellCrops", "Sell", "SellHarvest", "SellItems", "SellProduce"}
+
+local PlantEvent = FindEvent(PlantEvents)
+local WaterEvent = FindEvent(WaterEvents)
+local HarvestEvent = FindEvent(HarvestEvents)
+local SellEvent = FindEvent(SellEvents)
+
+print("🔍 Event Detection Results:")
+print("🌱 Plant Event: " .. (PlantEvent and PlantEvent.Name or "Not Found"))
+print("💧 Water Event: " .. (WaterEvent and WaterEvent.Name or "Not Found"))
+print("📦 Harvest Event: " .. (HarvestEvent and HarvestEvent.Name or "Not Found"))
+print("💰 Sell Event: " .. (SellEvent and SellEvent.Name or "Not Found"))
+
+-- Variables
 _G.AutoPlant = false
 _G.AutoWater = false
 _G.AutoHarvest = false
@@ -40,15 +73,14 @@ MiniButton.BorderSizePixel = 0
 MiniButton.ZIndex = 100
 MiniButton.Parent = ScreenGui
 
--- Make mini button rounded
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(1, 0)
 corner.Parent = MiniButton
 
 -- Main Window
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 300, 0, 400)
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
+MainFrame.Size = UDim2.new(0, 320, 0, 450)
+MainFrame.Position = UDim2.new(0.5, -160, 0.5, -225)
 MainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 MainFrame.BorderSizePixel = 0
 MainFrame.Visible = false
@@ -66,7 +98,7 @@ TitleBar.Parent = MainFrame
 local TitleText = Instance.new("TextLabel")
 TitleText.Size = UDim2.new(1, 0, 1, 0)
 TitleText.BackgroundTransparency = 1
-TitleText.Text = "🌻 GARDEN BOT 🌻"
+TitleText.Text = "🌻 SMART GARDEN BOT 🌻"
 TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 TitleText.Font = Enum.Font.GothamBold
 TitleText.TextSize = 16
@@ -95,7 +127,7 @@ ScrollFrame.Size = UDim2.new(1, -10, 1, -50)
 ScrollFrame.Position = UDim2.new(0, 5, 0, 45)
 ScrollFrame.BackgroundTransparency = 1
 ScrollFrame.ScrollBarThickness = 8
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 500)
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 600)
 ScrollFrame.ZIndex = 91
 ScrollFrame.Parent = MainFrame
 
@@ -176,122 +208,240 @@ local function CreateSection(title, yPosition)
     return sectionFrame
 end
 
--- FUNGSI HARVEST YANG DIPERBAIKI
+-- FUNGSI HARVEST YANG SMART
 function HarvestPlants()
-    print("📦 Trying to harvest plants...")
+    if not HarvestEvent then
+        print("❌ No harvest event found")
+        return false
+    end
     
-    -- Cari tanaman yang bisa di-harvest
-    local gardenPlot = Workspace:FindFirstChild("GardenPlot") or Workspace:FindFirstChild("FarmArea")
-    if gardenPlot then
-        for _, plant in ipairs(gardenPlot:GetChildren()) do
-            if plant.Name:find("Plant") or plant.Name:find("Crop") then
-                -- Cek jika tanaman sudah siap panen
-                local readyToHarvest = plant:FindFirstChild("Ready") or plant:FindFirstChild("Grown")
-                if readyToHarvest then
-                    print("✅ Found plant ready to harvest: " .. plant.Name)
-                    -- Fire harvest event (sesuaikan dengan game kamu)
-                    if game:GetService("ReplicatedStorage"):FindFirstChild("HarvestPlant") then
-                        game:GetService("ReplicatedStorage").HarvestPlant:FireServer(plant)
-                    else
-                        -- Alternative event names
-                        local events = {
-                            "HarvestCrop",
-                            "CollectPlant", 
-                            "PickCrop",
-                            "Harvest"
-                        }
-                        for _, eventName in ipairs(events) do
-                            if game:GetService("ReplicatedStorage"):FindFirstChild(eventName) then
-                                game:GetService("ReplicatedStorage")[eventName]:FireServer(plant)
-                                break
-                            end
-                        end
+    print("📦 Searching for plants to harvest...")
+    
+    local harvested = false
+    
+    -- Cari di berbagai lokasi yang mungkin
+    local searchLocations = {
+        Workspace,
+        Workspace:FindFirstChild("GardenPlot"),
+        Workspace:FindFirstChild("FarmArea"),
+        Workspace:FindFirstChild("Plants"),
+        Workspace:FindFirstChild("Crops"),
+        Workspace:FindFirstChild("Garden"),
+        Workspace:FindFirstChild("Farm")
+    }
+    
+    for _, location in ipairs(searchLocations) do
+        if location then
+            for _, plant in ipairs(location:GetChildren()) do
+                if plant.Name:find("Plant") or plant.Name:find("Crop") or plant:FindFirstChild("Ready") then
+                    -- Coba harvest dengan berbagai parameter
+                    local success = pcall(function()
+                        HarvestEvent:FireServer(plant)
+                        print("✅ Harvested: " .. plant.Name)
+                        harvested = true
+                        wait(0.3)
+                    end)
+                    
+                    if not success then
+                        -- Coba tanpa parameter
+                        pcall(function()
+                            HarvestEvent:FireServer()
+                            print("✅ Harvested (no parameter)")
+                            harvested = true
+                            wait(0.3)
+                        end)
                     end
-                    wait(0.5) -- Delay antara panen
                 end
             end
         end
-    else
-        print("❌ No garden plot found")
     end
+    
+    return harvested
 end
 
--- FUNGSI AUTO HARVEST YANG BERJALAN TERUS
+-- FUNGSI PLANT
+function PlantSeeds()
+    if not PlantEvent then
+        print("❌ No plant event found")
+        return false
+    end
+    
+    print("🌱 Planting seed...")
+    
+    -- Coba dengan berbagai parameter
+    local success = pcall(function()
+        PlantEvent:FireServer("Sunflower")
+        print("✅ Planted Sunflower")
+    end)
+    
+    if not success then
+        pcall(function()
+            PlantEvent:FireServer()
+            print("✅ Planted (no parameter)")
+        end)
+    end
+    
+    return true
+end
+
+-- FUNGSI WATER
+function WaterPlants()
+    if not WaterEvent then
+        print("❌ No water event found")
+        return false
+    end
+    
+    print("💧 Watering plants...")
+    
+    pcall(function()
+        WaterEvent:FireServer()
+        print("✅ Watered plants")
+    end)
+    
+    return true
+end
+
+-- FUNGSI SELL
+function SellCrops()
+    if not SellEvent then
+        print("❌ No sell event found")
+        return false
+    end
+    
+    print("💰 Selling crops...")
+    
+    pcall(function()
+        SellEvent:FireServer()
+        print("✅ Sold crops")
+    end)
+    
+    return true
+end
+
+-- AUTO FUNCTIONS
 function StartAutoHarvest()
     while _G.AutoHarvest do
         HarvestPlants()
-        wait(3) -- Cek setiap 3 detik
+        wait(3)
     end
 end
 
--- Create semua toggle
+function StartAutoPlant()
+    while _G.AutoPlant do
+        PlantSeeds()
+        wait(2)
+    end
+end
+
+function StartAutoWater()
+    while _G.AutoWater do
+        WaterPlants()
+        wait(3)
+    end
+end
+
+function StartAutoSell()
+    while _G.AutoSell do
+        SellCrops()
+        wait(5)
+    end
+end
+
+-- Create GUI Elements
 CreateSection("AUTO FARMING", 10)
 
 CreateTouchToggle("Auto Plant Seeds", 55, function(state)
     _G.AutoPlant = state
     print("Auto Plant: " .. tostring(state))
-    if state then
-        spawn(function()
-            while _G.AutoPlant do
-                print("🌱 Planting seed...")
-                wait(2)
-            end
-        end)
+    if state and PlantEvent then
+        spawn(StartAutoPlant)
+    elseif state then
+        print("❌ Cannot start Auto Plant - Event not found")
     end
 end)
 
 CreateTouchToggle("Auto Water Plants", 105, function(state)
     _G.AutoWater = state
     print("Auto Water: " .. tostring(state))
-    if state then
-        spawn(function()
-            while _G.AutoWater do
-                print("💧 Watering plants...")
-                wait(3)
-            end
-        end)
+    if state and WaterEvent then
+        spawn(StartAutoWater)
+    elseif state then
+        print("❌ Cannot start Auto Water - Event not found")
     end
 end)
 
 CreateTouchToggle("Auto Harvest", 155, function(state)
     _G.AutoHarvest = state
     print("Auto Harvest: " .. tostring(state))
-    if state then
-        spawn(StartAutoHarvest) -- Pakai fungsi yang sudah diperbaiki
+    if state and HarvestEvent then
+        spawn(StartAutoHarvest)
+    elseif state then
+        print("❌ Cannot start Auto Harvest - Event not found")
     end
 end)
 
 CreateTouchToggle("Auto Sell", 205, function(state)
     _G.AutoSell = state
     print("Auto Sell: " .. tostring(state))
-    if state then
-        spawn(function()
-            while _G.AutoSell do
-                print("💰 Selling crops...")
-                wait(5)
-            end
-        end)
+    if state and SellEvent then
+        spawn(StartAutoSell)
+    elseif state then
+        print("❌ Cannot start Auto Sell - Event not found")
     end
 end)
 
-CreateSection("SETTINGS", 265)
+CreateSection("EVENT STATUS", 265)
 
-CreateTouchToggle("Random Planting", 310, function(state)
-    _G.RandomPlant = state
-    print("Random Planting: " .. tostring(state))
-end)
+-- Event Status Labels
+local eventStatuses = {
+    {name = "Plant Event", event = PlantEvent, yPos = 310},
+    {name = "Water Event", event = WaterEvent, yPos = 340},
+    {name = "Harvest Event", event = HarvestEvent, yPos = 370},
+    {name = "Sell Event", event = SellEvent, yPos = 400}
+}
 
--- Status Label
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(1, -10, 0, 30)
-statusLabel.Position = UDim2.new(0, 5, 0, 370)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Status: Ready - Tap 🌻 button"
-statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-statusLabel.Font = Enum.Font.Gotham
-statusLabel.TextSize = 12
-statusLabel.ZIndex = 92
-statusLabel.Parent = ScrollFrame
+for _, status in ipairs(eventStatuses) do
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(1, -20, 0, 25)
+    statusLabel.Position = UDim2.new(0, 10, 0, status.yPos)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = status.name .. ": " .. (status.event and "✅ Found" or "❌ Not Found")
+    statusLabel.TextColor3 = status.event and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(255, 80, 80)
+    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.TextSize = 12
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+    statusLabel.ZIndex = 92
+    statusLabel.Parent = ScrollFrame
+end
+
+-- Manual Control Buttons
+CreateSection("MANUAL CONTROL", 440)
+
+local function CreateManualButton(text, yPos, callback)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, -20, 0, 35)
+    button.Position = UDim2.new(0, 10, 0, yPos)
+    button.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
+    button.Text = text
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.Font = Enum.Font.Gotham
+    button.TextSize = 14
+    button.ZIndex = 92
+    button.Parent = ScrollFrame
+    
+    local buttonCorner = Instance.new("UICorner")
+    buttonCorner.CornerRadius = UDim.new(0, 6)
+    buttonCorner.Parent = button
+    
+    button.MouseButton1Click:Connect(callback)
+    
+    return button
+end
+
+CreateManualButton("🔧 Manual Harvest", 485, HarvestPlants)
+CreateManualButton("🔧 Manual Plant", 530, PlantSeeds)
+CreateManualButton("🔧 Manual Water", 575, WaterPlants)
+CreateManualButton("🔧 Manual Sell", 620, SellCrops)
 
 -- TOMBOL MINI CLICK EVENT
 MiniButton.MouseButton1Click:Connect(function()
@@ -299,7 +449,7 @@ MiniButton.MouseButton1Click:Connect(function()
     MiniButton.Visible = false
 end)
 
--- Simple drag untuk tombol mini
+-- DRAG FUNCTIONS (sama seperti sebelumnya)
 local miniDragging = false
 local miniDragStart
 
@@ -324,83 +474,30 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- Simple drag untuk main window
-local mainDragging = false
-local mainDragStart
-
-TitleBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then
-        mainDragging = true
-        mainDragStart = input.Position
-    end
-end)
-
-TitleBar.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then
-        mainDragging = false
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch and mainDragging then
-        local delta = input.Position - mainDragStart
-        MainFrame.Position = UDim2.new(0, MainFrame.Position.X.Offset + delta.X, 0, MainFrame.Position.Y.Offset + delta.Y)
-        mainDragStart = input.Position
-    end
-end)
-
 -- Notification
-spawn(function()
-    wait(1)
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "🌻 Garden Bot Loaded",
-        Text = "Tap green button to open menu!",
-        Duration = 5
-    })
-end)
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "🌻 Smart Garden Bot Loaded",
+    Text = "Auto-detected events! Tap 🌻 button",
+    Duration = 5
+})
 
-print("✅ Garden Bot successfully loaded!")
-print("🌻 Tap the green button to open menu")
-print("📦 Auto Harvest function FIXED!")
+print("✅ Smart Garden Bot successfully loaded!")
+print("🔍 Auto-detected " .. 
+      (PlantEvent and "Plant " or "") ..
+      (WaterEvent and "Water " or "") ..
+      (HarvestEvent and "Harvest " or "") ..
+      (SellEvent and "Sell" or ""))
+print("👆 Use manual buttons to test functions")
 
--- Anti AFK simple
+-- Anti AFK
 spawn(function()
     while true do
         wait(60)
         if _G.AutoPlant or _G.AutoWater or _G.AutoHarvest or _G.AutoSell then
             local character = localPlayer.Character
-            if character then
-                local humanoid = character:FindFirstChild("Humanoid")
-                if humanoid then
-                    humanoid:Move(Vector3.new(0, 0, 0))
-                end
+            if character and character:FindFirstChild("Humanoid") then
+                character.Humanoid:Move(Vector3.new(0, 0, 0))
             end
         end
     end
 end)
-
--- Touch feedback
-MiniButton.MouseButton1Click:Connect(function()
-    spawn(function()
-        MiniButton.BackgroundColor3 = Color3.fromRGB(70, 200, 70)
-        wait(0.1)
-        MiniButton.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
-    end)
-end)
-
-CloseButton.MouseButton1Click:Connect(function()
-    spawn(function()
-        CloseButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
-        wait(0.1)
-        CloseButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-    end)
-end)
-
--- Manual harvest function untuk testing
-function TestHarvest()
-    print("🔧 Testing harvest function...")
-    HarvestPlants()
-end
-
-print("🎯 Script ready! Auto Harvest FIXED!")
-print("💡 Use TestHarvest() in console to test")

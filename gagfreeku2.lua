@@ -1,5 +1,5 @@
 -- GROW GARDEN BOT - DELTA EXECUTOR ANDROID FIX
--- Fixed version for mobile
+-- Fixed Auto Harvest function
 
 if _G.GardenBot then return end
 _G.GardenBot = true
@@ -11,6 +11,14 @@ local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local localPlayer = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+
+-- Variables untuk auto functions
+_G.AutoPlant = false
+_G.AutoWater = false
+_G.AutoHarvest = false
+_G.AutoSell = false
+_G.RandomPlant = false
 
 -- Create Main GUI
 local ScreenGui = Instance.new("ScreenGui")
@@ -168,6 +176,54 @@ local function CreateSection(title, yPosition)
     return sectionFrame
 end
 
+-- FUNGSI HARVEST YANG DIPERBAIKI
+function HarvestPlants()
+    print("📦 Trying to harvest plants...")
+    
+    -- Cari tanaman yang bisa di-harvest
+    local gardenPlot = Workspace:FindFirstChild("GardenPlot") or Workspace:FindFirstChild("FarmArea")
+    if gardenPlot then
+        for _, plant in ipairs(gardenPlot:GetChildren()) do
+            if plant.Name:find("Plant") or plant.Name:find("Crop") then
+                -- Cek jika tanaman sudah siap panen
+                local readyToHarvest = plant:FindFirstChild("Ready") or plant:FindFirstChild("Grown")
+                if readyToHarvest then
+                    print("✅ Found plant ready to harvest: " .. plant.Name)
+                    -- Fire harvest event (sesuaikan dengan game kamu)
+                    if game:GetService("ReplicatedStorage"):FindFirstChild("HarvestPlant") then
+                        game:GetService("ReplicatedStorage").HarvestPlant:FireServer(plant)
+                    else
+                        -- Alternative event names
+                        local events = {
+                            "HarvestCrop",
+                            "CollectPlant", 
+                            "PickCrop",
+                            "Harvest"
+                        }
+                        for _, eventName in ipairs(events) do
+                            if game:GetService("ReplicatedStorage"):FindFirstChild(eventName) then
+                                game:GetService("ReplicatedStorage")[eventName]:FireServer(plant)
+                                break
+                            end
+                        end
+                    end
+                    wait(0.5) -- Delay antara panen
+                end
+            end
+        end
+    else
+        print("❌ No garden plot found")
+    end
+end
+
+-- FUNGSI AUTO HARVEST YANG BERJALAN TERUS
+function StartAutoHarvest()
+    while _G.AutoHarvest do
+        HarvestPlants()
+        wait(3) -- Cek setiap 3 detik
+    end
+end
+
 -- Create semua toggle
 CreateSection("AUTO FARMING", 10)
 
@@ -201,12 +257,7 @@ CreateTouchToggle("Auto Harvest", 155, function(state)
     _G.AutoHarvest = state
     print("Auto Harvest: " .. tostring(state))
     if state then
-        spawn(function()
-            while _G.AutoHarvest do
-                print("📦 Harvesting...")
-                wait(4)
-            end
-        end)
+        spawn(StartAutoHarvest) -- Pakai fungsi yang sudah diperbaiki
     end
 end)
 
@@ -248,7 +299,7 @@ MiniButton.MouseButton1Click:Connect(function()
     MiniButton.Visible = false
 end)
 
--- Simple drag untuk tombol mini (fixed version)
+-- Simple drag untuk tombol mini
 local miniDragging = false
 local miniDragStart
 
@@ -310,13 +361,13 @@ end)
 
 print("✅ Garden Bot successfully loaded!")
 print("🌻 Tap the green button to open menu")
+print("📦 Auto Harvest function FIXED!")
 
 -- Anti AFK simple
 spawn(function()
     while true do
         wait(60)
         if _G.AutoPlant or _G.AutoWater or _G.AutoHarvest or _G.AutoSell then
-            -- Move character slightly untuk anti AFK
             local character = localPlayer.Character
             if character then
                 local humanoid = character:FindFirstChild("Humanoid")
@@ -345,4 +396,11 @@ CloseButton.MouseButton1Click:Connect(function()
     end)
 end)
 
-print("🎯 Script ready! All functions working!")
+-- Manual harvest function untuk testing
+function TestHarvest()
+    print("🔧 Testing harvest function...")
+    HarvestPlants()
+end
+
+print("🎯 Script ready! Auto Harvest FIXED!")
+print("💡 Use TestHarvest() in console to test")

@@ -1,87 +1,5 @@
 -- GROW GARDEN BOT - SMART EVENT DETECTION
 -- Auto detect event names untuk berbagai game
--- Deteksi Event Teleport
-local TeleportEvents = {"Teleport", "TravelTo", "GoToShop", "GearShop", "ShopTeleport"}
-local TeleportEvent = FindEvent(TeleportEvents)
-
-print("🚀 Teleport Event: " .. (TeleportEvent and TeleportEvent.Name or "Not Found"))
-
--- Variabel untuk teleport
-_G.TeleportToShop = false
-
--- Fungsi untuk teleport ke gear shop
-function TeleportToGearShop()
-    if not TeleportEvent then
-        print("❌ No teleport event found")
-        return false
-    end
-    
-    print("🚀 Teleporting to Gear Shop...")
-    
-    -- Coba dengan berbagai parameter yang mungkin
-    local success = pcall(function()
-        TeleportEvent:FireServer("GearShop")
-        print("✅ Teleported to Gear Shop")
-    end)
-    
-    if not success then
-        pcall(function()
-            TeleportEvent:FireServer("Shop")
-            print("✅ Teleported to Shop")
-        end)
-    end
-    
-    if not success then
-        pcall(function()
-            TeleportEvent:FireServer()
-            print("✅ Teleported (no parameter)")
-        end)
-    end
-    
-    return success
-end
-
--- Tambahkan ke GUI (di bagian CreateSection dan CreateTouchToggle)
-CreateSection("TELEPORT", 235)
-
-CreateTouchToggle("Auto Teleport to Shop", 280, function(state)
-    _G.TeleportToShop = state
-    print("Auto Teleport: " .. tostring(state))
-    if state and TeleportEvent then
-        spawn(function()
-            while _G.TeleportToShop do
-                TeleportToGearShop()
-                wait(30) -- Teleport setiap 30 detik
-            end
-        end)
-    elseif state then
-        print("❌ Cannot start Auto Teleport - Event not found")
-    end
-end)
-
--- Tambahkan status teleport event
-table.insert(eventStatuses, {name = "Teleport Event", event = TeleportEvent, yPos = 430})
-
--- Perbarui posisi section berikutnya
-CreateSection("MANUAL CONTROL", 470)
-
--- Perbarui posisi tombol manual
-CreateManualButton("🔧 Manual Harvest", 515, HarvestPlants)
-CreateManualButton("🔧 Manual Plant", 560, PlantSeeds)
-CreateManualButton("🔧 Manual Water", 605, WaterPlants)
-CreateManualButton("🔧 Manual Sell", 650, SellCrops)
-CreateManualButton("🚀 Teleport to Shop", 695, TeleportToGearShop)  -- Tombol manual teleport
-
--- Perbarui ukuran canvas scroll
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 740)  -- Tambah tinggi untuk fitur baru
-
--- Perbarui output deteksi event
-print("🔍 Auto-detected " .. 
-      (PlantEvent and "Plant " or "") ..
-      (WaterEvent and "Water " or "") ..
-      (HarvestEvent and "Harvest " or "") ..
-      (SellEvent and "Sell " or "") ..
-      (TeleportEvent and "Teleport" or ""))
 
 if _G.GardenBot then return end
 _G.GardenBot = true
@@ -116,23 +34,27 @@ local PlantEvents = {"PlantSeed", "Plant", "AddSeed", "SowSeed", "PlantCrop"}
 local WaterEvents = {"WaterPlant", "Water", "Hydrate", "WaterCrop", "Irrigate"}
 local HarvestEvents = {"HarvestPlant", "Harvest", "Collect", "PickCrop", "Gather"}
 local SellEvents = {"SellCrops", "Sell", "SellHarvest", "SellItems", "SellProduce"}
+local TeleportEvents = {"Teleport", "TravelTo", "GoToShop", "GearShop", "ShopTeleport", "Transport"}
 
 local PlantEvent = FindEvent(PlantEvents)
 local WaterEvent = FindEvent(WaterEvents)
 local HarvestEvent = FindEvent(HarvestEvents)
 local SellEvent = FindEvent(SellEvents)
+local TeleportEvent = FindEvent(TeleportEvents)
 
 print("🔍 Event Detection Results:")
 print("🌱 Plant Event: " .. (PlantEvent and PlantEvent.Name or "Not Found"))
 print("💧 Water Event: " .. (WaterEvent and WaterEvent.Name or "Not Found"))
 print("📦 Harvest Event: " .. (HarvestEvent and HarvestEvent.Name or "Not Found"))
 print("💰 Sell Event: " .. (SellEvent and SellEvent.Name or "Not Found"))
+print("🚀 Teleport Event: " .. (TeleportEvent and TeleportEvent.Name or "Not Found"))
 
 -- Variables
 _G.AutoPlant = false
 _G.AutoWater = false
 _G.AutoHarvest = false
 _G.AutoSell = false
+_G.AutoTeleport = false
 _G.RandomPlant = false
 
 -- Create Main GUI
@@ -161,8 +83,8 @@ corner.Parent = MiniButton
 
 -- Main Window
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 320, 0, 450)
-MainFrame.Position = UDim2.new(0.5, -160, 0.5, -225)
+MainFrame.Size = UDim2.new(0, 320, 0, 500)
+MainFrame.Position = UDim2.new(0.5, -160, 0.5, -250)
 MainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 MainFrame.BorderSizePixel = 0
 MainFrame.Visible = false
@@ -209,7 +131,7 @@ ScrollFrame.Size = UDim2.new(1, -10, 1, -50)
 ScrollFrame.Position = UDim2.new(0, 5, 0, 45)
 ScrollFrame.BackgroundTransparency = 1
 ScrollFrame.ScrollBarThickness = 8
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 600)
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 750)
 ScrollFrame.ZIndex = 91
 ScrollFrame.Parent = MainFrame
 
@@ -400,6 +322,46 @@ function SellCrops()
     return true
 end
 
+-- FUNGSI TELEPORT KE GEAR SHOP
+function TeleportToGearShop()
+    if not TeleportEvent then
+        print("❌ No teleport event found")
+        return false
+    end
+    
+    print("🚀 Teleporting to Gear Shop...")
+    
+    -- Coba dengan berbagai parameter yang mungkin
+    local success = pcall(function()
+        TeleportEvent:FireServer("GearShop")
+        print("✅ Teleported to Gear Shop")
+        return true
+    end)
+    
+    if not success then
+        success = pcall(function()
+            TeleportEvent:FireServer("Shop")
+            print("✅ Teleported to Shop")
+            return true
+        end)
+    end
+    
+    if not success then
+        success = pcall(function()
+            TeleportEvent:FireServer()
+            print("✅ Teleported (no parameter)")
+            return true
+        end)
+    end
+    
+    if not success then
+        print("❌ Failed to teleport - all methods failed")
+        return false
+    end
+    
+    return success
+end
+
 -- AUTO FUNCTIONS
 function StartAutoHarvest()
     while _G.AutoHarvest do
@@ -426,6 +388,13 @@ function StartAutoSell()
     while _G.AutoSell do
         SellCrops()
         wait(5)
+    end
+end
+
+function StartAutoTeleport()
+    while _G.AutoTeleport do
+        TeleportToGearShop()
+        wait(30) -- Teleport setiap 30 detik
     end
 end
 
@@ -472,14 +441,27 @@ CreateTouchToggle("Auto Sell", 205, function(state)
     end
 end)
 
-CreateSection("EVENT STATUS", 265)
+CreateSection("TELEPORT", 265)
+
+CreateTouchToggle("Auto Teleport to Shop", 310, function(state)
+    _G.AutoTeleport = state
+    print("Auto Teleport: " .. tostring(state))
+    if state and TeleportEvent then
+        spawn(StartAutoTeleport)
+    elseif state then
+        print("❌ Cannot start Auto Teleport - Event not found")
+    end
+end)
+
+CreateSection("EVENT STATUS", 370)
 
 -- Event Status Labels
 local eventStatuses = {
-    {name = "Plant Event", event = PlantEvent, yPos = 310},
-    {name = "Water Event", event = WaterEvent, yPos = 340},
-    {name = "Harvest Event", event = HarvestEvent, yPos = 370},
-    {name = "Sell Event", event = SellEvent, yPos = 400}
+    {name = "Plant Event", event = PlantEvent, yPos = 415},
+    {name = "Water Event", event = WaterEvent, yPos = 445},
+    {name = "Harvest Event", event = HarvestEvent, yPos = 475},
+    {name = "Sell Event", event = SellEvent, yPos = 505},
+    {name = "Teleport Event", event = TeleportEvent, yPos = 535}
 }
 
 for _, status in ipairs(eventStatuses) do
@@ -497,7 +479,7 @@ for _, status in ipairs(eventStatuses) do
 end
 
 -- Manual Control Buttons
-CreateSection("MANUAL CONTROL", 440)
+CreateSection("MANUAL CONTROL", 575)
 
 local function CreateManualButton(text, yPos, callback)
     local button = Instance.new("TextButton")
@@ -520,10 +502,11 @@ local function CreateManualButton(text, yPos, callback)
     return button
 end
 
-CreateManualButton("🔧 Manual Harvest", 485, HarvestPlants)
-CreateManualButton("🔧 Manual Plant", 530, PlantSeeds)
-CreateManualButton("🔧 Manual Water", 575, WaterPlants)
-CreateManualButton("🔧 Manual Sell", 620, SellCrops)
+CreateManualButton("🔧 Manual Harvest", 620, HarvestPlants)
+CreateManualButton("🔧 Manual Plant", 665, PlantSeeds)
+CreateManualButton("🔧 Manual Water", 710, WaterPlants)
+CreateManualButton("🔧 Manual Sell", 755, SellCrops)
+CreateManualButton("🚀 Teleport to Shop", 800, TeleportToGearShop)
 
 -- TOMBOL MINI CLICK EVENT
 MiniButton.MouseButton1Click:Connect(function()
@@ -531,7 +514,7 @@ MiniButton.MouseButton1Click:Connect(function()
     MiniButton.Visible = false
 end)
 
--- DRAG FUNCTIONS (sama seperti sebelumnya)
+-- DRAG FUNCTIONS
 local miniDragging = false
 local miniDragStart
 
@@ -568,14 +551,15 @@ print("🔍 Auto-detected " ..
       (PlantEvent and "Plant " or "") ..
       (WaterEvent and "Water " or "") ..
       (HarvestEvent and "Harvest " or "") ..
-      (SellEvent and "Sell" or ""))
+      (SellEvent and "Sell " or "") ..
+      (TeleportEvent and "Teleport" or ""))
 print("👆 Use manual buttons to test functions")
 
 -- Anti AFK
 spawn(function()
     while true do
         wait(60)
-        if _G.AutoPlant or _G.AutoWater or _G.AutoHarvest or _G.AutoSell then
+        if _G.AutoPlant or _G.AutoWater or _G.AutoHarvest or _G.AutoSell or _G.AutoTeleport then
             local character = localPlayer.Character
             if character and character:FindFirstChild("Humanoid") then
                 character.Humanoid:Move(Vector3.new(0, 0, 0))

@@ -137,7 +137,7 @@ local TeleportSection = TeleportTab:CreateSection("Teleport Locations")
 TeleportTab:CreateButton({
     Name = "Teleport to Planting Area",
     Callback = function()
-        teleportTo(CFrame.new(70, 5, 70))
+        teleportTo(CFrame.new(0, 5, 0))
         Rayfield:Notify({
             Title = "Teleport",
             Content = "Teleported to Planting Area",
@@ -175,26 +175,6 @@ TeleportTab:CreateButton({
 
 -- Player Section
 local PlayerSection = PlayerTab:CreateSection("Player Modifications")
-
--- Buat label untuk menampilkan koordinat
-local coordinatesLabel = PlayerTab:CreateLabel("Position: Memuat..!")
-
--- Jalankan pembaruan koordinat
-spawn(function()
-    while true do
-        pcall(function()
-            local character = game.Players.LocalPlayer.Character
-            if character and character:FindFirstChild("HumanoidRootPart") then
-                local position = character.HumanoidRootPart.Position
-                coordinatesLabel:SetText(string.format("Position: X: %.2f, Y: %.2f, Z: %.2f", 
-                    position.X, position.Y, position.Z))
-            else
-                coordinatesLabel:SetText("Position: Karakter tidak ditemukan")
-            end
-        end)
-        wait(0.1)
-    end
-end)
 
 local WalkSpeedSlider = PlayerTab:CreateSlider({
     Name = "Walk Speed",
@@ -280,6 +260,63 @@ SettingsTab:CreateKeybind({
         Rayfield:Toggle()
     end,
 })
+
+-- NEW: CFrame Position Display Section
+local CFrameSection = SettingsTab:CreateSection("Current Position")
+
+-- Create a label to display the current position
+local positionLabel = SettingsTab:CreateLabel({
+    Name = "Current Position: Calculating...",
+    TextSize = 14,
+})
+
+-- Create a button to copy the current position to clipboard
+SettingsTab:CreateButton({
+    Name = "Copy Current Position",
+    Callback = function()
+        if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local pos = game.Players.LocalPlayer.Character.HumanoidRootPart.Position
+            local cframeString = string.format("CFrame.new(%.2f, %.2f, %.2f)", pos.X, pos.Y, pos.Z)
+            
+            -- Copy to clipboard
+            setclipboard(cframeString)
+            
+            Rayfield:Notify({
+                Title = "Position Copied",
+                Content = "Current position copied to clipboard: " .. cframeString,
+                Duration = 5,
+                Image = 4483362458,
+            })
+        else
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "Cannot get player position",
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+-- Function to update the position label
+local function updatePositionDisplay()
+    if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local pos = game.Players.LocalPlayer.Character.HumanoidRootPart.Position
+        positionLabel:Set("Current Position: X: " .. string.format("%.2f", pos.X) .. 
+                         ", Y: " .. string.format("%.2f", pos.Y) .. 
+                         ", Z: " .. string.format("%.2f", pos.Z))
+    else
+        positionLabel:Set("Current Position: Character not found")
+    end
+end
+
+-- Start updating the position display
+spawn(function()
+    while true do
+        updatePositionDisplay()
+        wait(0.5) -- Update every 0.5 seconds
+    end
+end)
 
 -- Auto Farm Functions
 function autoPlant()

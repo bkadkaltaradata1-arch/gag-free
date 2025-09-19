@@ -1,546 +1,125 @@
--- Script Auto Farm untuk Game "Grow a Garden" dengan GUI Minimizable
--- Compatible dengan Delta Executor
--- Dioptimalkan untuk perangkat Android dengan virtual keyboard
-
--- Load Rayfield UI Library
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-
--- Create GUI Window
-local Window = Rayfield:CreateWindow({
-    Name = "🌻 Grow a Garden Auto Farm",
-    LoadingTitle = "Grow a Garden Auto Farm",
-    LoadingSubtitle = "by Script Provider - Optimized for Android",
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "GrowAGarden",
-        FileName = "AutoFarmConfig"
-    },
-    Discord = {
-        Enabled = false,
-        Invite = "noinvitelink",
-        RememberJoins = true
-    },
-    KeySystem = false,
-})
-
--- Create Tabs
-local FarmTab = Window:CreateTab("Farm", 4483362458)
-local TeleportTab = Window:CreateTab("Teleport", 4483362458)
-local PlayerTab = Window:CreateTab("Player", 4483362458)
-local SettingsTab = Window:CreateTab("Settings", 4483362458)
-
--- Variables
-getgenv().AutoPlant = false
-getgenv().AutoWater = false
-getgenv().AutoHarvest = false
-getgenv().SelectedSeed = "Sunflower"
-getgenv().WalkSpeed = 16
-getgenv().JumpPower = 50
-
--- Virtual Keyboard untuk Android
-local function createVirtualKeyboard()
-    if not game:GetService("UserInputService").TouchEnabled then return end
-    
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "VirtualKeyboard"
-    ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-    ScreenGui.ResetOnSpawn = false
-    
-    local keyboardFrame = Instance.new("Frame")
-    keyboardFrame.Name = "KeyboardFrame"
-    keyboardFrame.Size = UDim2.new(1, 0, 0.3, 0)
-    keyboardFrame.Position = UDim2.new(0, 0, 0.7, 0)
-    keyboardFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    keyboardFrame.BorderSizePixel = 0
-    keyboardFrame.Parent = ScreenGui
-    keyboardFrame.Visible = false
-    
-    -- Tombol-tombol keyboard sederhana
-    local keys = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
-                  "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P",
-                  "A", "S", "D", "F", "G", "H", "J", "K", "L",
-                  "Z", "X", "C", "V", "B", "N", "M", "Space", "Backspace", "Enter"}
-    
-    local buttonSize = UDim2.new(0.08, 0, 0.2, 0)
-    local padding = 5
-    
-    for i, key in ipairs(keys) do
-        local button = Instance.new("TextButton")
-        button.Name = key .. "Button"
-        button.Size = key == "Space" and UDim2.new(0.3, 0, 0.2, 0) or buttonSize
-        button.Position = UDim2.new((i-1)%10 * 0.1, padding, math.floor((i-1)/10) * 0.25, padding)
-        button.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-        button.TextColor3 = Color3.fromRGB(255, 255, 255)
-        button.Text = key
-        button.Font = Enum.Font.SourceSans
-        button.TextSize = 14
-        button.Parent = keyboardFrame
+function harvestPlant()
+    -- Implementasi untuk memanen tanaman yang kompatibel dengan mobile
+    local tool = findTool("Harvest Tool") or findTool("Sickle") or findTool("Axe")
+    if tool then
+        game.Players.LocalPlayer.Character.Humanoid:EquipTool(tool)
+        wait(0.5)
         
-        button.MouseButton1Click:Connect(function()
-            -- Logika untuk menangani input keyboard
-            if key == "Space" then
-                -- Handle space
-            elseif key == "Backspace" then
-                -- Handle backspace
-            elseif key == "Enter" then
-                -- Handle enter
-            else
-                -- Handle karakter biasa
+        -- Coba beberapa metode yang mungkin bekerja di mobile
+        -- Metode 1: Aktifkan tool secara langsung
+        if tool:FindFirstChild("Activate") then
+            tool.Activate:Invoke()
+        end
+        
+        -- Metode 2: Gunakan event remote jika ada
+        local events = getHarvestEvents()
+        if #events > 0 then
+            for _, event in ipairs(events) do
+                event:FireServer()
             end
-        end)
+        end
+        
+        -- Metode 3: Gunukan touch events untuk mobile
+        local touchEvent = getTouchEvent()
+        if touchEvent then
+            touchEvent:FireServer(tool)
+        end
+        
+        wait(0.5)
     end
-    
-    -- Tombol untuk menampilkan/sembunyikan keyboard
-    local toggleButton = Instance.new("TextButton")
-    toggleButton.Name = "ToggleKeyboard"
-    toggleButton.Size = UDim2.new(0.1, 0, 0.05, 0)
-    toggleButton.Position = UDim2.new(0.9, 0, 0.95, 0)
-    toggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    toggleButton.Text = "⌨️"
-    toggleButton.Font = Enum.Font.SourceSans
-    toggleButton.TextSize = 14
-    toggleButton.Parent = ScreenGui
-    
-    toggleButton.MouseButton1Click:Connect(function()
-        keyboardFrame.Visible = not keyboardFrame.Visible
-    end)
-    
-    return ScreenGui
 end
 
--- Cek jika di perangkat Android dan buat virtual keyboard
-if game:GetService("UserInputService").TouchEnabled then
-    createVirtualKeyboard()
+-- Fungsi baru untuk mendapatkan event panen yang tersedia
+function getHarvestEvents()
+    local events = {}
     
-    -- Notifikasi untuk pengguna Android
-    Rayfield:Notify({
-        Title = "Android Mode",
-        Content = "Virtual keyboard tersedia di pojok kanan bawah",
-        Duration = 6,
-        Image = 4483362458,
-    })
-end
-
--- Farm Section
-local FarmSection = FarmTab:CreateSection("Auto Farm Options")
-
-local PlantToggle = FarmTab:CreateToggle({
-    Name = "Auto Plant Seeds",
-    CurrentValue = false,
-    Flag = "AutoPlantToggle",
-    Callback = function(Value)
-        getgenv().AutoPlant = Value
-        if Value then
-            Rayfield:Notify({
-                Title = "Auto Plant",
-                Content = "Auto Plant enabled",
-                Duration = 3,
-                Image = 4483362458,
-            })
-            autoPlant()
-        else
-            Rayfield:Notify({
-                Title = "Auto Plant",
-                Content = "Auto Plant disabled",
-                Duration = 3,
-                Image = 4483362458,
-            })
-        end
-    end,
-})
-
-local WaterToggle = FarmTab:CreateToggle({
-    Name = "Auto Water Plants",
-    CurrentValue = false,
-    Flag = "AutoWaterToggle",
-    Callback = function(Value)
-        getgenv().AutoWater = Value
-        if Value then
-            Rayfield:Notify({
-                Title = "Auto Water",
-                Content = "Auto Water enabled",
-                Duration = 3,
-                Image = 4483362458,
-            })
-            autoWater()
-        else
-            Rayfield:Notify({
-                Title = "Auto Water",
-                Content = "Auto Water disabled",
-                Duration = 3,
-                Image = 4483362458,
-            })
-        end
-    end,
-})
-
-local HarvestToggle = FarmTab:CreateToggle({
-    Name = "Auto Harvest Plants",
-    CurrentValue = false,
-    Flag = "AutoHarvestToggle",
-    Callback = function(Value)
-        getgenv().AutoHarvest = Value
-        if Value then
-            Rayfield:Notify({
-                Title = "Auto Harvest",
-                Content = "Auto Harvest enabled",
-                Duration = 3,
-                Image = 4483362458,
-            })
-            autoHarvest()
-        else
-            Rayfield:Notify({
-                Title = "Auto Harvest",
-                Content = "Auto Harvest disabled",
-                Duration = 3,
-                Image = 4483362458,
-            })
-        end
-    end,
-})
-
-local SeedDropdown = FarmTab:CreateDropdown({
-    Name = "Select Seed Type",
-    Options = {"Sunflower", "Tomato", "Carrot", "Potato", "Rose"},
-    CurrentOption = "Sunflower",
-    Flag = "SeedDropdown",
-    Callback = function(Option)
-        getgenv().SelectedSeed = Option
-        Rayfield:Notify({
-            Title = "Seed Selected",
-            Content = "Selected seed: " .. Option,
-            Duration = 3,
-            Image = 4483362458,
-        })
-    end,
-})
-
--- Teleport Section
-local TeleportSection = TeleportTab:CreateSection("Teleport Locations")
-
-TeleportTab:CreateButton({
-    Name = "Teleport to Planting Area",
-    Callback = function()
-        teleportTo(CFrame.new(0, 5, 0))
-        Rayfield:Notify({
-            Title = "Teleport",
-            Content = "Teleported to Planting Area",
-            Duration = 3,
-            Image = 4483362458,
-        })
-    end,
-})
-
-TeleportTab:CreateButton({
-    Name = "Teleport to Water Source",
-    Callback = function()
-        teleportTo(CFrame.new(20, 5, 15))
-        Rayfield:Notify({
-            Title = "Teleport",
-            Content = "Teleported to Water Source",
-            Duration = 3,
-            Image = 4483362458,
-        })
-    end,
-})
-
-TeleportTab:CreateButton({
-    Name = "Teleport to Selling Area",
-    Callback = function()
-        teleportTo(CFrame.new(-15, 5, -10))
-        Rayfield:Notify({
-            Title = "Teleport",
-            Content = "Teleported to Selling Area",
-            Duration = 3,
-            Image = 4483362458,
-        })
-    end,
-})
-
--- Player Section
-local PlayerSection = PlayerTab:CreateSection("Player Modifications")
-
-local WalkSpeedSlider = PlayerTab:CreateSlider({
-    Name = "Walk Speed",
-    Range = {16, 100},
-    Increment = 1,
-    Suffix = "studs",
-    CurrentValue = 16,
-    Flag = "WalkSpeedSlider",
-    Callback = function(Value)
-        getgenv().WalkSpeed = Value
-        setWalkSpeed(Value)
-        Rayfield:Notify({
-            Title = "Walk Speed",
-            Content = "Walk speed set to: " .. Value,
-            Duration = 3,
-            Image = 4483362458,
-        })
-    end,
-})
-
-local JumpPowerSlider = PlayerTab:CreateSlider({
-    Name = "Jump Power",
-    Range = {50, 100},
-    Increment = 1,
-    Suffix = "studs",
-    CurrentValue = 50,
-    Flag = "JumpPowerSlider",
-    Callback = function(Value)
-        getgenv().JumpPower = Value
-        setJumpPower(Value)
-        Rayfield:Notify({
-            Title = "Jump Power",
-            Content = "Jump power set to: " .. Value,
-            Duration = 3,
-            Image = 4483362458,
-        })
-    end,
-})
-
--- Settings Section
-local SettingsSection = SettingsTab:CreateSection("Script Settings")
-
-SettingsTab:CreateButton({
-    Name = "Save Settings",
-    Callback = function()
-        Rayfield:Notify({
-            Title = "Settings Saved",
-            Content = "Your settings have been saved",
-            Duration = 3,
-            Image = 4483362458,
-        })
-    end,
-})
-
-SettingsTab:CreateButton({
-    Name = "Reload Script",
-    Callback = function()
-        Rayfield:Notify({
-            Title = "Reloading",
-            Content = "Script will reload...",
-            Duration = 3,
-            Image = 4483362458,
-        })
-        wait(3)
-        -- Reload script logic would go here
-    end,
-})
-
-SettingsTab:CreateButton({
-    Name = "Destroy GUI",
-    Callback = function()
-        Rayfield:Destroy()
-        -- Hapus juga virtual keyboard jika ada
-        if game.Players.LocalPlayer.PlayerGui:FindFirstChild("VirtualKeyboard") then
-            game.Players.LocalPlayer.PlayerGui.VirtualKeyboard:Destroy()
-        end
-    end,
-})
-
-SettingsTab:CreateKeybind({
-    Name = "Toggle GUI Keybind",
-    CurrentKeybind = "RightShift",
-    HoldToInteract = false,
-    Flag = "GUIKeybind",
-    Callback = function(Keybind)
-        -- This callback will be triggered when the keybind is pressed
-        Rayfield:Toggle()
-    end,
-})
-
--- Auto Farm Functions
-function autoPlant()
-    spawn(function()
-        while getgenv().AutoPlant do
-            local plots = findEmptyPlots()
-            if #plots > 0 then
-                for _, plot in ipairs(plots) do
-                    if not getgenv().AutoPlant then break end
-                    teleportTo(plot.Position)
-                    plantSeed(getgenv().SelectedSeed)
-                    wait(0.5)
+    -- Cari event panen di berbagai lokasi yang mungkin
+    local possibleLocations = {
+        game:GetService("ReplicatedStorage"),
+        game:GetService("Workspace"),
+        game:GetService("Players").LocalPlayer:FindFirstChild("PlayerScripts")
+    }
+    
+    for _, location in ipairs(possibleLocations) do
+        if location then
+            for _, item in ipairs(location:GetDescendants()) do
+                if item:IsA("RemoteEvent") and 
+                  (item.Name:find("Harvest") or item.Name:find("Collect") or 
+                   item.Name:find("Pick") or item.Name:find("Gather")) then
+                    table.insert(events, item)
                 end
-                Rayfield:Notify({
-                    Title = "Auto Plant",
-                    Content = "Planted in " .. #plots .. " plots",
-                    Duration = 3,
-                    Image = 4483362458,
-                })
-            end
-            wait(2)
-        end
-    end)
-end
-
-function autoWater()
-    spawn(function()
-        while getgenv().AutoWater do
-            local plants = findDryPlants()
-            if #plants > 0 then
-                for _, plant in ipairs(plants) do
-                    if not getgenv().AutoWater then break end
-                    teleportTo(plant.Position)
-                    waterPlant()
-                    wait(0.5)
-                end
-                Rayfield:Notify({
-                    Title = "Auto Water",
-                    Content = "Watered " .. #plants .. " plants",
-                    Duration = 3,
-                    Image = 4483362458,
-                })
-            end
-            wait(2)
-        end
-    end)
-end
-
-function autoHarvest()
-    spawn(function()
-        while getgenv().AutoHarvest do
-            local plants = findMaturePlants()
-            if #plants > 0 then
-                for _, plant in ipairs(plants) do
-                    if not getgenv().AutoHarvest then break end
-                    teleportTo(plant.Position)
-                    harvestPlant()
-                    wait(0.5)
-                end
-                Rayfield:Notify({
-                    Title = "Auto Harvest",
-                    Content = "Harvested " .. #plants .. " plants",
-                    Duration = 3,
-                    Image = 4483362458,
-                })
-            end
-            wait(2)
-        end
-    end)
-end
-
--- Game Interaction Functions (Placeholder implementations)
-function findEmptyPlots()
-    -- Implementasi untuk mencari plot kosong
-    local emptyPlots = {}
-    local plots = workspace:FindFirstChild("Plots") or workspace:FindFirstChild("Garden") or workspace:FindFirstChild("Farm")
-    
-    if plots then
-        for _, plot in ipairs(plots:GetChildren()) do
-            if plot:IsA("Part") and plot.Name:find("Plot") and not plot:FindFirstChild("Plant") then
-                table.insert(emptyPlots, plot)
             end
         end
     end
     
-    return emptyPlots
+    return events
 end
 
-function findDryPlants()
-    -- Implementasi untuk mencari tanaman yang perlu disiram
-    local dryPlants = {}
-    local plants = workspace:FindFirstChild("Plants") or workspace:FindFirstChild("Crops")
+-- Fungsi khusus untuk mendapatkan event touch yang digunakan di mobile
+function getTouchEvent()
+    -- Cari event touch/interaction yang biasa digunakan di game mobile
+    local touchEvent
     
-    if plants then
-        for _, plant in ipairs(plants:GetChildren()) do
-            if plant:IsA("Model") and plant:GetAttribute("NeedsWater") then
-                table.insert(dryPlants, plant)
-            end
-        end
+    -- Cek di ReplicatedStorage terlebih dahulu
+    if game:GetService("ReplicatedStorage"):FindFirstChild("TouchEvent") then
+        touchEvent = game:GetService("ReplicatedStorage").TouchEvent
+    elseif game:GetService("ReplicatedStorage"):FindFirstChild("MobileEvent") then
+        touchEvent = game:GetService("ReplicatedStorage").MobileEvent
+    elseif game:GetService("ReplicatedStorage"):FindFirstChild("InteractEvent") then
+        touchEvent = game:GetService("ReplicatedStorage").InteractEvent
     end
     
-    return dryPlants
+    return touchEvent
 end
 
+-- Fungsi untuk mencari tanaman yang siap panen (diperbarui)
 function findMaturePlants()
-    -- Implementasi untuk mencari tanaman yang siap panen
     local maturePlants = {}
-    local plants = workspace:FindFirstChild("Plants") or workspace:FindFirstChild("Crops")
     
-    if plants then
-        for _, plant in ipairs(plants:GetChildren()) do
-            if plant:IsA("Model") and plant:GetAttribute("IsMature") then
-                table.insert(maturePlants, plant)
+    -- Cari tanaman di berbagai lokasi yang mungkin
+    local possibleParents = {
+        workspace:FindFirstChild("Plants"),
+        workspace:FindFirstChild("Crops"),
+        workspace:FindFirstChild("Garden"),
+        workspace:FindFirstChild("Farm"),
+        workspace
+    }
+    
+    for _, parent in ipairs(possibleParents) do
+        if parent then
+            for _, plant in ipairs(parent:GetChildren()) do
+                if plant:IsA("Model") then
+                    -- Beberapa cara untuk mendeteksi tanaman siap panen
+                    local isMature = false
+                    
+                    -- 1. Cek attribute
+                    if plant:GetAttribute("IsMature") or plant:GetAttribute("ReadyToHarvest") then
+                        isMature = true
+                    end
+                    
+                    -- 2. Cek part color atau transparency (jika ada perubahan visual)
+                    for _, part in ipairs(plant:GetDescendants()) do
+                        if part:IsA("Part") then
+                            if part.BrickColor == BrickColor.new("Bright yellow") or 
+                               part.Transparency < 0.5 then
+                                isMature = true
+                                break
+                            end
+                        end
+                    end
+                    
+                    -- 3. Cek jika ada part khusus untuk tanaman matang
+                    if plant:FindFirstChild("Harvestable") or plant:FindFirstChild("Mature") then
+                        isMature = true
+                    end
+                    
+                    if isMature then
+                        table.insert(maturePlants, plant)
+                    end
+                end
             end
         end
     end
     
     return maturePlants
 end
-
-function plantSeed(seedType)
-    -- Implementasi untuk menanam biji
-    local tool = findTool(seedType)
-    if tool then
-        game.Players.LocalPlayer.Character.Humanoid:EquipTool(tool)
-        wait(0.2)
-        mouse1click()
-    end
-end
-
-function waterPlant()
-    -- Implementasi untuk menyiram tanaman
-    local tool = findTool("Watering Can")
-    if tool then
-        game.Players.LocalPlayer.Character.Humanoid:EquipTool(tool)
-        wait(0.2)
-        mouse1click()
-    end
-end
-
-function harvestPlant()
-    -- Implementasi untuk memanen tanaman
-    local tool = findTool("Harvest Tool") or findTool("Sickle") or findTool("Axe")
-    if tool then
-        game.Players.LocalPlayer.Character.Humanoid:EquipTool(tool)
-        wait(0.2)
-        mouse1click()
-    end
-end
-
-function findTool(toolName)
-    -- Mencari tool di backpack player
-    local backpack = game.Players.LocalPlayer.Backpack
-    for _, item in ipairs(backpack:GetChildren()) do
-        if item:IsA("Tool") and (item.Name == toolName or item.Name:find(toolName)) then
-            return item
-        end
-    end
-    return nil
-end
-
-function teleportTo(cframe)
-    -- Teleport player ke posisi tertentu
-    if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = cframe
-    end
-end
-
-function setWalkSpeed(speed)
-    -- Mengatur walk speed player
-    if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
-        game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = speed
-    end
-end
-
-function setJumpPower(power)
-    -- Mengatur jump power player
-    if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
-        game.Players.LocalPlayer.Character.Humanoid.JumpPower = power
-    end
-end
-
--- Initialize
-setWalkSpeed(getgenv().WalkSpeed)
-setJumpPower(getgenv().JumpPower)
-
-Rayfield:Notify({
-    Title = "Script Loaded",
-    Content = "Grow a Garden Auto Farm successfully loaded!",
-    Duration = 6,
-    Image = 4483362458,
-})
-
--- Close GUI with RightShift (default)
--- You can minimize/maximize the GUI with the keybind

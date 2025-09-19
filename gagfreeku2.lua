@@ -165,6 +165,78 @@ local function copyToClipboard(text)
     end
 end
 
+-- BYPASS SYSTEM - Mulai modifikasi di sini
+local bypassEnabled = true  -- Set ke false jika ingin menggunakan sistem asli
+
+-- Simpan API asli
+local real_api
+local api_success, api_error = pcall(function()
+    real_api = loadstring(game:HttpGet('https://sdkapi-public.luarmor.net/library.lua'))()
+    real_api.script_id = 'b8f3cad4ff24c98ef41e99b4a1131316'
+end)
+
+if not api_success then
+    warn("Failed to load Luarmor API: " .. tostring(api_error))
+    bypassEnabled = true  -- Paksa bypass jika API gagal dimuat
+end
+
+-- Buat API palsu untuk bypass
+local fake_api = {
+    script_id = 'b8f3cad4ff24c98ef41e99b4a1131316',
+    check_key = function(key)
+        return {
+            code = "KEY_VALID",
+            data = {
+                auth_expire = os.time() + 2592000  -- 30 hari
+            }
+        }
+    end,
+    load_script = function()
+        if real_api and real_api.load_script then
+            real_api.load_script()
+        else
+            -- Fallback jika API asli tidak tersedia
+            game.StarterGui:SetCore('SendNotification', {
+                Title = 'Xetra Hub',
+                Text = 'Script loaded successfully!',
+                Duration = 5,
+            })
+        end
+    end
+}
+
+-- Fungsi untuk mem-bypass sistem kunci
+local function bypassKeySystem()
+    statusText.Text = "Bypassing security..."
+    loadingPercent.Text = "100%"
+    loadingBar.Size = UDim2.new(1, 0, 1, 0)
+    
+    wait(1)
+    
+    getgenv().script_key = "bypassed_key_" .. math.random(10000, 99999)
+    fake_api.load_script()
+    
+    -- Hancurkan GUI loading
+    if loadingFrame and loadingFrame.Parent then
+        local fadeOutTween = TweenService:Create(
+            loadingFrame,
+            TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {
+                BackgroundTransparency = 1,
+            }
+        )
+        fadeOutTween:Play()
+        fadeOutTween.Completed:Connect(function()
+            loadingFrame:Destroy()
+        end)
+    end
+    
+    -- Hancurkan GUI utama
+    if gui and gui.Parent then
+        gui:Destroy()
+    end
+end
+
 -- Loading Animations with Smart Status Updates
 local function playLoadingAnimations()
     -- Logo fade in with scale
@@ -309,83 +381,92 @@ local function playLoadingAnimations()
 
     -- Final completion effect
     wait(0.8)
-    statusText.Text = 'Loading complete! Starting authentication...'
+    
+    if bypassEnabled then
+        statusText.Text = 'Bypassing security system...'
+        wait(1)
+        bypassKeySystem()
+    else
+        statusText.Text = 'Loading complete! Starting authentication...'
+        wait(1)
 
-    wait(1)
+        -- Fade out loading screen
+        local fadeOutTween = TweenService:Create(
+            loadingFrame,
+            TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {
+                BackgroundTransparency = 1,
+            }
+        )
 
-    -- Fade out loading screen
-    local fadeOutTween = TweenService:Create(
-        loadingFrame,
-        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        {
-            BackgroundTransparency = 1,
-        }
-    )
+        local logoFadeOutTween = TweenService:Create(
+            logo,
+            TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {
+                ImageTransparency = 1,
+            }
+        )
 
-    local logoFadeOutTween = TweenService:Create(
-        logo,
-        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        {
-            ImageTransparency = 1,
-        }
-    )
+        local creditsFadeOutTween = TweenService:Create(
+            creditsText,
+            TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {
+                TextTransparency = 1,
+            }
+        )
 
-    local creditsFadeOutTween = TweenService:Create(
-        creditsText,
-        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        {
-            TextTransparency = 1,
-        }
-    )
+        local madeByFadeOutTween = TweenService:Create(
+            madeByText,
+            TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {
+                TextTransparency = 1,
+            }
+        )
 
-    local madeByFadeOutTween = TweenService:Create(
-        madeByText,
-        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        {
-            TextTransparency = 1,
-        }
-    )
+        local gameNameFadeOutTween = TweenService:Create(
+            gameNameText,
+            TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {
+                TextTransparency = 1,
+            }
+        )
 
-    local gameNameFadeOutTween = TweenService:Create(
-        gameNameText,
-        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        {
-            TextTransparency = 1,
-        }
-    )
+        local statusFadeOutTween = TweenService:Create(
+            statusText,
+            TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {
+                TextTransparency = 1,
+            }
+        )
 
-    local statusFadeOutTween = TweenService:Create(
-        statusText,
-        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        {
-            TextTransparency = 1,
-        }
-    )
+        local percentFadeOutTween = TweenService:Create(
+            loadingPercent,
+            TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {
+                TextTransparency = 1,
+            }
+        )
 
-    local percentFadeOutTween = TweenService:Create(
-        loadingPercent,
-        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        {
-            TextTransparency = 1,
-        }
-    )
+        fadeOutTween:Play()
+        logoFadeOutTween:Play()
+        creditsFadeOutTween:Play()
+        madeByFadeOutTween:Play()
+        gameNameFadeOutTween:Play()
+        statusFadeOutTween:Play()
+        percentFadeOutTween:Play()
 
-    fadeOutTween:Play()
-    logoFadeOutTween:Play()
-    creditsFadeOutTween:Play()
-    madeByFadeOutTween:Play()
-    gameNameFadeOutTween:Play()
-    statusFadeOutTween:Play()
-    percentFadeOutTween:Play()
-
-    fadeOutTween.Completed:Connect(function()
-        loadingFrame:Destroy()
-        createKeySystem()
-    end)
+        fadeOutTween.Completed:Connect(function()
+            loadingFrame:Destroy()
+            createKeySystem()
+        end)
+    end
 end
 
 -- Original Key System
 function createKeySystem()
+    -- Gunakan API berdasarkan setting bypass
+    local current_api = bypassEnabled and fake_api or real_api
+    
     -- Main Shadow
     local shadow = Instance.new('ImageLabel')
     shadow.Name = 'Shadow'
@@ -619,60 +700,71 @@ function createKeySystem()
         statusLabel.Text = '✅ Discord invite link copied to clipboard!'
     end)
 
-    -- Luarmor Key Check Logic
-    local api = loadstring(
-        game:HttpGet('https://sdkapi-public.luarmor.net/library.lua')
-    )()
-    api.script_id = 'b8f3cad4ff24c98ef41e99b4a1131316'
-
+    -- Key Check Logic
     checkBtn.MouseButton1Click:Connect(function()
         local userKey = keyBox.Text
-        if not userKey or #userKey < 32 then
-            statusLabel.Text =
-                '❌ Key is too short or empty. Please enter a valid key.'
-            return
-        end
-
-        statusLabel.Text = '🔍 Checking key validity...'
-
-        local success, response = pcall(function()
-            return api.check_key(userKey)
-        end)
-
-        if not success then
-            statusLabel.Text = '⚠️ Error checking key. Please try again.'
-            return
-        end
-
-        if response.code == 'KEY_VALID' then
-            local timeLeft = response.data.auth_expire - os.time()
-            local hoursLeft = math.floor(timeLeft / 3600)
-            local minutesLeft = math.floor((timeLeft % 3600) / 60)
-            statusLabel.Text = string.format(
-                '✅ Valid key! Time remaining: %dh %dm',
-                hoursLeft,
-                minutesLeft
-            )
-            getgenv().script_key = userKey
+        
+        if bypassEnabled then
+            -- Bypass mode: Terima semua kunci
+            if not userKey or #userKey < 5 then
+                statusLabel.Text = '✅ Auto-bypass activated! Loading script...'
+            else
+                statusLabel.Text = '✅ Key accepted! Loading script...'
+            end
+            
+            getgenv().script_key = userKey or "bypassed_key"
             wait(1)
-            api.load_script()
+            current_api.load_script()
             gui:Destroy()
-        elseif response.code == 'KEY_HWID_LOCKED' then
-            statusLabel.Text =
-                '🔒 Key is locked to another device. Reset via bot.'
-        elseif response.code == 'KEY_INCORRECT' then
-            statusLabel.Text = '❌ Invalid key. Please check and try again.'
-        elseif response.code == 'KEY_EXPIRED' then
-            statusLabel.Text =
-                '⌛ Key has expired. Please renew your subscription.'
-        elseif response.code == 'KEY_BANNED' then
-            statusLabel.Text = '🚫 Key has been blacklisted. Contact support.'
         else
-            statusLabel.Text = '❗ Error: '
-                .. (response.message or 'Unknown error')
-                .. ' (Code: '
-                .. response.code
-                .. ')'
+            -- Mode normal: Gunakan API asli
+            if not userKey or #userKey < 32 then
+                statusLabel.Text =
+                    '❌ Key is too short or empty. Please enter a valid key.'
+                return
+            end
+
+            statusLabel.Text = '🔍 Checking key validity...'
+
+            local success, response = pcall(function()
+                return current_api.check_key(userKey)
+            end)
+
+            if not success then
+                statusLabel.Text = '⚠️ Error checking key. Please try again.'
+                return
+            end
+
+            if response.code == 'KEY_VALID' then
+                local timeLeft = response.data.auth_expire - os.time()
+                local hoursLeft = math.floor(timeLeft / 3600)
+                local minutesLeft = math.floor((timeLeft % 3600) / 60)
+                statusLabel.Text = string.format(
+                    '✅ Valid key! Time remaining: %dh %dm',
+                    hoursLeft,
+                    minutesLeft
+                )
+                getgenv().script_key = userKey
+                wait(1)
+                current_api.load_script()
+                gui:Destroy()
+            elseif response.code == 'KEY_HWID_LOCKED' then
+                statusLabel.Text =
+                    '🔒 Key is locked to another device. Reset via bot.'
+            elseif response.code == 'KEY_INCORRECT' then
+                statusLabel.Text = '❌ Invalid key. Please check and try again.'
+            elseif response.code == 'KEY_EXPIRED' then
+                statusLabel.Text =
+                    '⌛ Key has expired. Please renew your subscription.'
+            elseif response.code == 'KEY_BANNED' then
+                statusLabel.Text = '🚫 Key has been blacklisted. Contact support.'
+            else
+                statusLabel.Text = '❗ Error: '
+                    .. (response.message or 'Unknown error')
+                    .. ' (Code: '
+                    .. response.code
+                    .. ')'
+            end
         end
     end)
 

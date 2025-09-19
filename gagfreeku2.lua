@@ -1,4 +1,3 @@
-
 -- Script Auto Farm untuk Game "Grow a Garden" dengan GUI Minimizable
 -- Compatible dengan Delta Executor
 -- Gunakan dengan tanggung jawab, hanya untuk tujuan edukasi

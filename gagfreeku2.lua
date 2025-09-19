@@ -36,8 +36,10 @@ getgenv().AutoHarvest = false
 getgenv().SelectedSeed = "Sunflower"
 getgenv().WalkSpeed = 16
 getgenv().JumpPower = 50
-getgenv().HarvestRange = 10
-getgenv().RandomPosition = true
+
+-- Player position display variables
+local playerPositionLabel
+local playerPositionUpdateConnection
 
 -- Farm Section
 local FarmSection = FarmTab:CreateSection("Auto Farm Options")
@@ -117,21 +119,6 @@ local HarvestToggle = FarmTab:CreateToggle({
     end,
 })
 
-local RandomToggle = FarmTab:CreateToggle({
-    Name = "Random Harvest Position",
-    CurrentValue = true,
-    Flag = "RandomPositionToggle",
-    Callback = function(Value)
-        getgenv().RandomPosition = Value
-        Rayfield:Notify({
-            Title = "Random Position",
-            Content = Value and "Random position enabled" or "Random position disabled",
-            Duration = 3,
-            Image = 4483362458,
-        })
-    end,
-})
-
 local SeedDropdown = FarmTab:CreateDropdown({
     Name = "Select Seed Type",
     Options = {"Sunflower", "Tomato", "Carrot", "Potato", "Rose"},
@@ -142,24 +129,6 @@ local SeedDropdown = FarmTab:CreateDropdown({
         Rayfield:Notify({
             Title = "Seed Selected",
             Content = "Selected seed: " .. Option,
-            Duration = 3,
-            Image = 4483362458,
-        })
-    end,
-})
-
-local RangeSlider = FarmTab:CreateSlider({
-    Name = "Harvest Range",
-    Range = {5, 30},
-    Increment = 1,
-    Suffix = "studs",
-    CurrentValue = 10,
-    Flag = "HarvestRangeSlider",
-    Callback = function(Value)
-        getgenv().HarvestRange = Value
-        Rayfield:Notify({
-            Title = "Harvest Range",
-            Content = "Harvest range set to: " .. Value,
             Duration = 3,
             Image = 4483362458,
         })
@@ -208,8 +177,14 @@ TeleportTab:CreateButton({
     end,
 })
 
--- Player Section
+-- Player Section dengan tampilan posisi
 local PlayerSection = PlayerTab:CreateSection("Player Modifications")
+
+-- Tampilkan posisi pemain
+playerPositionLabel = PlayerTab:CreateLabel("Position: Loading...")
+
+-- Mulai update posisi pemain
+startPlayerPositionUpdates()
 
 local WalkSpeedSlider = PlayerTab:CreateSlider({
     Name = "Walk Speed",
@@ -281,6 +256,10 @@ SettingsTab:CreateButton({
 SettingsTab:CreateButton({
     Name = "Destroy GUI",
     Callback = function()
+        -- Hentikan update posisi sebelum menghancurkan GUI
+        if playerPositionUpdateConnection then
+            playerPositionUpdateConnection:Disconnect()
+        end
         Rayfield:Destroy()
     end,
 })
@@ -296,6 +275,23 @@ SettingsTab:CreateKeybind({
     end,
 })
 
+-- Fungsi untuk update posisi pemain
+function startPlayerPositionUpdates()
+    if playerPositionUpdateConnection then
+        playerPositionUpdateConnection:Disconnect()
+    end
+    
+    playerPositionUpdateConnection = game:GetService("RunService").Heartbeat:Connect(function()
+        local character = game.Players.LocalPlayer.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            local position = character.HumanoidRootPart.Position
+            playerPositionLabel:SetText(string.format("Position: X:%.1f, Y:%.1f, Z:%.1f", position.X, position.Y, position.Z))
+        else
+            playerPositionLabel:SetText("Position: Character not found")
+        end
+    end)
+end
+
 -- Auto Farm Functions
 function autoPlant()
     spawn(function()
@@ -304,7 +300,7 @@ function autoPlant()
             if #plots > 0 then
                 for _, plot in ipairs(plots) do
                     if not getgenv().AutoPlant then break end
-                    teleportTo(plot.Position)
+                    teleportTo(plot.CFrame)
                     plantSeed(getgenv().SelectedSeed)
                     wait(0.5)
                 end
@@ -327,7 +323,7 @@ function autoWater()
             if #plants > 0 then
                 for _, plant in ipairs(plants) do
                     if not getgenv().AutoWater then break end
-                    teleportTo(plant.Position)
+                    teleportTo(plant.PrimaryPart.CFrame)
                     waterPlant()
                     wait(0.5)
                 end
@@ -350,21 +346,8 @@ function autoHarvest()
             if #plants > 0 then
                 for _, plant in ipairs(plants) do
                     if not getgenv().AutoHarvest then break end
-                    
-                    -- Teleport to plant with random position if enabled
-                    if getgenv().RandomPosition then
-                        local randomOffset = Vector3.new(
-                            math.random(-getgenv().HarvestRange/2, getgenv().HarvestRange/2),
-                            0,
-                            math.random(-getgenv().HarvestRange/2, getgenv().HarvestRange/2)
-                        )
-                        teleportTo(plant.Position + randomOffset)
-                    else
-                        teleportTo(plant.Position)
-                    end
-                    
-                    -- Use E key to harvest
-                    harvestWithE()
+                    teleportTo(plant.PrimaryPart.CFrame)
+                    harvestPlant(plant)
                     wait(0.5)
                 end
                 Rayfield:Notify({
@@ -379,23 +362,23 @@ function autoHarvest()
     end)
 end
 
--- Function to simulate pressing E key for harvesting
-function harvestWithE()
-    local virtualInput = game:GetService("VirtualInputManager")
-    virtualInput:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-    wait(0.1)
-    virtualInput:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-end
-
--- Game Interaction Functions
+-- Game Interaction Functions (Improved implementations)
 function findEmptyPlots()
+    -- Implementasi untuk mencari plot kosong
     local emptyPlots = {}
     local plots = workspace:FindFirstChild("Plots") or workspace:FindFirstChild("Garden") or workspace:FindFirstChild("Farm")
     
     if plots then
         for _, plot in ipairs(plots:GetChildren()) do
-            if plot:IsA("Part") and plot.Name:find("Plot") and not plot:FindFirstChild("Plant") then
+            if plot:IsA("Part") and (plot.Name:find("Plot") or plot.Name:find("Soil")) and not hasPlant(plot) then
                 table.insert(emptyPlots, plot)
+            end
+        end
+    else
+        -- Fallback: cari part dengan nama tertentu yang mungkin merupakan plot
+        for _, part in ipairs(workspace:GetDescendants()) do
+            if part:IsA("Part") and (part.Name:find("Plot") or part.Name:find("Soil")) and not hasPlant(part) then
+                table.insert(emptyPlots, part)
             end
         end
     end
@@ -403,14 +386,26 @@ function findEmptyPlots()
     return emptyPlots
 end
 
+function hasPlant(plot)
+    -- Cek apakah plot sudah memiliki tanaman
+    for _, child in ipairs(plot:GetChildren()) do
+        if child:IsA("Model") and (child.Name:find("Plant") or child.Name:find("Crop")) then
+            return true
+        end
+    end
+    return false
+end
+
 function findDryPlants()
+    -- Implementasi untuk mencari tanaman yang perlu disiram
     local dryPlants = {}
-    local plants = workspace:FindFirstChild("Plants") or workspace:FindFirstChild("Crops")
     
-    if plants then
-        for _, plant in ipairs(plants:GetChildren()) do
-            if plant:IsA("Model") and (plant:GetAttribute("NeedsWater") or plant:FindFirstChild("WaterNeeded")) then
-                table.insert(dryPlants, plant)
+    -- Cari semua tanaman di workspace
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and (obj.Name:find("Plant") or obj.Name:find("Crop")) then
+            -- Cek jika tanaman perlu disiram (berdasarkan attribute atau warna)
+            if obj:GetAttribute("NeedsWater") or (obj.PrimaryPart and obj.PrimaryPart.Color.r > 0.7) then
+                table.insert(dryPlants, obj)
             end
         end
     end
@@ -419,18 +414,16 @@ function findDryPlants()
 end
 
 function findMaturePlants()
+    -- Implementasi untuk mencari tanaman yang siap panen
     local maturePlants = {}
-    local plants = workspace:FindFirstChild("Plants") or workspace:FindFirstChild("Crops")
     
-    if plants then
-        for _, plant in ipairs(plants:GetChildren()) do
-            if plant:IsA("Model") and (plant:GetAttribute("IsMature") or plant:FindFirstChild("ReadyToHarvest")) then
-                table.insert(maturePlants, plant)
-            elseif plant:IsA("Model") and plant.PrimaryPart then
-                -- Alternative detection based on plant size or color
-                if plant.PrimaryPart.Size.Y > 3 or plant.PrimaryPart.Color ~= Color3.fromRGB(34, 139, 34) then
-                    table.insert(maturePlants, plant)
-                end
+    -- Cari semua tanaman di workspace
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and (obj.Name:find("Plant") or obj.Name:find("Crop")) then
+            -- Cek jika tanaman sudah matang (berdasarkan attribute, size, atau warna)
+            if obj:GetAttribute("IsMature") or 
+               (obj.PrimaryPart and (obj.PrimaryPart.Size.Y > 3 or obj.PrimaryPart.Color.G < 0.5)) then
+                table.insert(maturePlants, obj)
             end
         end
     end
@@ -439,50 +432,92 @@ function findMaturePlants()
 end
 
 function plantSeed(seedType)
+    -- Implementasi untuk menanam biji
     local tool = findTool(seedType)
     if tool then
         game.Players.LocalPlayer.Character.Humanoid:EquipTool(tool)
         wait(0.2)
-        mouse1click()
+        -- Simulasikan klik mouse
+        if tool:FindFirstChild("Handle") then
+            tool.Handle.CFrame = game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame
+        end
+        tool:Activate()
+        wait(0.5)
     end
 end
 
 function waterPlant()
-    local tool = findTool("Watering Can")
+    -- Implementasi untuk menyiram tanaman
+    local tool = findTool("Watering Can") or findTool("Water") or findTool("Can")
     if tool then
         game.Players.LocalPlayer.Character.Humanoid:EquipTool(tool)
         wait(0.2)
-        mouse1click()
+        tool:Activate()
+        wait(0.5)
+    end
+end
+
+function harvestPlant(plant)
+    -- Implementasi untuk memanen tanaman
+    local tool = findTool("Harvest Tool") or findTool("Sickle") or findTool("Axe") or findTool("Knife")
+    
+    if not tool then
+        -- Jika tidak ada tool khusus, coba gunakan tangan
+        tool = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool")
+    end
+    
+    if tool then
+        game.Players.LocalPlayer.Character.Humanoid:EquipTool(tool)
+        wait(0.2)
+        
+        -- Arahkan tool ke tanaman
+        if plant and plant.PrimaryPart then
+            game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = plant.PrimaryPart.CFrame * CFrame.new(0, 0, 3)
+        end
+        
+        tool:Activate()
+        wait(0.5)
     end
 end
 
 function findTool(toolName)
+    -- Mencari tool di backpack player
     local backpack = game.Players.LocalPlayer.Backpack
     for _, item in ipairs(backpack:GetChildren()) do
         if item:IsA("Tool") and (item.Name == toolName or item.Name:find(toolName)) then
             return item
         end
     end
+    
+    -- Cek juga di karakter
+    local character = game.Players.LocalPlayer.Character
+    if character then
+        for _, item in ipairs(character:GetChildren()) do
+            if item:IsA("Tool") and (item.Name == toolName or item.Name:find(toolName)) then
+                return item
+            end
+        end
+    end
+    
     return nil
 end
 
-function teleportTo(position)
+function teleportTo(cframe)
+    -- Teleport player ke posisi tertentu
     if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        if typeof(position) == "Vector3" then
-            game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(position)
-        else
-            game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = position
-        end
+        game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = cframe
     end
 end
 
 function setWalkSpeed(speed)
+    -- Mengatur walk speed player
     if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
         game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = speed
     end
 end
 
 function setJumpPower(power)
+    -- Mengatur jump power player
     if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
         game.Players.LocalPlayer.Character.Humanoid.JumpPower = power
     end
@@ -498,3 +533,6 @@ Rayfield:Notify({
     Duration = 6,
     Image = 4483362458,
 })
+
+-- Close GUI with RightShift (default)
+-- You can minimize/maximize the GUI with the keybind

@@ -177,7 +177,7 @@ TeleportTab:CreateButton({
 local PlayerSection = PlayerTab:CreateSection("Player Modifications")
 
 -- Buat label untuk menampilkan koordinat
-local coordinatesLabel = PlayerTab:CreateLabel("Position: aMemuat...")
+local coordinatesLabel = PlayerTab:CreateLabel("Position: Memuat..!")
 
 -- Jalankan pembaruan koordinat
 spawn(function()

@@ -1,548 +1,735 @@
---[[
-    @author depso (depthso)
-    @description Grow a Garden auto-farm script
-    https://www.roblox.com/games/126884695634066
-]]
+-- Services
+local Players = game:GetService('Players')
+local TweenService = game:GetService('TweenService')
+local UserInputService = game:GetService('UserInputService')
+local MarketplaceService = game:GetService('MarketplaceService')
 
---// Services
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local InsertService = game:GetService("InsertService")
-local MarketplaceService = game:GetService("MarketplaceService")
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
+-- Variables
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild('PlayerGui')
+local currentGameName = 'Loading...'
 
-local LocalPlayer = Players.LocalPlayer
-local Leaderstats = LocalPlayer.leaderstats
-local Backpack = LocalPlayer.Backpack
-local PlayerGui = LocalPlayer.PlayerGui
+-- Get current game name
+pcall(function()
+    currentGameName = MarketplaceService:GetProductInfo(game.PlaceId).Name
+end)
 
-local ShecklesCount = Leaderstats.Sheckles
-local GameInfo = MarketplaceService:GetProductInfo(game.PlaceId)
+-- Main GUI Setup
+local gui = Instance.new('ScreenGui')
+gui.Name = 'XetraHub'
+gui.ResetOnSpawn = false
+gui.Parent = playerGui
 
---// ReGui
-local ReGui = loadstring(game:HttpGet('https://raw.githubusercontent.com/depthso/Dear-ReGui/refs/heads/main/ReGui.lua'))()
-local PrefabsId = "rbxassetid://" .. ReGui.PrefabsId
+-- Loading Screen
+local loadingFrame = Instance.new('Frame')
+loadingFrame.Name = 'LoadingScreen'
+loadingFrame.Size = UDim2.new(1, 0, 1, 0)
+loadingFrame.Position = UDim2.new(0, 0, 0, 0)
+loadingFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+loadingFrame.BorderSizePixel = 0
+loadingFrame.Parent = gui
 
---// Folders
-local GameEvents = ReplicatedStorage.GameEvents
-local Farms = workspace.Farm
-
-local Accent = {
-    DarkGreen = Color3.fromRGB(45, 95, 25),
-    Green = Color3.fromRGB(69, 142, 40),
-    Brown = Color3.fromRGB(26, 20, 8),
-}
-
---// ReGui configuration (Ui library)
-ReGui:Init({
-	Prefabs = InsertService:LoadLocalAsset(PrefabsId)
+-- Loading Background Gradient
+local gradient = Instance.new('UIGradient')
+gradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 25, 35)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 15, 20)),
 })
-ReGui:DefineTheme("GardenTheme", {
-	WindowBg = Accent.Brown,
-	TitleBarBg = Accent.DarkGreen,
-	TitleBarBgActive = Accent.Green,
-    ResizeGrab = Accent.DarkGreen,
-    FrameBg = Accent.DarkGreen,
-    FrameBgActive = Accent.Green,
-	CollapsingHeaderBg = Accent.Green,
-    ButtonsBg = Accent.Green,
-    CheckMark = Accent.Green,
-    SliderGrab = Accent.Green,
-})
+gradient.Rotation = 45
+gradient.Parent = loadingFrame
 
---// Dicts
-local SeedStock = {}
-local OwnedSeeds = {}
-local HarvestIgnores = {
-	Normal = false,
-	Gold = false,
-	Rainbow = false
-}
+-- Logo Container
+local logoContainer = Instance.new('Frame')
+logoContainer.Name = 'LogoContainer'
+logoContainer.Size = UDim2.new(0, 200, 0, 200)
+logoContainer.Position = UDim2.new(0.5, -100, 0.5, -150)
+logoContainer.BackgroundTransparency = 1
+logoContainer.Parent = loadingFrame
 
---// Globals
-local SelectedSeed, AutoPlantRandom, AutoPlant, AutoHarvest, AutoBuy, SellThreshold, NoClip, AutoWalkAllowRandom
+-- Logo Image
+local logo = Instance.new('ImageLabel')
+logo.Name = 'Logo'
+logo.Size = UDim2.new(1, 0, 1, 0)
+logo.Position = UDim2.new(0, 0, 0, 0)
+logo.BackgroundTransparency = 1
+logo.Image = 'rbxassetid://111108278176277'
+logo.ImageTransparency = 0.2
+logo.Parent = logoContainer
 
-local function CreateWindow()
-	local Window = ReGui:Window({
-		Title = `{GameInfo.Name} | Depso`,
-        Theme = "GardenTheme",
-		Size = UDim2.fromOffset(300, 200)
-	})
-	return Window
-end
+-- Logo Corner
+local logoCorner = Instance.new('UICorner')
+logoCorner.CornerRadius = UDim.new(0, 20)
+logoCorner.Parent = logo
 
---// Interface functions
-local function Plant(Position: Vector3, Seed: string)
-	GameEvents.Plant_RE:FireServer(Position, Seed)
-	wait(.3)
-end
+-- Credits Text
+local creditsText = Instance.new('TextLabel')
+creditsText.Name = 'Credits'
+creditsText.Size = UDim2.new(0, 400, 0, 60)
+creditsText.Position = UDim2.new(0.5, -200, 0.5, 80)
+creditsText.BackgroundTransparency = 1
+creditsText.Text = 'Xetra Hub'
+creditsText.TextColor3 = Color3.fromRGB(255, 255, 255)
+creditsText.TextSize = 32
+creditsText.Font = Enum.Font.GothamBold
+creditsText.TextTransparency = 1
+creditsText.Parent = loadingFrame
 
-local function GetFarms()
-	return Farms:GetChildren()
-end
+-- Made By Text
+local madeByText = Instance.new('TextLabel')
+madeByText.Name = 'MadeBy'
+madeByText.Size = UDim2.new(0, 400, 0, 40)
+madeByText.Position = UDim2.new(0.5, -200, 0.5, 130)
+madeByText.BackgroundTransparency = 1
+madeByText.Text = 'Made By Bebo Mods'
+madeByText.TextColor3 = Color3.fromRGB(180, 180, 190)
+madeByText.TextSize = 18
+madeByText.Font = Enum.Font.Gotham
+madeByText.TextTransparency = 1
+madeByText.Parent = loadingFrame
 
-local function GetFarmOwner(Farm: Folder): string
-	local Important = Farm.Important
-	local Data = Important.Data
-	local Owner = Data.Owner
+-- Game Name Display
+local gameNameText = Instance.new('TextLabel')
+gameNameText.Name = 'GameName'
+gameNameText.Size = UDim2.new(0, 600, 0, 30)
+gameNameText.Position = UDim2.new(0.5, -300, 0.5, 170)
+gameNameText.BackgroundTransparency = 1
+gameNameText.Text = '🎮 ' .. currentGameName
+gameNameText.TextColor3 = Color3.fromRGB(100, 200, 255)
+gameNameText.TextSize = 16
+gameNameText.Font = Enum.Font.GothamBold
+gameNameText.TextTransparency = 1
+gameNameText.Parent = loadingFrame
 
-	return Owner.Value
-end
+-- Loading Status Text
+local statusText = Instance.new('TextLabel')
+statusText.Name = 'StatusText'
+statusText.Size = UDim2.new(0, 400, 0, 25)
+statusText.Position = UDim2.new(0.5, -200, 0.75, 0)
+statusText.BackgroundTransparency = 1
+statusText.Text = 'Initializing...'
+statusText.TextColor3 = Color3.fromRGB(150, 150, 160)
+statusText.TextSize = 14
+statusText.Font = Enum.Font.Gotham
+statusText.TextTransparency = 1
+statusText.Parent = loadingFrame
 
-local function GetFarm(PlayerName: string): Folder?
-	local Farms = GetFarms()
-	for _, Farm in next, Farms do
-		local Owner = GetFarmOwner(Farm)
-		if Owner == PlayerName then
-			return Farm
-		end
-	end
-    return
-end
+-- Loading Bar Container
+local loadingBarContainer = Instance.new('Frame')
+loadingBarContainer.Name = 'LoadingBarContainer'
+loadingBarContainer.Size = UDim2.new(0, 400, 0, 8)
+loadingBarContainer.Position = UDim2.new(0.5, -200, 0.8, 0)
+loadingBarContainer.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+loadingBarContainer.BorderSizePixel = 0
+loadingBarContainer.Parent = loadingFrame
 
-local IsSelling = false
-local function SellInventory()
-	local Character = LocalPlayer.Character
-	local Previous = Character:GetPivot()
-	local PreviousSheckles = ShecklesCount.Value
+local loadingBarCorner = Instance.new('UICorner')
+loadingBarCorner.CornerRadius = UDim.new(0, 4)
+loadingBarCorner.Parent = loadingBarContainer
 
-	--// Prevent conflict
-	if IsSelling then return end
-	IsSelling = true
+-- Loading Bar Fill
+local loadingBar = Instance.new('Frame')
+loadingBar.Name = 'LoadingBar'
+loadingBar.Size = UDim2.new(0, 0, 1, 0)
+loadingBar.Position = UDim2.new(0, 0, 0, 0)
+loadingBar.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
+loadingBar.BorderSizePixel = 0
+loadingBar.Parent = loadingBarContainer
 
-	Character:PivotTo(CFrame.new(62, 4, -26))
-	while wait() do
-		if ShecklesCount.Value ~= PreviousSheckles then break end
-		GameEvents.Sell_Inventory:FireServer()
-	end
-	Character:PivotTo(Previous)
+local loadingBarFillCorner = Instance.new('UICorner')
+loadingBarFillCorner.CornerRadius = UDim.new(0, 4)
+loadingBarFillCorner.Parent = loadingBar
 
-	wait(0.2)
-	IsSelling = false
-end
+-- Loading Percentage
+local loadingPercent = Instance.new('TextLabel')
+loadingPercent.Size = UDim2.new(0, 100, 0, 25)
+loadingPercent.Position = UDim2.new(0.5, -50, 0.85, 0)
+loadingPercent.BackgroundTransparency = 1
+loadingPercent.Text = '0%'
+loadingPercent.TextColor3 = Color3.fromRGB(255, 255, 255)
+loadingPercent.TextSize = 14
+loadingPercent.Font = Enum.Font.GothamBold
+loadingPercent.TextTransparency = 1
+loadingPercent.Parent = loadingFrame
 
-local function BuySeed(Seed: string)
-	GameEvents.BuySeedStock:FireServer(Seed)
-end
-
-local function BuyAllSelectedSeeds()
-    local Seed = SelectedSeedStock.Selected
-    local Stock = SeedStock[Seed]
-
-	if not Stock or Stock <= 0 then return end
-
-    for i = 1, Stock do
-        BuySeed(Seed)
+-- Copy Utility
+local function copyToClipboard(text)
+    if setclipboard then
+        setclipboard(text)
+        pcall(function()
+            game.StarterGui:SetCore('SendNotification', {
+                Title = 'Copied!',
+                Text = 'Link copied to clipboard.',
+                Duration = 3,
+            })
+        end)
     end
 end
 
-local function GetSeedInfo(Seed: Tool): number?
-	local PlantName = Seed:FindFirstChild("Plant_Name")
-	local Count = Seed:FindFirstChild("Numbers")
-	if not PlantName then return end
+-- Loading Animations with Smart Status Updates
+local function playLoadingAnimations()
+    -- Logo fade in with scale
+    logo.ImageTransparency = 1
+    logoContainer.Size = UDim2.new(0, 150, 0, 150)
+    logoContainer.Position = UDim2.new(0.5, -75, 0.5, -150)
 
-	return PlantName.Value, Count.Value
-end
-
-local function CollectSeedsFromParent(Parent, Seeds: table)
-	for _, Tool in next, Parent:GetChildren() do
-		local Name, Count = GetSeedInfo(Tool)
-		if not Name then continue end
-
-		Seeds[Name] = {
-            Count = Count,
-            Tool = Tool
+    local logoScaleTween = TweenService:Create(
+        logoContainer,
+        TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+        {
+            Size = UDim2.new(0, 200, 0, 200),
+            Position = UDim2.new(0.5, -100, 0.5, -150),
         }
-	end
+    )
+
+    local logoFadeTween = TweenService:Create(
+        logo,
+        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {
+            ImageTransparency = 0.2,
+        }
+    )
+
+    logoScaleTween:Play()
+    wait(0.3)
+    logoFadeTween:Play()
+
+    -- Credits text fade in
+    wait(0.5)
+    local creditsFadeTween = TweenService:Create(
+        creditsText,
+        TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {
+            TextTransparency = 0,
+        }
+    )
+    creditsFadeTween:Play()
+
+    -- Made by text fade in
+    wait(0.3)
+    local madeByFadeTween = TweenService:Create(
+        madeByText,
+        TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {
+            TextTransparency = 0,
+        }
+    )
+    madeByFadeTween:Play()
+
+    -- Game name fade in
+    wait(0.3)
+    local gameNameFadeTween = TweenService:Create(
+        gameNameText,
+        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {
+            TextTransparency = 0,
+        }
+    )
+    gameNameFadeTween:Play()
+
+    -- Status text fade in
+    wait(0.3)
+    local statusFadeTween = TweenService:Create(
+        statusText,
+        TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {
+            TextTransparency = 0,
+        }
+    )
+    statusFadeTween:Play()
+
+    -- Loading percentage fade in
+    wait(0.2)
+    local percentFadeTween = TweenService:Create(
+        loadingPercent,
+        TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {
+            TextTransparency = 0,
+        }
+    )
+    percentFadeTween:Play()
+
+    -- Smart loading sequence with realistic steps
+    wait(0.5)
+
+    local loadingSteps = {
+        {
+            text = 'Initializing script environment...',
+            percent = 5,
+            duration = 0.8,
+        },
+        { text = 'Loading core modules...', percent = 15, duration = 0.6 },
+        {
+            text = 'Connecting to authentication server...',
+            percent = 25,
+            duration = 1.0,
+        },
+        {
+            text = 'Verifying game compatibility...',
+            percent = 40,
+            duration = 0.7,
+        },
+        {
+            text = 'Loading game-specific features...',
+            percent = 55,
+            duration = 0.9,
+        },
+        {
+            text = 'Injecting security protocols...',
+            percent = 70,
+            duration = 0.8,
+        },
+        {
+            text = 'Establishing secure connection...',
+            percent = 85,
+            duration = 0.7,
+        },
+        { text = 'Finalizing initialization...', percent = 95, duration = 0.6 },
+        { text = 'Ready to authenticate!', percent = 100, duration = 0.5 },
+    }
+
+    for _, step in ipairs(loadingSteps) do
+        statusText.Text = step.text
+        loadingPercent.Text = step.percent .. '%'
+
+        local barTween = TweenService:Create(
+            loadingBar,
+            TweenInfo.new(
+                step.duration * 0.8,
+                Enum.EasingStyle.Quad,
+                Enum.EasingDirection.Out
+            ),
+            {
+                Size = UDim2.new(step.percent / 100, 0, 1, 0),
+            }
+        )
+        barTween:Play()
+
+        wait(step.duration)
+    end
+
+    -- Final completion effect
+    wait(0.8)
+    statusText.Text = 'Loading complete! Starting authentication...'
+
+    wait(1)
+
+    -- Fade out loading screen
+    local fadeOutTween = TweenService:Create(
+        loadingFrame,
+        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {
+            BackgroundTransparency = 1,
+        }
+    )
+
+    local logoFadeOutTween = TweenService:Create(
+        logo,
+        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {
+            ImageTransparency = 1,
+        }
+    )
+
+    local creditsFadeOutTween = TweenService:Create(
+        creditsText,
+        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {
+            TextTransparency = 1,
+        }
+    )
+
+    local madeByFadeOutTween = TweenService:Create(
+        madeByText,
+        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {
+            TextTransparency = 1,
+        }
+    )
+
+    local gameNameFadeOutTween = TweenService:Create(
+        gameNameText,
+        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {
+            TextTransparency = 1,
+        }
+    )
+
+    local statusFadeOutTween = TweenService:Create(
+        statusText,
+        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {
+            TextTransparency = 1,
+        }
+    )
+
+    local percentFadeOutTween = TweenService:Create(
+        loadingPercent,
+        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {
+            TextTransparency = 1,
+        }
+    )
+
+    fadeOutTween:Play()
+    logoFadeOutTween:Play()
+    creditsFadeOutTween:Play()
+    madeByFadeOutTween:Play()
+    gameNameFadeOutTween:Play()
+    statusFadeOutTween:Play()
+    percentFadeOutTween:Play()
+
+    fadeOutTween.Completed:Connect(function()
+        loadingFrame:Destroy()
+        createKeySystem()
+    end)
 end
 
-local function CollectCropsFromParent(Parent, Crops: table)
-	for _, Tool in next, Parent:GetChildren() do
-		local Name = Tool:FindFirstChild("Item_String")
-		if not Name then continue end
+-- Original Key System
+function createKeySystem()
+    -- Main Shadow
+    local shadow = Instance.new('ImageLabel')
+    shadow.Name = 'Shadow'
+    shadow.Image = 'rbxassetid://1316045217'
+    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.ImageTransparency = 0.85
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+    shadow.Size = UDim2.new(0, 350, 0, 280)
+    shadow.Position = UDim2.new(0.5, -175, 0.5, -140)
+    shadow.BackgroundTransparency = 1
+    shadow.ZIndex = 0
+    shadow.Parent = gui
 
-		table.insert(Crops, Tool)
-	end
-end
+    local frame = Instance.new('Frame')
+    frame.Size = UDim2.new(0, 340, 0, 270)
+    frame.Position = UDim2.new(0.5, -170, 0.5, -135)
+    frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    frame.BorderSizePixel = 0
+    frame.Parent = gui
 
-local function GetOwnedSeeds(): table
-	local Character = LocalPlayer.Character
-	
-	CollectSeedsFromParent(Backpack, OwnedSeeds)
-	CollectSeedsFromParent(Character, OwnedSeeds)
+    -- Round corners
+    local corner = Instance.new('UICorner')
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = frame
 
-	return OwnedSeeds
-end
+    -- Close Button
+    local closeBtn = Instance.new('TextButton')
+    closeBtn.Size = UDim2.new(0, 30, 0, 30)
+    closeBtn.Position = UDim2.new(1, -35, 0, 5)
+    closeBtn.Text = '×'
+    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = 24
+    closeBtn.Parent = frame
 
-local function GetInvCrops(): table
-	local Character = LocalPlayer.Character
-	
-	local Crops = {}
-	CollectCropsFromParent(Backpack, Crops)
-	CollectCropsFromParent(Character, Crops)
+    closeBtn.MouseButton1Click:Connect(function()
+        gui:Destroy()
+    end)
 
-	return Crops
-end
+    -- Title with divider
+    local title = Instance.new('TextLabel')
+    title.Size = UDim2.new(1, -40, 0, 40)
+    title.Position = UDim2.new(0, 20, 0, 0)
+    title.Text = 'Xetra Hub Key System'
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.BackgroundTransparency = 1
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 18
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = frame
 
-local function GetArea(Base: BasePart)
-	local Center = Base:GetPivot()
-	local Size = Base.Size
+    local divider = Instance.new('Frame')
+    divider.Size = UDim2.new(1, -40, 0, 1)
+    divider.Position = UDim2.new(0, 20, 0, 40)
+    divider.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    divider.BorderSizePixel = 0
+    divider.Parent = frame
 
-	--// Bottom left
-	local X1 = math.ceil(Center.X - (Size.X/2))
-	local Z1 = math.ceil(Center.Z - (Size.Z/2))
+    -- Key Input Box
+    local keyBox = Instance.new('TextBox')
+    keyBox.Size = UDim2.new(1, -40, 0, 40)
+    keyBox.Position = UDim2.new(0, 20, 0, 60)
+    keyBox.PlaceholderText = 'Paste your key here...'
+    keyBox.Font = Enum.Font.Gotham
+    keyBox.TextSize = 14
+    keyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    keyBox.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    keyBox.ClearTextOnFocus = false
+    keyBox.Parent = frame
 
-	--// Top right
-	local X2 = math.floor(Center.X + (Size.X/2))
-	local Z2 = math.floor(Center.Z + (Size.Z/2))
+    local boxCorner = Instance.new('UICorner')
+    boxCorner.CornerRadius = UDim.new(0, 6)
+    boxCorner.Parent = keyBox
 
-	return X1, Z1, X2, Z2
-end
+    local boxPadding = Instance.new('UIPadding')
+    boxPadding.PaddingLeft = UDim.new(0, 10)
+    boxPadding.PaddingRight = UDim.new(0, 10)
+    boxPadding.Parent = keyBox
 
-local function EquipCheck(Tool)
-    local Character = LocalPlayer.Character
-    local Humanoid = Character.Humanoid
+    -- Check Button
+    local checkBtn = Instance.new('TextButton')
+    checkBtn.Size = UDim2.new(1, -40, 0, 40)
+    checkBtn.Position = UDim2.new(0, 20, 0, 110)
+    checkBtn.Text = 'CHECK KEY'
+    checkBtn.Font = Enum.Font.GothamBold
+    checkBtn.TextSize = 14
+    checkBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    checkBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+    checkBtn.Parent = frame
 
-    if Tool.Parent ~= Backpack then return end
-    Humanoid:EquipTool(Tool)
-end
+    local btnCorner = Instance.new('UICorner')
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    btnCorner.Parent = checkBtn
 
---// Auto farm functions
-local MyFarm = GetFarm(LocalPlayer.Name)
-local MyImportant = MyFarm.Important
-local PlantLocations = MyImportant.Plant_Locations
-local PlantsPhysical = MyImportant.Plants_Physical
+    -- Button hover effects
+    checkBtn.MouseEnter:Connect(function()
+        TweenService
+            :Create(
+                checkBtn,
+                TweenInfo.new(0.1),
+                { BackgroundColor3 = Color3.fromRGB(0, 140, 255) }
+            )
+            :Play()
+    end)
 
-local Dirt = PlantLocations:FindFirstChildOfClass("Part")
-local X1, Z1, X2, Z2 = GetArea(Dirt)
+    checkBtn.MouseLeave:Connect(function()
+        TweenService
+            :Create(
+                checkBtn,
+                TweenInfo.new(0.1),
+                { BackgroundColor3 = Color3.fromRGB(0, 120, 215) }
+            )
+            :Play()
+    end)
 
-local function GetRandomFarmPoint(): Vector3
-    local FarmLands = PlantLocations:GetChildren()
-    local FarmLand = FarmLands[math.random(1, #FarmLands)]
+    -- Status Label
+    local statusLabel = Instance.new('TextLabel')
+    statusLabel.Size = UDim2.new(1, -40, 0, 50)
+    statusLabel.Position = UDim2.new(0, 20, 0, 160)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = 'Status: Waiting for key...'
+    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.TextSize = 14
+    statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    statusLabel.TextWrapped = true
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+    statusLabel.Parent = frame
 
-    local X1, Z1, X2, Z2 = GetArea(FarmLand)
-    local X = math.random(X1, X2)
-    local Z = math.random(Z1, Z2)
+    -- Bottom Buttons Container
+    local buttonContainer = Instance.new('Frame')
+    buttonContainer.Size = UDim2.new(1, -40, 0, 40)
+    buttonContainer.Position = UDim2.new(0, 20, 1, -50)
+    buttonContainer.BackgroundTransparency = 1
+    buttonContainer.Parent = frame
 
-    return Vector3.new(X, 4, Z)
-end
+    -- Get Key Button
+    local getKeyBtn = Instance.new('TextButton')
+    getKeyBtn.Size = UDim2.new(0.48, 0, 1, 0)
+    getKeyBtn.Position = UDim2.new(0, 0, 0, 0)
+    getKeyBtn.Text = '🔑 GET KEY'
+    getKeyBtn.Font = Enum.Font.GothamBold
+    getKeyBtn.TextSize = 14
+    getKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    getKeyBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 100)
+    getKeyBtn.Parent = buttonContainer
 
-local function AutoPlantLoop()
-	local Seed = SelectedSeed.Selected
+    local getKeyCorner = Instance.new('UICorner')
+    getKeyCorner.CornerRadius = UDim.new(0, 6)
+    getKeyCorner.Parent = getKeyBtn
 
-	local SeedData = OwnedSeeds[Seed]
-	if not SeedData then return end
+    -- Discord Button
+    local discordBtn = Instance.new('TextButton')
+    discordBtn.Size = UDim2.new(0.48, 0, 1, 0)
+    discordBtn.Position = UDim2.new(0.52, 0, 0, 0)
+    discordBtn.Text = '💬 DISCORD'
+    discordBtn.Font = Enum.Font.GothamBold
+    discordBtn.TextSize = 14
+    discordBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    discordBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 161)
+    discordBtn.Parent = buttonContainer
 
-    local Count = SeedData.Count
-    local Tool = SeedData.Tool
+    local discordCorner = Instance.new('UICorner')
+    discordCorner.CornerRadius = UDim.new(0, 6)
+    discordCorner.Parent = discordBtn
 
-	--// Check for stock
-	if Count <= 0 then return end
+    -- Button hover effects
+    getKeyBtn.MouseEnter:Connect(function()
+        TweenService
+            :Create(
+                getKeyBtn,
+                TweenInfo.new(0.1),
+                { BackgroundColor3 = Color3.fromRGB(0, 170, 120) }
+            )
+            :Play()
+    end)
 
-    local Planted = 0
-	local Step = 1
+    getKeyBtn.MouseLeave:Connect(function()
+        TweenService
+            :Create(
+                getKeyBtn,
+                TweenInfo.new(0.1),
+                { BackgroundColor3 = Color3.fromRGB(0, 150, 100) }
+            )
+            :Play()
+    end)
 
-	--// Check if the client needs to equip the tool
-    EquipCheck(Tool)
+    discordBtn.MouseEnter:Connect(function()
+        TweenService
+            :Create(
+                discordBtn,
+                TweenInfo.new(0.1),
+                { BackgroundColor3 = Color3.fromRGB(114, 137, 218) }
+            )
+            :Play()
+    end)
 
-	--// Plant at random points
-	if AutoPlantRandom.Value then
-		for i = 1, Count do
-			local Point = GetRandomFarmPoint()
-			Plant(Point, Seed)
-		end
-	end
-	
-	--// Plant on the farmland area
-	for X = X1, X2, Step do
-		for Z = Z1, Z2, Step do
-			if Planted > Count then break end
-			local Point = Vector3.new(X, 0.13, Z)
+    discordBtn.MouseLeave:Connect(function()
+        TweenService
+            :Create(
+                discordBtn,
+                TweenInfo.new(0.1),
+                { BackgroundColor3 = Color3.fromRGB(88, 101, 161) }
+            )
+            :Play()
+    end)
 
-			Planted += 1
-			Plant(Point, Seed)
-		end
-	end
-end
+    -- Get Key Button Functionality
+    getKeyBtn.MouseButton1Click:Connect(function()
+        local originalText = getKeyBtn.Text
+        getKeyBtn.Text = 'GENERATING KEY...'
 
-local function HarvestPlant(Plant: Model)
-	local Prompt = Plant:FindFirstChild("ProximityPrompt", true)
+        wait(0.5)
 
-	--// Check if it can be harvested
-	if not Prompt then return end
-	fireproximityprompt(Prompt)
-end
+        local keyLink =
+            'https://ads.luarmor.net/get_key?for=WorkinkForScriptHub-vluylajhmgqF'
+        copyToClipboard(keyLink)
 
-local function GetSeedStock(IgnoreNoStock: boolean?): table
-	local SeedShop = PlayerGui.Seed_Shop
-	local Items = SeedShop:FindFirstChild("Blueberry", true).Parent
+        statusLabel.Text =
+            '✅ Key link copied to clipboard! Paste it in your browser.'
 
-	local NewList = {}
+        wait(1.5)
+        getKeyBtn.Text = originalText
+    end)
 
-	for _, Item in next, Items:GetChildren() do
-		local MainFrame = Item:FindFirstChild("Main_Frame")
-		if not MainFrame then continue end
+    -- Discord Button Functionality
+    discordBtn.MouseButton1Click:Connect(function()
+        local discordLink = 'https://discord.gg/DR2RdatRjc'
+        copyToClipboard(discordLink)
+        statusLabel.Text = '✅ Discord invite link copied to clipboard!'
+    end)
 
-		local StockText = MainFrame.Stock_Text.Text
-		local StockCount = tonumber(StockText:match("%d+"))
+    -- Luarmor Key Check Logic
+    local api = loadstring(
+        game:HttpGet('https://sdkapi-public.luarmor.net/library.lua')
+    )()
+    api.script_id = 'b8f3cad4ff24c98ef41e99b4a1131316'
 
-		--// Seperate list
-		if IgnoreNoStock then
-			if StockCount <= 0 then continue end
-			NewList[Item.Name] = StockCount
-			continue
-		end
-
-		SeedStock[Item.Name] = StockCount
-	end
-
-	return IgnoreNoStock and NewList or SeedStock
-end
-
-local function CanHarvest(Plant): boolean?
-    local Prompt = Plant:FindFirstChild("ProximityPrompt", true)
-	if not Prompt then return end
-    if not Prompt.Enabled then return end
-
-    return true
-end
-
-local function CollectHarvestable(Parent, Plants, IgnoreDistance: boolean?)
-	local Character = LocalPlayer.Character
-	local PlayerPosition = Character:GetPivot().Position
-
-    for _, Plant in next, Parent:GetChildren() do
-        --// Fruits
-		local Fruits = Plant:FindFirstChild("Fruits")
-		if Fruits then
-			CollectHarvestable(Fruits, Plants, IgnoreDistance)
-		end
-
-		--// Distance check
-		local PlantPosition = Plant:GetPivot().Position
-		local Distance = (PlayerPosition-PlantPosition).Magnitude
-		if not IgnoreDistance and Distance > 15 then continue end
-
-		--// Ignore check
-		local Variant = Plant:FindFirstChild("Variant")
-		if HarvestIgnores[Variant.Value] then continue end
-
-        --// Collect
-        if CanHarvest(Plant) then
-            table.insert(Plants, Plant)
+    checkBtn.MouseButton1Click:Connect(function()
+        local userKey = keyBox.Text
+        if not userKey or #userKey < 32 then
+            statusLabel.Text =
+                '❌ Key is too short or empty. Please enter a valid key.'
+            return
         end
-	end
-    return Plants
-end
 
-local function GetHarvestablePlants(IgnoreDistance: boolean?)
-    local Plants = {}
-    CollectHarvestable(PlantsPhysical, Plants, IgnoreDistance)
-    return Plants
-end
+        statusLabel.Text = '🔍 Checking key validity...'
 
-local function HarvestPlants(Parent: Model)
-	local Plants = GetHarvestablePlants()
-    for _, Plant in next, Plants do
-        HarvestPlant(Plant)
-    end
-end
+        local success, response = pcall(function()
+            return api.check_key(userKey)
+        end)
 
-local function AutoSellCheck()
-    local CropCount = #GetInvCrops()
-
-    if not AutoSell.Value then return end
-    if CropCount < SellThreshold.Value then return end
-
-    SellInventory()
-end
-
-local function AutoWalkLoop()
-	if IsSelling then return end
-
-    local Character = LocalPlayer.Character
-    local Humanoid = Character.Humanoid
-
-    local Plants = GetHarvestablePlants(true)
-	local RandomAllowed = AutoWalkAllowRandom.Value
-	local DoRandom = #Plants == 0 or math.random(1, 3) == 2
-
-    --// Random point
-    if RandomAllowed and DoRandom then
-        local Position = GetRandomFarmPoint()
-        Humanoid:MoveTo(Position)
-		AutoWalkStatus.Text = "Random point"
-        return
-    end
-   
-    --// Move to each plant
-    for _, Plant in next, Plants do
-        local Position = Plant:GetPivot().Position
-        Humanoid:MoveTo(Position)
-		AutoWalkStatus.Text = Plant.Name
-    end
-end
-
-local function NoclipLoop()
-    local Character = LocalPlayer.Character
-    if not NoClip.Value then return end
-    if not Character then return end
-
-    for _, Part in Character:GetDescendants() do
-        if Part:IsA("BasePart") then
-            Part.CanCollide = false
+        if not success then
+            statusLabel.Text = '⚠️ Error checking key. Please try again.'
+            return
         end
+
+        if response.code == 'KEY_VALID' then
+            local timeLeft = response.data.auth_expire - os.time()
+            local hoursLeft = math.floor(timeLeft / 3600)
+            local minutesLeft = math.floor((timeLeft % 3600) / 60)
+            statusLabel.Text = string.format(
+                '✅ Valid key! Time remaining: %dh %dm',
+                hoursLeft,
+                minutesLeft
+            )
+            getgenv().script_key = userKey
+            wait(1)
+            api.load_script()
+            gui:Destroy()
+        elseif response.code == 'KEY_HWID_LOCKED' then
+            statusLabel.Text =
+                '🔒 Key is locked to another device. Reset via bot.'
+        elseif response.code == 'KEY_INCORRECT' then
+            statusLabel.Text = '❌ Invalid key. Please check and try again.'
+        elseif response.code == 'KEY_EXPIRED' then
+            statusLabel.Text =
+                '⌛ Key has expired. Please renew your subscription.'
+        elseif response.code == 'KEY_BANNED' then
+            statusLabel.Text = '🚫 Key has been blacklisted. Contact support.'
+        else
+            statusLabel.Text = '❗ Error: '
+                .. (response.message or 'Unknown error')
+                .. ' (Code: '
+                .. response.code
+                .. ')'
+        end
+    end)
+
+    -- Make the window draggable
+    local dragging = false
+    local dragInput = nil
+    local dragStart = nil
+    local startPos = nil
+
+    local function update(input)
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+        shadow.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X - 5,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y - 5
+        )
     end
+
+    frame.InputBegan:Connect(function(input)
+        if
+            input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch
+        then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    frame.InputChanged:Connect(function(input)
+        if
+            input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch
+        then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            update(input)
+        end
+    end)
 end
 
-local function MakeLoop(Toggle, Func)
-	coroutine.wrap(function()
-		while wait(.01) do
-			if not Toggle.Value then continue end
-			Func()
-		end
-	end)()
-end
-
-local function StartServices()
-	--// Auto-Walk
-	MakeLoop(AutoWalk, function()
-		local MaxWait = AutoWalkMaxWait.Value
-		AutoWalkLoop()
-		wait(math.random(1, MaxWait))
-	end)
-
-	--// Auto-Harvest
-	MakeLoop(AutoHarvest, function()
-		HarvestPlants(PlantsPhysical)
-	end)
-
-	--// Auto-Buy
-	MakeLoop(AutoBuy, BuyAllSelectedSeeds)
-
-	--// Auto-Plant
-	MakeLoop(AutoPlant, AutoPlantLoop)
-
-	--// Get stocks
-	while wait(.1) do
-		GetSeedStock()
-		GetOwnedSeeds()
-	end
-end
-
-local function CreateCheckboxes(Parent, Dict: table)
-	for Key, Value in next, Dict do
-		Parent:Checkbox({
-			Value = Value,
-			Label = Key,
-			Callback = function(_, Value)
-				Dict[Key] = Value
-			end
-		})
-	end
-end
-
---// Window
-local Window = CreateWindow()
-
---// Auto-Plant
-local PlantNode = Window:TreeNode({Title="Auto-Plant 🥕"})
-SelectedSeed = PlantNode:Combo({
-	Label = "Seed",
-	Selected = "",
-	GetItems = GetSeedStock,
-})
-AutoPlant = PlantNode:Checkbox({
-	Value = false,
-	Label = "Enabled"
-})
-AutoPlantRandom = PlantNode:Checkbox({
-	Value = false,
-	Label = "Plant at random points"
-})
-PlantNode:Button({
-	Text = "Plant all",
-	Callback = AutoPlantLoop,
-})
-
---// Auto-Harvest
-local HarvestNode = Window:TreeNode({Title="Auto-Harvest 🚜"})
-AutoHarvest = HarvestNode:Checkbox({
-	Value = false,
-	Label = "Enabled"
-})
-HarvestNode:Separator({Text="Ignores:"})
-CreateCheckboxes(HarvestNode, HarvestIgnores)
-
---// Auto-Buy
-local BuyNode = Window:TreeNode({Title="Auto-Buy 🥕"})
-local OnlyShowStock
-
-SelectedSeedStock = BuyNode:Combo({
-	Label = "Seed",
-	Selected = "",
-	GetItems = function()
-		local OnlyStock = OnlyShowStock and OnlyShowStock.Value
-		return GetSeedStock(OnlyStock)
-	end,
-})
-AutoBuy = BuyNode:Checkbox({
-	Value = false,
-	Label = "Enabled"
-})
-OnlyShowStock = BuyNode:Checkbox({
-	Value = false,
-	Label = "Only list stock"
-})
-BuyNode:Button({
-	Text = "Buy all",
-	Callback = BuyAllSelectedSeeds,
-})
-
---// Auto-Sell
-local SellNode = Window:TreeNode({Title="Auto-Sell 💰"})
-SellNode:Button({
-	Text = "Sell inventory",
-	Callback = SellInventory, 
-})
-AutoSell = SellNode:Checkbox({
-	Value = false,
-	Label = "Enabled"
-})
-SellThreshold = SellNode:SliderInt({
-    Label = "Crops threshold",
-    Value = 15,
-    Minimum = 1,
-    Maximum = 199,
-})
-
---// Auto-Walk
-local WallNode = Window:TreeNode({Title="Auto-Walk 🚶"})
-AutoWalkStatus = WallNode:Label({
-	Text = "None"
-})
-AutoWalk = WallNode:Checkbox({
-	Value = false,
-	Label = "Enabled"
-})
-AutoWalkAllowRandom = WallNode:Checkbox({
-	Value = true,
-	Label = "Allow random points"
-})
-NoClip = WallNode:Checkbox({
-	Value = false,
-	Label = "NoClip"
-})
-AutoWalkMaxWait = WallNode:SliderInt({
-    Label = "Max delay",
-    Value = 10,
-    Minimum = 1,
-    Maximum = 120,
-})
-
---// Connections
-RunService.Stepped:Connect(NoclipLoop)
-Backpack.ChildAdded:Connect(AutoSellCheck)
-
---// Services
-StartServices()
+-- Start loading sequence
+playLoadingAnimations()

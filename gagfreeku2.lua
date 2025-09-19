@@ -137,7 +137,7 @@ local TeleportSection = TeleportTab:CreateSection("Teleport Locations")
 TeleportTab:CreateButton({
     Name = "Teleport to Planting Area",
     Callback = function()
-        teleportTo(CFrame.new(0, 5, 0))
+        teleportTo(CFrame.new(70, 5, 70))
         Rayfield:Notify({
             Title = "Teleport",
             Content = "Teleported to Planting Area",

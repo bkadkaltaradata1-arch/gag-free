@@ -1,4 +1,4 @@
--- Script Auto Farm untuk Game "Grow a Garden" - Optimized for Android (No Keybind)
+-- Script Auto Farm untuk Game "Grow a Garden" - Optimized for Android
 -- Compatible dengan Delta Executor
 -- Gunakan dengan tanggung jawab, hanya untuk tujuan edukasi
 
@@ -9,7 +9,7 @@ local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/shle
 local Window = Rayfield:CreateWindow({
     Name = "🌻 Grow a Garden Auto Farm",
     LoadingTitle = "Grow a Garden Auto Farm",
-    LoadingSubtitle = "Optimized for Android - No Keybind",
+    LoadingSubtitle = "Optimized for Android",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "GrowAGarden",
@@ -242,30 +242,20 @@ SettingsTab:CreateButton({
     end,
 })
 
--- Tombol khusus untuk show/hide GUI (lebih mudah untuk mobile)
-SettingsTab:CreateButton({
-    Name = "👁️ Show/Hide GUI",
-    Callback = function()
-        Rayfield:Toggle()
-        Rayfield:Notify({
-            Title = "GUI Toggled",
-            Content = "GUI visibility changed",
-            Duration = 2.5,
-            Image = 1234567893,
-        })
-    end,
-})
-
 SettingsTab:CreateButton({
     Name = "❌ Destroy GUI",
     Callback = function()
         Rayfield:Destroy()
-        Rayfield:Notify({
-            Title = "GUI Destroyed",
-            Content = "GUI has been closed",
-            Duration = 2.5,
-            Image = 1234567893,
-        })
+    end,
+})
+
+SettingsTab:CreateKeybind({
+    Name = "🔘 Toggle GUI Keybind",
+    CurrentKeybind = "F",
+    HoldToInteract = false,
+    Flag = "GUIKeybind",
+    Callback = function(Keybind)
+        Rayfield:Toggle()
     end,
 })
 
@@ -274,7 +264,7 @@ if getgenv().MobileOptimized then
     -- Adjust UI for mobile
     Rayfield:Notify({
         Title = "Mobile Mode",
-        Content = "Mobile optimization enabled - No Keybind",
+        Content = "Mobile optimization enabled",
         Duration = 3,
         Image = 1234567893,
     })
@@ -553,7 +543,7 @@ setJumpPower(getgenv().JumpPower)
 
 Rayfield:Notify({
     Title = "Script Loaded",
-    Content = "Grow a Garden Auto Farm successfully loaded! Optimized for Android - No Keybind needed.",
+    Content = "Grow a Garden Auto Farm successfully loaded! Optimized for Android.",
     Duration = 5,
     Image = 1234567893,
 })
@@ -562,29 +552,8 @@ Rayfield:Notify({
 if not game:GetService("UserInputService").KeyboardEnabled then
     Rayfield:Notify({
         Title = "Mobile Tips",
-        Content = "Use the 'Show/Hide GUI' button to toggle the GUI visibility.",
+        Content = "Use the F keybind to toggle the GUI. Adjust settings for better performance.",
         Duration = 6,
         Image = 1234567893,
     })
-end
-
--- Tambahkan button floating untuk mobile (jika supported)
-if not game:GetService("UserInputService").KeyboardEnabled then
-    -- Create a simple floating button
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "MobileToggleGUI"
-    screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-    screenGui.ResetOnSpawn = false
-    
-    local toggleButton = Instance.new("TextButton")
-    toggleButton.Size = UDim2.new(0, 100, 0, 50)
-    toggleButton.Position = UDim2.new(0, 20, 0, 20)
-    toggleButton.Text = "Toggle GUI"
-    toggleButton.BackgroundColor3 = Color3.fromRGB(85, 170, 85)
-    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    toggleButton.Parent = screenGui
-    
-    toggleButton.MouseButton1Click:Connect(function()
-        Rayfield:Toggle()
-    end)
 end

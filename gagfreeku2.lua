@@ -1,19 +1,15 @@
 -- Script Auto Farm untuk Game "Grow a Garden" dengan GUI Minimizable
--- Compatible dengan Delta Executor
--- Dioptimalkan untuk Mobile/Android
+-- Compatible dengan Delta Executor dan Mobile Devices
+-- Gunakan dengan tanggung jawab, hanya untuk tujuan edukasi
 
 -- Load Rayfield UI Library
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
--- Deteksi platform
-local UserInputService = game:GetService("UserInputService")
-local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-
 -- Create GUI Window
 local Window = Rayfield:CreateWindow({
-    Name = "🌻 Grow a Garden Auto Farm" .. (isMobile and " (Mobile)" or ""),
+    Name = "🌻 Grow a Garden Auto Farm",
     LoadingTitle = "Grow a Garden Auto Farm",
-    LoadingSubtitle = "by Script Provider - Optimized for Mobile",
+    LoadingSubtitle = "by Script Provider",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "GrowAGarden",
@@ -40,7 +36,6 @@ getgenv().AutoHarvest = false
 getgenv().SelectedSeed = "Sunflower"
 getgenv().WalkSpeed = 16
 getgenv().JumpPower = 50
-getgenv().HarvestRange = 15 -- Jarak untuk harvest di mobile
 
 -- Farm Section
 local FarmSection = FarmTab:CreateSection("Auto Farm Options")
@@ -135,27 +130,6 @@ local SeedDropdown = FarmTab:CreateDropdown({
         })
     end,
 })
-
--- Mobile-specific settings
-if isMobile then
-    local HarvestRangeSlider = FarmTab:CreateSlider({
-        Name = "Harvest Range (Mobile)",
-        Range = {5, 30},
-        Increment = 1,
-        Suffix = "studs",
-        CurrentValue = 15,
-        Flag = "HarvestRangeSlider",
-        Callback = function(Value)
-            getgenv().HarvestRange = Value
-            Rayfield:Notify({
-                Title = "Harvest Range",
-                Content = "Harvest range set to: " .. Value .. " studs",
-                Duration = 3,
-                Image = 4483362458,
-            })
-        end,
-    })
-end
 
 -- Teleport Section
 local TeleportSection = TeleportTab:CreateSection("Teleport Locations")
@@ -287,36 +261,6 @@ SettingsTab:CreateKeybind({
     end,
 })
 
--- Debug Section untuk membantu identifikasi masalah
-local DebugSection = SettingsTab:CreateSection("Debug Tools")
-
-SettingsTab:CreateButton({
-    Name = "Debug Harvest",
-    Callback = function()
-        local maturePlants = findMaturePlants()
-        Rayfield:Notify({
-            Title = "Debug Info",
-            Content = "Mature plants: " .. #maturePlants .. ", Is Mobile: " .. tostring(isMobile),
-            Duration = 6,
-            Image = 4483362458,
-        })
-        
-        -- Print detailed info to console
-        print("=== DEBUG HARVEST ===")
-        print("Is Mobile:", isMobile)
-        print("Mature plants found:", #maturePlants)
-        
-        local events = getHarvestEvents()
-        print("Harvest events found:", #events)
-        for _, event in ipairs(events) do
-            print("Event:", event:GetFullName())
-        end
-        
-        local touchEvent = getTouchEvent()
-        print("Touch event:", touchEvent and touchEvent:GetFullName() or "None")
-    end,
-})
-
 -- Auto Farm Functions
 function autoPlant()
     spawn(function()
@@ -371,17 +315,9 @@ function autoHarvest()
             if #plants > 0 then
                 for _, plant in ipairs(plants) do
                     if not getgenv().AutoHarvest then break end
-                    
-                    if isMobile then
-                        -- Untuk mobile, gunakan metode yang berbeda
-                        mobileHarvest(plant)
-                    else
-                        -- Untuk desktop, gunakan metode standar
-                        teleportTo(plant.PrimaryPart.Position + Vector3.new(0, 3, 0))
-                        harvestPlant()
-                    end
-                    
-                    wait(0.3) -- Waktu lebih pendek
+                    teleportTo(plant.Position)
+                    harvestPlant()
+                    wait(0.5)
                 end
                 Rayfield:Notify({
                     Title = "Auto Harvest",
@@ -390,89 +326,14 @@ function autoHarvest()
                     Image = 4483362458,
                 })
             end
-            wait(1) -- Interval lebih pendek
+            wait(2)
         end
     end)
 end
 
--- Fungsi khusus untuk harvest di mobile
-function mobileHarvest(plant)
-    if not plant or not plant.PrimaryPart then return end
-    
-    -- Method 1: Coba gunakan remote events terlebih dahulu
-    local events = getHarvestEvents()
-    if #events > 0 then
-        for _, event in ipairs(events) do
-            event:FireServer(plant)
-        end
-        return
-    end
-    
-    -- Method 2: Coba gunakan touch event
-    local touchEvent = getTouchEvent()
-    if touchEvent then
-        touchEvent:FireServer(plant)
-        return
-    end
-    
-    -- Method 3: Teleport dekat tanaman dan coba interaksi
-    local player = game.Players.LocalPlayer
-    local character = player.Character
-    if character then
-        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-        if humanoidRootPart then
-            -- Teleport ke dekat tanaman
-            local harvestPosition = plant.PrimaryPart.Position + Vector3.new(0, 3, getgenv().HarvestRange)
-            humanoidRootPart.CFrame = CFrame.new(harvestPosition)
-            
-            -- Hadapkan karakter ke tanaman
-            humanoidRootPart.CFrame = CFrame.new(humanoidRootPart.Position, plant.PrimaryPart.Position)
-            
-            wait(0.2)
-            
-            -- Coba gunakan tool jika ada
-            local tool = findTool("Harvest Tool") or findTool("Sickle") or findTool("Axe")
-            if tool then
-                -- Equip tool
-                player.Character.Humanoid:EquipTool(tool)
-                wait(0.2)
-                
-                -- Coba aktifkan tool
-                if tool:FindFirstChild("Activate") then
-                    for i = 1, 3 do  -- Coba beberapa kali
-                        tool.Activate:Invoke()
-                        wait(0.1)
-                    end
-                end
-            end
-            
-            -- Coba click di posisi tanaman (simulasi touch)
-            simulateTouch(plant.PrimaryPart.Position)
-        end
-    end
-end
-
--- Simulasi touch untuk mobile
-function simulateTouch(position)
-    if not isMobile then return end
-    
-    -- Coba temukan cara untuk mensimulasikan touch
-    local touchInput = {
-        Position = Vector2.new(0, 0), -- Posisi layar (akan dihitung)
-        UserInputType = Enum.UserInputType.Touch,
-        KeyCode = Enum.KeyCode.Unknown
-    }
-    
-    -- Coba kirim input event (mungkin tidak bekerja di semua environment)
-    pcall(function()
-        game:GetService("VirtualInputManager"):SendTouchEvent(0, position, Enum.TouchState.Began, touchInput)
-        wait(0.1)
-        game:GetService("VirtualInputManager"):SendTouchEvent(0, position, Enum.TouchState.Ended, touchInput)
-    end)
-end
-
--- Game Interaction Functions
+-- Game Interaction Functions (Updated for mobile compatibility)
 function findEmptyPlots()
+    -- Implementasi untuk mencari plot kosong
     local emptyPlots = {}
     local plots = workspace:FindFirstChild("Plots") or workspace:FindFirstChild("Garden") or workspace:FindFirstChild("Farm")
     
@@ -488,12 +349,13 @@ function findEmptyPlots()
 end
 
 function findDryPlants()
+    -- Implementasi untuk mencari tanaman yang perlu disiram
     local dryPlants = {}
     local plants = workspace:FindFirstChild("Plants") or workspace:FindFirstChild("Crops")
     
     if plants then
         for _, plant in ipairs(plants:GetChildren()) do
-            if plant:IsA("Model") and plant:GetAttribute("NeedsWater") then
+            if plant:IsA("Model") and (plant:GetAttribute("NeedsWater") or plant:FindFirstChild("Dry")) then
                 table.insert(dryPlants, plant)
             end
         end
@@ -503,55 +365,14 @@ function findDryPlants()
 end
 
 function findMaturePlants()
+    -- Implementasi untuk mencari tanaman yang siap panen
     local maturePlants = {}
+    local plants = workspace:FindFirstChild("Plants") or workspace:FindFirstChild("Crops")
     
-    -- Cari tanaman di berbagai lokasi yang mungkin
-    local possibleParents = {
-        workspace:FindFirstChild("Plants"),
-        workspace:FindFirstChild("Crops"),
-        workspace:FindFirstChild("Garden"),
-        workspace:FindFirstChild("Farm"),
-        workspace
-    }
-    
-    for _, parent in ipairs(possibleParents) do
-        if parent then
-            for _, plant in ipairs(parent:GetChildren()) do
-                if plant:IsA("Model") and plant.PrimaryPart then
-                    -- Beberapa cara untuk mendeteksi tanaman siap panen
-                    local isMature = false
-                    
-                    -- 1. Cek attribute
-                    if plant:GetAttribute("IsMature") or plant:GetAttribute("ReadyToHarvest") then
-                        isMature = true
-                    end
-                    
-                    -- 2. Cek part color atau transparency (jika ada perubahan visual)
-                    for _, part in ipairs(plant:GetDescendants()) do
-                        if part:IsA("Part") or part:IsA("MeshPart") then
-                            if part.BrickColor == BrickColor.new("Bright yellow") or 
-                               part.Transparency < 0.5 or part.Name:find("Ripe") or
-                               part.Name:find("Mature") then
-                                isMature = true
-                                break
-                            end
-                        end
-                    end
-                    
-                    -- 3. Cek jika ada part khusus untuk tanaman matang
-                    if plant:FindFirstChild("Harvestable") or plant:FindFirstChild("Mature") then
-                        isMature = true
-                    end
-                    
-                    -- 4. Cek berdasarkan ukuran (tanaman matang biasanya lebih besar)
-                    if plant.PrimaryPart.Size.Magnitude > 5 then
-                        isMature = true
-                    end
-                    
-                    if isMature then
-                        table.insert(maturePlants, plant)
-                    end
-                end
+    if plants then
+        for _, plant in ipairs(plants:GetChildren()) do
+            if plant:IsA("Model") and (plant:GetAttribute("IsMature") or plant:FindFirstChild("Ready") or plant:FindFirstChild("Ripe")) then
+                table.insert(maturePlants, plant)
             end
         end
     end
@@ -560,185 +381,110 @@ function findMaturePlants()
 end
 
 function plantSeed(seedType)
+    -- Implementasi untuk menanam biji (mobile compatible)
     local tool = findTool(seedType)
     if tool then
         game.Players.LocalPlayer.Character.Humanoid:EquipTool(tool)
         wait(0.2)
-        
-        if isMobile then
-            -- Untuk mobile, coba gunakan activate
-            if tool:FindFirstChild("Activate") then
-                tool.Activate:Invoke()
-            else
-                -- Coba gunakan remote event
-                local plantEvents = getPlantEvents()
-                if #plantEvents > 0 then
-                    for _, event in ipairs(plantEvents) do
-                        event:FireServer()
-                    end
-                end
-            end
+        -- Mobile compatible activation
+        if tool:FindFirstChild("Activate") then
+            tool.Activate:Invoke()
         else
-            mouse1click()
+            -- Simulate touch event for mobile
+            tool:Activate()
         end
     end
 end
 
 function waterPlant()
+    -- Implementasi untuk menyiram tanaman (mobile compatible)
     local tool = findTool("Watering Can")
     if tool then
         game.Players.LocalPlayer.Character.Humanoid:EquipTool(tool)
         wait(0.2)
-        
-        if isMobile then
-            if tool:FindFirstChild("Activate") then
-                tool.Activate:Invoke()
-            end
+        -- Mobile compatible activation
+        if tool:FindFirstChild("Activate") then
+            tool.Activate:Invoke()
         else
-            mouse1click()
+            -- Simulate touch event for mobile
+            tool:Activate()
         end
     end
 end
 
 function harvestPlant()
+    -- Implementasi untuk memanen tanaman (mobile compatible)
     local tool = findTool("Harvest Tool") or findTool("Sickle") or findTool("Axe")
     if tool then
         game.Players.LocalPlayer.Character.Humanoid:EquipTool(tool)
         wait(0.2)
-        
-        if isMobile then
-            if tool:FindFirstChild("Activate") then
-                tool.Activate:Invoke()
-            end
+        -- Mobile compatible activation
+        if tool:FindFirstChild("Activate") then
+            tool.Activate:Invoke()
         else
-            mouse1click()
+            -- Simulate touch event for mobile
+            tool:Activate()
         end
     else
-        -- Coba tanpa tool
-        local events = getHarvestEvents()
-        if #events > 0 then
-            for _, event in ipairs(events) do
-                event:FireServer()
+        -- Fallback: try to use touch interaction if no tool found
+        local character = game.Players.LocalPlayer.Character
+        if character then
+            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+            if humanoidRootPart then
+                -- Try to find the plant to harvest
+                local plants = workspace:FindFirstChild("Plants") or workspace:FindFirstChild("Crops")
+                if plants then
+                    for _, plant in ipairs(plants:GetChildren()) do
+                        if plant:IsA("Model") and (plant:GetAttribute("IsMature") or plant:FindFirstChild("Ready")) then
+                            if (humanoidRootPart.Position - plant:GetModelCFrame().Position).Magnitude < 10 then
+                                -- Try to fire the plant's interaction event
+                                local interaction = plant:FindFirstChild("Interaction") or plant:FindFirstChild("ClickDetector")
+                                if interaction then
+                                    if interaction:IsA("ClickDetector") then
+                                        fireclickdetector(interaction)
+                                    elseif interaction:IsA("RemoteEvent") then
+                                        interaction:FireServer("Harvest")
+                                    elseif interaction:IsA("RemoteFunction") then
+                                        interaction:InvokeServer("Harvest")
+                                    end
+                                end
+                                break
+                            end
+                        end
+                    end
+                end
             end
         end
     end
 end
 
 function findTool(toolName)
+    -- Mencari tool di backpack player
     local backpack = game.Players.LocalPlayer.Backpack
-    local character = game.Players.LocalPlayer.Character
-    
-    -- Cek di backpack
     for _, item in ipairs(backpack:GetChildren()) do
         if item:IsA("Tool") and (item.Name == toolName or item.Name:find(toolName)) then
             return item
         end
     end
-    
-    -- Cek di character
-    if character then
-        for _, item in ipairs(character:GetChildren()) do
-            if item:IsA("Tool") and (item.Name == toolName or item.Name:find(toolName)) then
-                return item
-            end
-        end
-    end
-    
     return nil
 end
 
--- Fungsi untuk mendapatkan event panen
-function getHarvestEvents()
-    local events = {}
-    
-    local possibleLocations = {
-        game:GetService("ReplicatedStorage"),
-        game:GetService("Workspace"),
-        game:GetService("Players").LocalPlayer:FindFirstChild("PlayerScripts")
-    }
-    
-    for _, location in ipairs(possibleLocations) do
-        if location then
-            for _, item in ipairs(location:GetDescendants()) do
-                if item:IsA("RemoteEvent") and 
-                  (item.Name:find("Harvest") or item.Name:find("Collect") or 
-                   item.Name:find("Pick") or item.Name:find("Gather")) then
-                    table.insert(events, item)
-                end
-            end
-        end
-    end
-    
-    return events
-end
-
--- Fungsi untuk mendapatkan event planting
-function getPlantEvents()
-    local events = {}
-    
-    local possibleLocations = {
-        game:GetService("ReplicatedStorage"),
-        game:GetService("Workspace"),
-        game:GetService("Players").LocalPlayer:FindFirstChild("PlayerScripts")
-    }
-    
-    for _, location in ipairs(possibleLocations) do
-        if location then
-            for _, item in ipairs(location:GetDescendants()) do
-                if item:IsA("RemoteEvent") and 
-                  (item.Name:find("Plant") or item.Name:find("Seed") or 
-                   item.Name:find("Grow")) then
-                    table.insert(events, item)
-                end
-            end
-        end
-    end
-    
-    return events
-end
-
--- Fungsi khusus untuk mendapatkan event touch yang digunakan di mobile
-function getTouchEvent()
-    local touchEvent
-    
-    -- Cek di berbagai lokasi yang mungkin
-    local locations = {
-        game:GetService("ReplicatedStorage"),
-        game:GetService("Workspace"),
-        game:GetService("Players").LocalPlayer
-    }
-    
-    for _, location in ipairs(locations) do
-        if location then
-            if location:FindFirstChild("TouchEvent") then
-                touchEvent = location.TouchEvent
-                break
-            elseif location:FindFirstChild("MobileEvent") then
-                touchEvent = location.MobileEvent
-                break
-            elseif location:FindFirstChild("InteractEvent") then
-                touchEvent = location.InteractEvent
-                break
-            end
-        end
-    end
-    
-    return touchEvent
-end
-
 function teleportTo(cframe)
+    -- Teleport player ke posisi tertentu
     if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = cframe
     end
 end
 
 function setWalkSpeed(speed)
+    -- Mengatur walk speed player
     if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
         game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = speed
     end
 end
 
 function setJumpPower(power)
+    -- Mengatur jump power player
     if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
         game.Players.LocalPlayer.Character.Humanoid.JumpPower = power
     end
@@ -750,7 +496,10 @@ setJumpPower(getgenv().JumpPower)
 
 Rayfield:Notify({
     Title = "Script Loaded",
-    Content = "Grow a Garden Auto Farm successfully loaded!" .. (isMobile and " (Mobile Mode)" : ""),
+    Content = "Grow a Garden Auto Farm successfully loaded! Mobile compatible.",
     Duration = 6,
     Image = 4483362458,
 })
+
+-- Close GUI with RightShift (default)
+-- You can minimize/maximize the GUI with the keybind

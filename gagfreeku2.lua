@@ -201,21 +201,27 @@ local function startAutoFarm()
 end
 
 -- =============================================
--- GUI SEDERHANA UNTUK ANDROID
+-- GUI UNTUK AREA BERMAIN (PLAYER GUI)
 -- =============================================
 
--- Create ScreenGui
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "SimpleAutoFarmGUI"
-screenGui.Parent = game:GetService("CoreGui")
-screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+-- Pastikan PlayerGui ada
+if not lplr:FindFirstChild("PlayerGui") then
+    Instance.new("PlayerGui").Parent = lplr
+end
 
--- Main Frame (Posisi di bawah)
+-- Create ScreenGui di PlayerGui (bukan CoreGui)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AutoFarmGUIPlayer"
+screenGui.Parent = lplr.PlayerGui  -- INI YANG DIPERBAIKI
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.ResetOnSpawn = false
+
+-- Main Frame (Posisi di tengah bawah)
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0.9, 0, 0, 350) -- Lebar 90%, tinggi 350
-mainFrame.Position = UDim2.new(0.5, 0, 1, -360) -- POSISI DI BAWAH
-mainFrame.AnchorPoint = Vector2.new(0.5, 1) -- Anchor di bawah
+mainFrame.Size = UDim2.new(0.8, 0, 0, 300) -- Lebar 80%, tinggi 300
+mainFrame.Position = UDim2.new(0.5, 0, 0.7, 0) -- POSISI DI TENGAH BAWAH (70% dari atas)
+mainFrame.AnchorPoint = Vector2.new(0.5, 0) -- Anchor di tengah atas frame
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 mainFrame.BorderSizePixel = 0
 mainFrame.ClipsDescendants = true
@@ -229,19 +235,19 @@ corner.Parent = mainFrame
 -- Title Bar sederhana
 local titleBar = Instance.new("Frame")
 titleBar.Name = "TitleBar"
-titleBar.Size = UDim2.new(1, 0, 0, 40)
+titleBar.Size = UDim2.new(1, 0, 0, 35)
 titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
 titleBar.BorderSizePixel = 0
 titleBar.Parent = mainFrame
 
 local title = Instance.new("TextLabel")
 title.Name = "Title"
-title.Size = UDim2.new(1, -80, 1, 0)
+title.Size = UDim2.new(1, -70, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
 title.Text = "🌱 AUTO FARM"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.TextSize = 16
+title.TextSize = 14
 title.Font = Enum.Font.GothamBold
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = titleBar
@@ -249,28 +255,28 @@ title.Parent = titleBar
 -- Close Button
 local closeButton = Instance.new("TextButton")
 closeButton.Name = "CloseButton"
-closeButton.Size = UDim2.new(0, 30, 0, 30)
-closeButton.Position = UDim2.new(1, -35, 0, 5)
+closeButton.Size = UDim2.new(0, 25, 0, 25)
+closeButton.Position = UDim2.new(1, -30, 0, 5)
 closeButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
 closeButton.BorderSizePixel = 0
 closeButton.Text = "X"
 closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeButton.TextSize = 14
+closeButton.TextSize = 12
 closeButton.Font = Enum.Font.GothamBold
 closeButton.Parent = titleBar
 
 -- Content Frame
 local content = Instance.new("Frame")
 content.Name = "Content"
-content.Size = UDim2.new(1, -10, 1, -50)
-content.Position = UDim2.new(0, 5, 0, 45)
+content.Size = UDim2.new(1, -10, 1, -45)
+content.Position = UDim2.new(0, 5, 0, 40)
 content.BackgroundTransparency = 1
 content.Parent = mainFrame
 
--- Status Bar sederhana
+-- Status Bar
 local statusFrame = Instance.new("Frame")
 statusFrame.Name = "StatusFrame"
-statusFrame.Size = UDim2.new(1, 0, 0, 40)
+statusFrame.Size = UDim2.new(1, 0, 0, 30)
 statusFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
 statusFrame.BorderSizePixel = 0
 statusFrame.Parent = content
@@ -286,7 +292,7 @@ statusText.Position = UDim2.new(0, 10, 0, 0)
 statusText.BackgroundTransparency = 1
 statusText.Text = "BERHENTI"
 statusText.TextColor3 = Color3.fromRGB(255, 80, 80)
-statusText.TextSize = 14
+statusText.TextSize = 12
 statusText.Font = Enum.Font.GothamBold
 statusText.TextXAlignment = Enum.TextXAlignment.Left
 statusText.Parent = statusFrame
@@ -298,7 +304,7 @@ timeStatus.Position = UDim2.new(0.65, 0, 0, 0)
 timeStatus.BackgroundTransparency = 1
 timeStatus.Text = "10m: ❌"
 timeStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
-timeStatus.TextSize = 12
+timeStatus.TextSize = 11
 timeStatus.Font = Enum.Font.Gotham
 timeStatus.TextXAlignment = Enum.TextXAlignment.Right
 timeStatus.Parent = statusFrame
@@ -306,8 +312,8 @@ timeStatus.Parent = statusFrame
 -- Control Buttons
 local controlFrame = Instance.new("Frame")
 controlFrame.Name = "ControlFrame"
-controlFrame.Size = UDim2.new(1, 0, 0, 50)
-controlFrame.Position = UDim2.new(0, 0, 0, 50)
+controlFrame.Size = UDim2.new(1, 0, 0, 40)
+controlFrame.Position = UDim2.new(0, 0, 0, 40)
 controlFrame.BackgroundTransparency = 1
 controlFrame.Parent = content
 
@@ -319,7 +325,7 @@ startButton.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
 startButton.BorderSizePixel = 0
 startButton.Text = "▶ START"
 startButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-startButton.TextSize = 14
+startButton.TextSize = 12
 startButton.Font = Enum.Font.GothamBold
 startButton.Parent = controlFrame
 
@@ -331,7 +337,7 @@ stopButton.BackgroundColor3 = Color3.fromRGB(180, 60, 80)
 stopButton.BorderSizePixel = 0
 stopButton.Text = "■ STOP"
 stopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-stopButton.TextSize = 14
+stopButton.TextSize = 12
 stopButton.Font = Enum.Font.GothamBold
 stopButton.Parent = controlFrame
 
@@ -340,11 +346,11 @@ buttonCorner.CornerRadius = UDim.new(0, 6)
 buttonCorner.Parent = startButton
 buttonCorner:Clone().Parent = stopButton
 
--- Fruit Selection (Sederhana - Checkbox style)
+-- Fruit Selection
 local fruitFrame = Instance.new("Frame")
 fruitFrame.Name = "FruitFrame"
-fruitFrame.Size = UDim2.new(1, 0, 0, 150)
-fruitFrame.Position = UDim2.new(0, 0, 0, 110)
+fruitFrame.Size = UDim2.new(1, 0, 0, 120)
+fruitFrame.Position = UDim2.new(0, 0, 0, 90)
 fruitFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
 fruitFrame.BorderSizePixel = 0
 fruitFrame.Parent = content
@@ -355,12 +361,12 @@ fruitCorner.Parent = fruitFrame
 
 local fruitTitle = Instance.new("TextLabel")
 fruitTitle.Name = "FruitTitle"
-fruitTitle.Size = UDim2.new(1, -10, 0, 25)
+fruitTitle.Size = UDim2.new(1, -10, 0, 20)
 fruitTitle.Position = UDim2.new(0, 5, 0, 5)
 fruitTitle.BackgroundTransparency = 1
 fruitTitle.Text = "PILIH BUAH:"
 fruitTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
-fruitTitle.TextSize = 12
+fruitTitle.TextSize = 11
 fruitTitle.Font = Enum.Font.GothamBold
 fruitTitle.TextXAlignment = Enum.TextXAlignment.Left
 fruitTitle.Parent = fruitFrame
@@ -368,8 +374,8 @@ fruitTitle.Parent = fruitFrame
 -- Fruit Selection Grid
 local fruitGrid = Instance.new("UIGridLayout")
 fruitGrid.Name = "FruitGrid"
-fruitGrid.CellSize = UDim2.new(0.3, 0, 0, 25)
-fruitGrid.CellPadding = UDim2.new(0, 5, 0, 5)
+fruitGrid.CellSize = UDim2.new(0.3, 0, 0, 20)
+fruitGrid.CellPadding = UDim2.new(0, 3, 0, 3)
 fruitGrid.StartCorner = Enum.StartCorner.TopLeft
 fruitGrid.SortOrder = Enum.SortOrder.LayoutOrder
 fruitGrid.Parent = fruitFrame
@@ -378,12 +384,12 @@ fruitGrid.Parent = fruitFrame
 for i, fruitName in ipairs(ALL_FRUITS) do
     local fruitCheck = Instance.new("TextButton")
     fruitCheck.Name = fruitName
-    fruitCheck.Size = UDim2.new(0, 100, 0, 25)
+    fruitCheck.Size = UDim2.new(0, 80, 0, 20)
     fruitCheck.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
     fruitCheck.BorderSizePixel = 0
     fruitCheck.Text = fruitName
     fruitCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
-    fruitCheck.TextSize = 11
+    fruitCheck.TextSize = 10
     fruitCheck.Font = Enum.Font.Gotham
     fruitCheck.LayoutOrder = i
     fruitCheck.Parent = fruitFrame
@@ -412,8 +418,8 @@ end
 -- Quick Select Buttons
 local quickSelectFrame = Instance.new("Frame")
 quickSelectFrame.Name = "QuickSelectFrame"
-quickSelectFrame.Size = UDim2.new(1, 0, 0, 30)
-quickSelectFrame.Position = UDim2.new(0, 0, 0, 270)
+quickSelectFrame.Size = UDim2.new(1, 0, 0, 25)
+quickSelectFrame.Position = UDim2.new(0, 0, 0, 220)
 quickSelectFrame.BackgroundTransparency = 1
 quickSelectFrame.Parent = content
 
@@ -425,7 +431,7 @@ selectAllBtn.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
 selectAllBtn.BorderSizePixel = 0
 selectAllBtn.Text = "PILIH SEMUA"
 selectAllBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-selectAllBtn.TextSize = 12
+selectAllBtn.TextSize = 11
 selectAllBtn.Font = Enum.Font.Gotham
 selectAllBtn.Parent = quickSelectFrame
 
@@ -437,7 +443,7 @@ deselectAllBtn.BackgroundColor3 = Color3.fromRGB(200, 120, 60)
 deselectAllBtn.BorderSizePixel = 0
 deselectAllBtn.Text = "BATAL SEMUA"
 deselectAllBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-deselectAllBtn.TextSize = 12
+deselectAllBtn.TextSize = 11
 deselectAllBtn.Font = Enum.Font.Gotham
 deselectAllBtn.Parent = quickSelectFrame
 
@@ -445,24 +451,6 @@ local quickCorner = Instance.new("UICorner")
 quickCorner.CornerRadius = UDim.new(0, 4)
 quickCorner.Parent = selectAllBtn
 quickCorner:Clone().Parent = deselectAllBtn
-
--- Toggle Button (Sederhana)
-local toggleButton = Instance.new("TextButton")
-toggleButton.Name = "ToggleButton"
-toggleButton.Size = UDim2.new(0, 50, 0, 50)
-toggleButton.Position = UDim2.new(0, 20, 1, -60) -- Posisi di bawah kiri
-toggleButton.AnchorPoint = Vector2.new(0, 1)
-toggleButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-toggleButton.BorderSizePixel = 0
-toggleButton.Text = "🌱"
-toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleButton.TextSize = 20
-toggleButton.Font = Enum.Font.GothamBold
-toggleButton.Parent = screenGui
-
-local toggleCorner = Instance.new("UICorner")
-toggleCorner.CornerRadius = UDim.new(0, 25)
-toggleCorner.Parent = toggleButton
 
 -- =============================================
 -- GUI FUNCTIONALITY
@@ -481,13 +469,6 @@ local function updateTimeStatus()
     local inTimeWindow = isWithinFirstTenMinutes()
     timeStatus.Text = "10m: " .. (inTimeWindow and "✅" or "❌")
     timeStatus.TextColor3 = inTimeWindow and Color3.fromRGB(80, 255, 80) or Color3.fromRGB(255, 80, 80)
-end
-
--- Fungsi untuk toggle GUI visibility
-local function toggleGUI()
-    isGuiVisible = not isGuiVisible
-    mainFrame.Visible = isGuiVisible
-    toggleButton.Text = isGuiVisible and "❌" or "🌱"
 end
 
 -- Fungsi untuk select semua buah
@@ -533,7 +514,6 @@ end)
 
 startButton.MouseButton1Click:Connect(guiStartFarming)
 stopButton.MouseButton1Click:Connect(guiStopFarming)
-toggleButton.MouseButton1Click:Connect(toggleGUI)
 selectAllBtn.MouseButton1Click:Connect(selectAllFruits)
 deselectAllBtn.MouseButton1Click:Connect(deselectAllFruits)
 
@@ -549,4 +529,5 @@ end)
 updateStatus("BERHENTI", Color3.fromRGB(255, 80, 80))
 updateTimeStatus()
 
-print("Simple AutoFarm GUI Loaded! Tap the plant icon to toggle.")
+print("AutoFarm GUI Loaded di PlayerGui!")
+print("Posisi: Tengah Bawah Layar")

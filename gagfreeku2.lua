@@ -14,7 +14,6 @@ local remote = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("Summer
 
 -- Variabel untuk mengontrol eksekusi
 local isRunning = false
-local currentTask = nil
 
 -- Daftar buah yang mungkin ada di game
 local ALL_FRUITS = {
@@ -210,7 +209,7 @@ local function startAutoFarm()
 end
 
 -- =============================================
--- MOBILE-FRIENDLY GUI
+-- MOBILE-FRIENDLY GUI DENGAN POSISI BAIK
 -- =============================================
 
 -- Create ScreenGui
@@ -220,11 +219,11 @@ screenGui.Parent = game:GetService("CoreGui")
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.ResetOnSpawn = false
 
--- Main Frame (Optimized for mobile touch)
+-- Main Frame (Posisi lebih bawah untuk mobile)
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 320, 0, 500)
-mainFrame.Position = UDim2.new(0.5, -160, 0.5, -250)
+mainFrame.Size = UDim2.new(0, 320, 0, 450) -- Lebih pendek agar muat di mobile
+mainFrame.Position = UDim2.new(0.5, -160, 0.7, -225) -- POSISI LEBIH BAWAH (70% dari atas)
 mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 mainFrame.BorderSizePixel = 0
@@ -297,7 +296,8 @@ scrollFrame.Size = UDim2.new(1, -10, 1, -60)
 scrollFrame.Position = UDim2.new(0, 5, 0, 55)
 scrollFrame.BackgroundTransparency = 1
 scrollFrame.ScrollBarThickness = 6
-scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 800)
+scrollFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 650) -- Diperbesar untuk konten
 scrollFrame.Parent = mainFrame
 
 -- Status Panel
@@ -451,6 +451,7 @@ fruitList.Size = UDim2.new(1, -20, 0, 120)
 fruitList.Position = UDim2.new(0, 10, 0, 70)
 fruitList.BackgroundTransparency = 1
 fruitList.ScrollBarThickness = 4
+fruitList.ScrollingDirection = Enum.ScrollingDirection.Y
 fruitList.CanvasSize = UDim2.new(0, 0, 0, 0)
 fruitList.Parent = fruitPanel
 
@@ -523,7 +524,7 @@ fruitsText.Parent = statsPanel
 local toggleButton = Instance.new("TextButton")
 toggleButton.Name = "ToggleButton"
 toggleButton.Size = UDim2.new(0, 60, 0, 60)
-toggleButton.Position = UDim2.new(1, -70, 0, 20)
+toggleButton.Position = UDim2.new(0, 20, 0, 20) -- POSISI DI BAWAH KIRI
 toggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
 toggleButton.BorderSizePixel = 0
 toggleButton.Text = "🌱"
@@ -582,6 +583,7 @@ end
 local function toggleGUI()
     isGuiVisible = not isGuiVisible
     mainFrame.Visible = isGuiVisible
+    toggleButton.Text = isGuiVisible and "❌" or "🌱"
 end
 
 -- Fungsi untuk membuat fruit buttons
@@ -681,5 +683,40 @@ end)
 updateStatus("BERHENTI", Color3.fromRGB(255, 80, 80))
 updateTimeStatus()
 updateStats()
+
+-- Fitur drag untuk memindahkan GUI
+local dragging = false
+local dragInput, dragStart, startPos
+
+local function update(input)
+    local delta = input.Position - dragStart
+    mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+titleBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
 
 print("Mobile AutoFarm GUI Loaded! Tap the plant icon to toggle visibility.")

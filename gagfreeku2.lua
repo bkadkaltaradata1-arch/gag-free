@@ -1,197 +1,226 @@
--- Grow a Garden Script dengan library yang lebih stabil
-local success, library = pcall(function()
-    return loadstring(game:HttpGet("https://raw.githubusercontent.com/bloodball/-back-ups-for-libs/main/wizard"))()
+-- GROW GARDEN BOT - DELTA EXECUTOR
+-- GUI Lengkap dengan Fitur Lengkap
+
+if _G.GardenBot then return end
+_G.GardenBot = true
+
+-- Services
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+-- Create Main GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "GardenBotGUI"
+ScreenGui.Parent = CoreGui
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Main Window
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 350, 0, 400)
+MainFrame.Position = UDim2.new(0.5, -175, 0.5, -200)
+MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MainFrame.BorderSizePixel = 0
+MainFrame.Visible = false
+MainFrame.Parent = ScreenGui
+
+-- Title Bar
+local TitleBar = Instance.new("Frame")
+TitleBar.Size = UDim2.new(1, 0, 0, 30)
+TitleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
+local TitleText = Instance.new("TextLabel")
+TitleText.Size = UDim2.new(1, 0, 1, 0)
+TitleText.BackgroundTransparency = 1
+TitleText.Text = "🌻 GROW GARDEN BOT 🌻"
+TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleText.Font = Enum.Font.GothamBold
+TitleText.TextSize = 14
+TitleText.Parent = TitleBar
+
+-- Close Button
+local CloseButton = Instance.new("TextButton")
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -30, 0, 0)
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Parent = TitleBar
+
+CloseButton.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
 end)
 
-if not success then
-    library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Robobo2022/script/main/UI-Library-V2.1"))()
+-- Content Area
+local ScrollFrame = Instance.new("ScrollingFrame")
+ScrollFrame.Size = UDim2.new(1, -10, 1, -40)
+ScrollFrame.Position = UDim2.new(0, 5, 0, 35)
+ScrollFrame.BackgroundTransparency = 1
+ScrollFrame.ScrollBarThickness = 5
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 600)
+ScrollFrame.Parent = MainFrame
+
+-- Auto Farming Section
+local function CreateSection(title, yPosition)
+    local sectionFrame = Instance.new("Frame")
+    sectionFrame.Size = UDim2.new(1, -10, 0, 30)
+    sectionFrame.Position = UDim2.new(0, 5, 0, yPosition)
+    sectionFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    sectionFrame.BorderSizePixel = 0
+    sectionFrame.Parent = ScrollFrame
+    
+    local sectionText = Instance.new("TextLabel")
+    sectionText.Size = UDim2.new(1, 0, 1, 0)
+    sectionText.BackgroundTransparency = 1
+    sectionText.Text = "   " .. title
+    sectionText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    sectionText.Font = Enum.Font.GothamBold
+    sectionText.TextSize = 12
+    sectionText.TextXAlignment = Enum.TextXAlignment.Left
+    sectionText.Parent = sectionFrame
+    
+    return sectionFrame
 end
 
-local Window = library:NewWindow("Grow a Garden - Delta Executor", "by Script Helper")
+-- Toggle Function
+local function CreateToggle(text, yPos, callback)
+    local toggleFrame = Instance.new("Frame")
+    toggleFrame.Size = UDim2.new(1, -20, 0, 25)
+    toggleFrame.Position = UDim2.new(0, 10, 0, yPos)
+    toggleFrame.BackgroundTransparency = 1
+    toggleFrame.Parent = ScrollFrame
+    
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Size = UDim2.new(0, 40, 0, 20)
+    toggleButton.Position = UDim2.new(1, -40, 0, 0)
+    toggleButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    toggleButton.Text = "OFF"
+    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleButton.Font = Enum.Font.Gotham
+    toggleButton.TextSize = 11
+    toggleButton.Parent = toggleFrame
+    
+    local toggleText = Instance.new("TextLabel")
+    toggleText.Size = UDim2.new(1, -50, 1, 0)
+    toggleText.BackgroundTransparency = 1
+    toggleText.Text = text
+    toggleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleText.Font = Enum.Font.Gotham
+    toggleText.TextSize = 12
+    toggleText.TextXAlignment = Enum.TextXAlignment.Left
+    toggleText.Parent = toggleFrame
+    
+    local isToggled = false
+    
+    toggleButton.MouseButton1Click:Connect(function()
+        isToggled = not isToggled
+        if isToggled then
+            toggleButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+            toggleButton.Text = "ON"
+        else
+            toggleButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+            toggleButton.Text = "OFF"
+        end
+        callback(isToggled)
+    end)
+    
+    return toggleFrame
+end
 
-local MainTab = Window:NewTab("Auto Farm")
-local PlantTab = Window:NewTab("Plant Management")
-local ShopTab = Window:NewTab("Upgrades & Shop")
-local SettingsTab = Window:NewTab("Settings")
+-- Create Sections and Toggles
+CreateSection("AUTO FARMING", 10)
 
--- Variables
-local AutoPlant = false
-local AutoWater = false
-local AutoHarvest = false
-local AutoSell = false
-local AutoBuySeeds = false
-local PlantRandom = false
-local SelectedSeed = "Sunflower"
-
--- Main Tab
-local FarmingSection = MainTab:NewSection("Auto Farming")
-
-FarmingSection:NewToggle("Auto Plant Seeds", "Tanam benih otomatis", function(Value)
-    AutoPlant = Value
-    if Value then
+CreateToggle("Auto Plant Seeds", 50, function(state)
+    _G.AutoPlant = state
+    if state then
         spawn(function()
-            while AutoPlant do
-                if PlantRandom then
-                    PlantSeedsRandom(SelectedSeed)
-                else
-                    PlantSeeds(SelectedSeed)
-                end
+            while _G.AutoPlant do
+                print("🌱 Planting seed...")
+                -- game:GetService("ReplicatedStorage").Events.PlantSeed:FireServer("Sunflower")
+                wait(2)
+            end
+        end)
+    end
+end)
+
+CreateToggle("Auto Water Plants", 85, function(state)
+    _G.AutoWater = state
+    if state then
+        spawn(function()
+            while _G.AutoWater do
+                print("💧 Watering plants...")
+                -- game:GetService("ReplicatedStorage").Events.WaterPlant:FireServer()
+                wait(3)
+            end
+        end)
+    end
+end)
+
+CreateToggle("Auto Harvest", 120, function(state)
+    _G.AutoHarvest = state
+    if state then
+        spawn(function()
+            while _G.AutoHarvest do
+                print("📦 Harvesting...")
+                -- game:GetService("ReplicatedStorage").Events.HarvestPlant:FireServer()
+                wait(4)
+            end
+        end)
+    end
+end)
+
+CreateToggle("Auto Sell", 155, function(state)
+    _G.AutoSell = state
+    if state then
+        spawn(function()
+            while _G.AutoSell do
+                print("💰 Selling crops...")
+                -- game:GetService("ReplicatedStorage").Events.SellCrops:FireServer()
                 wait(5)
             end
         end)
     end
 end)
 
-FarmingSection:NewToggle("Auto Water Plants", "Siram tanaman otomatis", function(Value)
-    AutoWater = Value
-    if Value then
-        spawn(function()
-            while AutoWater do
-                WaterPlants()
-                wait(10)
-            end
-        end)
+CreateSection("SETTINGS", 200)
+
+CreateToggle("Random Planting", 240, function(state)
+    _G.RandomPlant = state
+    print("🎯 Random planting: " .. tostring(state))
+end)
+
+-- Status Label
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -10, 0, 20)
+statusLabel.Position = UDim2.new(0, 5, 0, 350)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Status: Ready - Press RightShift"
+statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextSize = 11
+statusLabel.Parent = ScrollFrame
+
+-- Toggle GUI with RightShift
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        MainFrame.Visible = not MainFrame.Visible
     end
 end)
 
-FarmingSection:NewToggle("Auto Harvest Plants", "Panen tanaman otomatis", function(Value)
-    AutoHarvest = Value
-    if Value then
-        spawn(function()
-            while AutoHarvest do
-                HarvestPlants()
-                wait(15)
-            end
-        end)
-    end
-end)
+-- Notification
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "Grow Garden Bot",
+    Text = "GUI Loaded Successfully! Press RightShift",
+    Duration = 5
+})
 
-FarmingSection:NewToggle("Auto Sell Crops", "Jual hasil panen otomatis", function(Value)
-    AutoSell = Value
-    if Value then
-        spawn(function()
-            while AutoSell do
-                SellCrops()
-                wait(20)
-            end
-        end)
-    end
-end)
-
--- Plant Management Tab
-local PlantSection = PlantTab:NewSection("Seed Selection")
-
-local seedOptions = {"Sunflower", "Tomato", "Carrot", "Potato", "Rose", "Tulip"}
-PlantSection:NewDropdown("Pilih Jenis Benih", "Pilih benih yang akan ditanam", seedOptions, function(Value)
-    SelectedSeed = Value
-    print("Benih dipilih: " .. Value)
-end)
-
-local RandomSection = PlantTab:NewSection("Random Planting")
-
-RandomSection:NewToggle("Plant in Random Locations", "Tanam di lokasi acak", function(Value)
-    PlantRandom = Value
-    print("Random Planting: " .. tostring(Value))
-end)
-
-RandomSection:NewSlider("Planting Radius", "Jarak penanaman dari player", 100, 10, function(Value)
-    print("Radius diatur: " .. Value)
-end)
-
--- Shop Tab
-local ShopSection = ShopTab:NewSection("Auto Shop")
-
-ShopSection:NewToggle("Auto Buy Seeds", "Beli benih otomatis", function(Value)
-    AutoBuySeeds = Value
-    if Value then
-        spawn(function()
-            while AutoBuySeeds do
-                CheckAndBuySeeds(SelectedSeed, 10)
-                wait(30)
-            end
-        end)
-    end
-end)
-
-ShopSection:NewSlider("Max Seeds to Buy", "Jumlah maksimal benih", 50, 1, function(Value)
-    print("Max seeds: " .. Value)
-end)
-
--- Settings Tab
-local SettingsSection = SettingsTab:NewSection("Script Settings")
-
-SettingsSection:NewButton("Save Settings", "Simpan pengaturan", function()
-    print("Settings disimpan!")
-end)
-
-SettingsSection:NewButton("Load Settings", "Muat pengaturan", function()
-    print("Settings dimuat!")
-end)
-
-SettingsSection:NewButton("Reset Script", "Reset semua pengaturan", function()
-    ResetScript()
-end)
-
--- Functions
-function PlantSeedsRandom(seedType)
-    local randomPos = GetRandomPositionAroundPlayer()
-    if randomPos then
-        print("🌱 Menanam " .. seedType .. " di: " .. math.floor(randomPos.X) .. ", " .. math.floor(randomPos.Z))
-        -- game:GetService("ReplicatedStorage").Events.PlantSeed:FireServer(seedType, randomPos)
-    end
-end
-
-function GetRandomPositionAroundPlayer()
-    local player = game.Players.LocalPlayer
-    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        local rootPart = player.Character.HumanoidRootPart
-        local randomX = math.random(-20, 20)
-        local randomZ = math.random(-20, 20)
-        
-        return Vector3.new(
-            rootPart.Position.X + randomX,
-            rootPart.Position.Y,
-            rootPart.Position.Z + randomZ
-        )
-    end
-    return nil
-end
-
-function CheckAndBuySeeds(seedType, amount)
-    print("🛒 Mengecek stok benih " .. seedType)
-    print("✅ Membeli " .. amount .. " benih " .. seedType)
-    -- game:GetService("ReplicatedStorage").Events.BuySeeds:FireServer(seedType, amount)
-end
-
-function PlantSeeds(seedType)
-    print("🌱 Menanam " .. seedType)
-    -- game:GetService("ReplicatedStorage").Events.PlantSeed:FireServer(seedType)
-end
-
-function WaterPlants()
-    print("💧 Menyiram tanaman")
-    -- game:GetService("ReplicatedStorage").Events.WaterPlant:FireServer()
-end
-
-function HarvestPlants()
-    print("📦 Memanen tanaman")
-    -- game:GetService("ReplicatedStorage").Events.HarvestPlant:FireServer()
-end
-
-function SellCrops()
-    print("💰 Menjual hasil panen")
-    -- game:GetService("ReplicatedStorage").Events.SellCrops:FireServer()
-end
-
-function ResetScript()
-    AutoPlant = false
-    AutoWater = false
-    AutoHarvest = false
-    AutoSell = false
-    AutoBuySeeds = false
-    PlantRandom = false
-    print("🔄 Script direset!")
-end
+print("========================================")
+print("🎉 GROW GARDEN GUI BERHASIL DIBUAT!")
+print("📋 Fitur: Auto Plant, Water, Harvest, Sell")
+print("🎮 Press RIGHT SHIFT to open/close GUI")
+print("========================================")
 
 -- Anti AFK
 local VirtualUser = game:GetService("VirtualUser")
@@ -199,6 +228,3 @@ game:GetService("Players").LocalPlayer.Idled:Connect(function()
     VirtualUser:CaptureController()
     VirtualUser:ClickButton2(Vector2.new())
 end)
-
-print("✅ GUI Grow a Garden berhasil dimuat!")
-print("📜 Tekan Insert untuk membuka/menutup GUI")

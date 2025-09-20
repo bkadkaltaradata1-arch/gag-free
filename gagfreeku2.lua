@@ -28,6 +28,18 @@ local autoBuyEnabled = false
 local lastShopStock = {}
 local isBuying = false -- Flag untuk menandai sedang membeli
 
+-- Performance Monitor Variables
+local PerformanceMonitor = {}
+PerformanceMonitor.Stats = {
+    FPS = 0,
+    MemoryUsage = 0,
+    ScriptCalls = 0,
+    NetworkLatency = 0
+}
+PerformanceMonitor.LastUpdate = tick()
+PerformanceMonitor.UpdateInterval = 1 -- Update setiap 1 detik
+PerformanceMonitor.CallCount = 0
+
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
    Name = "Grow A Garden",
@@ -44,169 +56,7 @@ local Window = Rayfield:CreateWindow({
       FileName = "GAGscript"
    },
 })
--- Tambahkan di bagian atas setelah deklarasi variabel lainnya
-local PerformanceMonitor = {}
-PerformanceMonitor.Stats = {
-    FPS = 0,
-    MemoryUsage = 0,
-    ScriptCalls = 0,
-    NetworkLatency = 0
-}
-PerformanceMonitor.LastUpdate = tick()
-PerformanceMonitor.UpdateInterval = 1 -- Update setiap 1 detik
-PerformanceMonitor.CallCount = 0
 
--- Fungsi untuk memantau performa
-local function monitorPerformance()
-    -- Hitung FPS
-    local now = tick()
-    local delta = now - PerformanceMonitor.LastUpdate
-    if delta >= PerformanceMonitor.UpdateInterval then
-        PerformanceMonitor.Stats.FPS = math.floor(1 / delta)
-        PerformanceMonitor.LastUpdate = now
-        
-        -- Dapatkan penggunaan memori
-        local stats = game:GetService("Stats")
-        PerformanceMonitor.Stats.MemoryUsage = math.floor(stats:GetTotalMemoryUsageMb())
-        
-        -- Dapatkan latency jaringan
-        PerformanceMonitor.Stats.NetworkLatency = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
-        
-        -- Reset hitungan panggilan
-        PerformanceMonitor.Stats.ScriptCalls = PerformanceMonitor.CallCount
-        PerformanceMonitor.CallCount = 0
-    end
-end
-
--- Hook untuk menghitung panggilan fungsi
-local oldNamecall
-oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-    PerformanceMonitor.CallCount = PerformanceMonitor.CallCount + 1
-    return oldNamecall(self, ...)
-end)
-
--- Buat tab untuk monitor performa
-local MonitorTab = Window:CreateTab("Performance Monitor", "signal")
-MonitorTab:CreateSection("Real-time Statistics")
-
--- Buat display untuk statistik
-local StatsDisplay = MonitorTab:CreateParagraph({
-    Title = "Current Performance",
-    Content = "FPS: Loading...\nMemory: Loading...\nScript Calls: Loading...\nLatency: Loading..."
-})
-
-MonitorTab:CreateSection("Configuration")
-local UpdateIntervalSlider = MonitorTab:CreateSlider({
-    Name = "Update Interval",
-    Range = {0.1, 5},
-    Increment = 0.1,
-    Suffix = "seconds",
-    CurrentValue = PerformanceMonitor.UpdateInterval,
-    Flag = "UpdateInterval",
-    Callback = function(Value)
-        PerformanceMonitor.UpdateInterval = Value
-    end,
-})
-
-MonitorTab:CreateSection("Script Status")
-local ScriptStatus = MonitorTab:CreateParagraph({
-    Title = "Script Components",
-    Content = "Initializing..."
-})
-
--- Fungsi untuk update status script
-local function updateScriptStatus()
-    local status = {}
-    
-    -- Cek status berbagai komponen
-    table.insert(status, "Farm Detection: " .. (findPlayerFarm() and "✅ Found" or "❌ Not Found"))
-    table.insert(status, "Backpack Items: " .. #Backpack:GetChildren() .. " items")
-    table.insert(status, "Plants in Farm: " .. (findPlayerFarm() and #findPlayerFarm().Important.Plants_Physical:GetChildren() or "0"))
-    table.insert(status, "Selected Fruits: " .. (#wantedFruits > 0 and table.concat(wantedFruits, ", ") or "None"))
-    table.insert(status, "Auto-Plant: " .. (shouldAutoPlant and "✅ Enabled" or "❌ Disabled"))
-    table.insert(status, "Auto-Buy: " .. (autoBuyEnabled and "✅ Enabled" or "❌ Disabled"))
-    table.insert(status, "Auto-Sell: " .. (shouldSell and "✅ Enabled" : "❌ Disabled"))
-    
-    ScriptStatus:Set({
-        Title = "Script Status",
-        Content = table.concat(status, "\n")
-    })
-end
-
--- Loop untuk update monitor
-spawn(function()
-    while true do
-        -- Update performance stats
-        monitorPerformance()
-        
-        -- Update display
-        StatsDisplay:Set({
-            Title = "Current Performance",
-            Content = string.format("FPS: %d\nMemory: %d MB\nScript Calls: %d/s\nLatency: %d ms", 
-                PerformanceMonitor.Stats.FPS,
-                PerformanceMonitor.Stats.MemoryUsage,
-                PerformanceMonitor.Stats.ScriptCalls,
-                PerformanceMonitor.Stats.NetworkLatency)
-        })
-        
-        -- Update script status
-        updateScriptStatus()
-        
-        wait(PerformanceMonitor.UpdateInterval)
-    end
-end)
-
-MonitorTab:CreateSection("Debug Tools")
-MonitorTab:CreateButton({
-    Name = "Force Garbage Collection",
-    Callback = function()
-        collectgarbage()
-        Rayfield:Notify({
-            Title = "Garbage Collection",
-            Content = "Memory cleaned up",
-            Duration = 3,
-            Image = 0
-        })
-    end,
-})
-
-MonitorTab:CreateButton({
-    Name = "Print Debug Info",
-    Callback = function()
-        print("=== DEBUG INFORMATION ===")
-        print("FPS:", PerformanceMonitor.Stats.FPS)
-        print("Memory Usage:", PerformanceMonitor.Stats.MemoryUsage, "MB")
-        print("Script Calls/sec:", PerformanceMonitor.Stats.ScriptCalls)
-        print("Network Latency:", PerformanceMonitor.Stats.NetworkLatency, "ms")
-        print("Farm Found:", findPlayerFarm() ~= nil)
-        print("Backpack Items:", #Backpack:GetChildren())
-        print("Selected Fruits:", #wantedFruits > 0 and table.concat(wantedFruits, ", ") or "None")
-        print("Auto-Plant:", shouldAutoPlant)
-        print("Auto-Buy:", autoBuyEnabled)
-        print("Auto-Sell:", shouldSell)
-        print("=========================")
-    end,
-})
-
--- Tambahkan hook untuk memantau event remote
-local function monitorRemoteEvents()
-    local oldFireServer
-    oldFireServer = hookfunction(Instance.new("RemoteEvent").FireServer, function(self, ...)
-        PerformanceMonitor.CallCount = PerformanceMonitor.CallCount + 1
-        return oldFireServer(self, ...)
-    end)
-end
-
--- Jalankan monitor remote events
-pcall(monitorRemoteEvents)
-
--- Tambahkan notifikasi saat script mulai
-Rayfield:Notify({
-    Title = "Performance Monitor",
-    Content = "Performance monitoring initialized",
-    Duration = 3,
-    Image = 0
-})
 local function findPlayerFarm()
     for i,v in pairs(FarmsFolder:GetChildren()) do
         if v.Important.Data.Owner.Value == Players.LocalPlayer.Name then
@@ -853,5 +703,157 @@ playerFarm = findPlayerFarm()
 if not playerFarm then
     warn("Player farm not found!")
 end
+
+-- Performance Monitor Functions
+local function monitorPerformance()
+    -- Hitung FPS
+    local now = tick()
+    local delta = now - PerformanceMonitor.LastUpdate
+    if delta >= PerformanceMonitor.UpdateInterval then
+        PerformanceMonitor.Stats.FPS = math.floor(1 / delta)
+        PerformanceMonitor.LastUpdate = now
+        
+        -- Dapatkan penggunaan memori
+        local stats = game:GetService("Stats")
+        PerformanceMonitor.Stats.MemoryUsage = math.floor(stats:GetTotalMemoryUsageMb())
+        
+        -- Dapatkan latency jaringan
+        PerformanceMonitor.Stats.NetworkLatency = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
+        
+        -- Reset hitungan panggilan
+        PerformanceMonitor.Stats.ScriptCalls = PerformanceMonitor.CallCount
+        PerformanceMonitor.CallCount = 0
+    end
+end
+
+-- Hook untuk menghitung panggilan fungsi
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    PerformanceMonitor.CallCount = PerformanceMonitor.CallCount + 1
+    return oldNamecall(self, ...)
+end)
+
+-- Buat tab untuk monitor performa
+local MonitorTab = Window:CreateTab("Performance Monitor", "signal")
+MonitorTab:CreateSection("Real-time Statistics")
+
+-- Buat display untuk statistik
+local StatsDisplay = MonitorTab:CreateParagraph({
+    Title = "Current Performance",
+    Content = "FPS: Loading...\nMemory: Loading...\nScript Calls: Loading...\nLatency: Loading..."
+})
+
+MonitorTab:CreateSection("Configuration")
+local UpdateIntervalSlider = MonitorTab:CreateSlider({
+    Name = "Update Interval",
+    Range = {0.1, 5},
+    Increment = 0.1,
+    Suffix = "seconds",
+    CurrentValue = PerformanceMonitor.UpdateInterval,
+    Flag = "UpdateInterval",
+    Callback = function(Value)
+        PerformanceMonitor.UpdateInterval = Value
+    end,
+})
+
+MonitorTab:CreateSection("Script Status")
+local ScriptStatus = MonitorTab:CreateParagraph({
+    Title = "Script Components",
+    Content = "Initializing..."
+})
+
+-- Fungsi untuk update status script
+local function updateScriptStatus()
+    local status = {}
+    
+    -- Cek status berbagai komponen
+    table.insert(status, "Farm Detection: " .. (findPlayerFarm() and "✅ Found" or "❌ Not Found"))
+    table.insert(status, "Backpack Items: " .. #Backpack:GetChildren() .. " items")
+    table.insert(status, "Plants in Farm: " .. (findPlayerFarm() and #findPlayerFarm().Important.Plants_Physical:GetChildren() or "0"))
+    table.insert(status, "Selected Fruits: " .. (#wantedFruits > 0 and table.concat(wantedFruits, ", ") or "None"))
+    table.insert(status, "Auto-Plant: " .. (shouldAutoPlant and "✅ Enabled" or "❌ Disabled"))
+    table.insert(status, "Auto-Buy: " .. (autoBuyEnabled and "✅ Enabled" or "❌ Disabled"))
+    table.insert(status, "Auto-Sell: " .. (shouldSell and "✅ Enabled" or "❌ Disabled"))
+    
+    ScriptStatus:Set({
+        Title = "Script Status",
+        Content = table.concat(status, "\n")
+    })
+end
+
+-- Loop untuk update monitor
+spawn(function()
+    while true do
+        -- Update performance stats
+        monitorPerformance()
+        
+        -- Update display
+        StatsDisplay:Set({
+            Title = "Current Performance",
+            Content = string.format("FPS: %d\nMemory: %d MB\nScript Calls: %d/s\nLatency: %d ms", 
+                PerformanceMonitor.Stats.FPS,
+                PerformanceMonitor.Stats.MemoryUsage,
+                PerformanceMonitor.Stats.ScriptCalls,
+                PerformanceMonitor.Stats.NetworkLatency)
+        })
+        
+        -- Update script status
+        updateScriptStatus()
+        
+        wait(PerformanceMonitor.UpdateInterval)
+    end
+end)
+
+MonitorTab:CreateSection("Debug Tools")
+MonitorTab:CreateButton({
+    Name = "Force Garbage Collection",
+    Callback = function()
+        collectgarbage()
+        Rayfield:Notify({
+            Title = "Garbage Collection",
+            Content = "Memory cleaned up",
+            Duration = 3,
+            Image = 0
+        })
+    end,
+})
+
+MonitorTab:CreateButton({
+    Name = "Print Debug Info",
+    Callback = function()
+        print("=== DEBUG INFORMATION ===")
+        print("FPS:", PerformanceMonitor.Stats.FPS)
+        print("Memory Usage:", PerformanceMonitor.Stats.MemoryUsage, "MB")
+        print("Script Calls/sec:", PerformanceMonitor.Stats.ScriptCalls)
+        print("Network Latency:", PerformanceMonitor.Stats.NetworkLatency, "ms")
+        print("Farm Found:", findPlayerFarm() ~= nil)
+        print("Backpack Items:", #Backpack:GetChildren())
+        print("Selected Fruits:", #wantedFruits > 0 and table.concat(wantedFruits, ", ") or "None")
+        print("Auto-Plant:", shouldAutoPlant)
+        print("Auto-Buy:", autoBuyEnabled)
+        print("Auto-Sell:", shouldSell)
+        print("=========================")
+    end,
+})
+
+-- Tambahkan hook untuk memantau event remote
+local function monitorRemoteEvents()
+    local oldFireServer
+    oldFireServer = hookfunction(Instance.new("RemoteEvent").FireServer, function(self, ...)
+        PerformanceMonitor.CallCount = PerformanceMonitor.CallCount + 1
+        return oldFireServer(self, ...)
+    end)
+end
+
+-- Jalankan monitor remote events
+pcall(monitorRemoteEvents)
+
+-- Tambahkan notifikasi saat script mulai
+Rayfield:Notify({
+    Title = "Performance Monitor",
+    Content = "Performance monitoring initialized",
+    Duration = 3,
+    Image = 0
+})
 
 print("Grow A Garden script loaded successfully!")

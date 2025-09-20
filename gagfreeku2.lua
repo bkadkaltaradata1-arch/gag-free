@@ -1,4 +1,4 @@
--- v2
+-- v3
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -46,6 +46,109 @@ local Window = Rayfield:CreateWindow({
    },
 })
 
+-- Table to store recorded actions
+local recordedActions = {}
+local isRecording = false
+local startTime = 0
+
+-- Function to add an action to the recording
+local function recordAction(actionType, details)
+    if not isRecording then return end
+    
+    local elapsedTime = os.clock() - startTime
+    local actionRecord = {
+        time = elapsedTime,
+        type = actionType,
+        details = details
+    }
+    
+    table.insert(recordedActions, actionRecord)
+    print("Recorded action:", actionType, "at", string.format("%.2fs", elapsedTime))
+end
+
+-- Store original functions for hooking
+local originalFunctions = {
+    PlantFireServer = Plant.FireServer,
+    BuySeedStockFireServer = BuySeedStock.FireServer,
+    SellAllFireServer = sellAllRemote.FireServer,
+    FireProximityPrompt = fireproximityprompt,
+    HRPSetPrimaryPartCFrame = HRP.SetPrimaryPartCFrame
+}
+
+-- Hook into important functions to record actions
+Plant.FireServer = function(self, ...)
+    local args = {...}
+    recordAction("PLANT", {
+        position = args[1],
+        seedType = args[2]
+    })
+    return originalFunctions.PlantFireServer(self, ...)
+end
+
+BuySeedStock.FireServer = function(self, ...)
+    local args = {...}
+    recordAction("BUY_SEEDS", {
+        seedType = args[1]
+    })
+    return originalFunctions.BuySeedStockFireServer(self, ...)
+end
+
+sellAllRemote.FireServer = function(self, ...)
+    recordAction("SELL", {
+        timestamp = os.time(),
+        backpackItems = #Backpack:GetChildren()
+    })
+    return originalFunctions.SellAllFireServer(self, ...)
+end
+
+-- Modified fireproximityprompt to detect harvesting
+local function customFireProximityPrompt(prompt, ...)
+    if prompt and prompt:IsA("ProximityPrompt") then
+        local parent = prompt.Parent
+        if parent and parent:IsDescendantOf(Workspace) then
+            -- Check if this is likely a plant harvesting prompt
+            local plant = parent
+            while plant and plant.Parent ~= Workspace do
+                plant = plant.Parent
+            end
+            
+            if plant and (plant:FindFirstChild("Fruits") or plant.Name:find("Plant") or plant.Name:find("Tree")) then
+                recordAction("HARVEST", {
+                    plantName = plant.Name,
+                    position = plant.PrimaryPart and plant.PrimaryPart.Position
+                })
+            end
+        end
+    end
+    return originalFunctions.FireProximityPrompt(prompt, ...)
+end
+
+-- Override the global function
+getgenv().fireproximityprompt = customFireProximityPrompt
+
+-- Hook teleportation by monitoring HRP position changes
+local lastPosition = HRP.Position
+spawn(function()
+    while true do
+        if isRecording then
+            local currentPosition = HRP.Position
+            local distance = (currentPosition - lastPosition).Magnitude
+            
+            -- If teleported a significant distance (more than walking)
+            if distance > 50 then
+                recordAction("TELEPORT", {
+                    from = lastPosition,
+                    to = currentPosition,
+                    distance = distance
+                })
+            end
+            
+            lastPosition = currentPosition
+        end
+        wait(0.5)
+    end
+end)
+
 local function findPlayerFarm()
     for i,v in pairs(FarmsFolder:GetChildren()) do
         if v.Important.Data.Owner.Value == Players.LocalPlayer.Name then
@@ -79,6 +182,10 @@ local function removePlantsOfKind(kind)
                 HRP.CFrame = plant.PrimaryPart.CFrame
                 wait(0.2)
                 removeItem:FireServer(spawnPoint)
+                recordAction("REMOVE_PLANT", {
+                    plantName = kind[1],
+                    position = plant.PrimaryPart and plant.PrimaryPart.Position
+                })
                 wait(0.1)
             end
         end
@@ -247,6 +354,7 @@ end
 Tab:CreateButton({
     Name = "Collect All Plants",
     Callback = function()
+        recordAction("COLLECT_ALL", {})
         CollectAllPlants()
         print("Collecting All Plants")
     end,
@@ -356,6 +464,7 @@ Tab:CreateToggle({
    Flag = "Toggle1",
    Callback = function(Value)
     plantAura = Value
+    recordAction("TOGGLE_AURA", {enabled = Value})
     print("Plant Aura Set To: ".. tostring(Value))
    end,
 })
@@ -374,6 +483,7 @@ Tab:CreateSection("Plant")
 Tab:CreateButton({
     Name = "Plant all Seeds",
     Callback = function()
+        recordAction("PLANT_ALL", {})
         plantAllSeeds()
     end,
 })
@@ -384,6 +494,7 @@ Tab:CreateToggle({
     flag = "ToggleAutoPlant",
     Callback = function(Value)
         shouldAutoPlant = Value
+        recordAction("AUTO_PLANT", {enabled = Value})
     end,
 })
 
@@ -434,6 +545,7 @@ function buyWantedCropSeeds()
     end
     
     isBuying = true
+    recordAction("BUY_START", {fruits = wantedFruits})
     
     local beforePos = HRP.CFrame
     local humanoid = Character:FindFirstChildOfClass("Humanoid")
@@ -478,6 +590,7 @@ function buyWantedCropSeeds()
     HRP.CFrame = beforePos
     
     isBuying = false
+    recordAction("BUY_END", {success = boughtAny, fruits = wantedFruits})
     return boughtAny
 end
 
@@ -555,6 +668,7 @@ localPlayerTab:CreateButton({
         mouse.Button1Down:Connect(function()
             if Character:FindFirstChild("TP Wand") then
                 HRP.CFrame = mouse.Hit + Vector3.new(0, 3, 0)
+                recordAction("TP_WAND", {position = mouse.Hit.Position})
             end
         end)
     end,    
@@ -581,6 +695,7 @@ local speedSlider = localPlayerTab:CreateSlider({
    Flag = "Slider1",
    Callback = function(Value)
         Humanoid.WalkSpeed = Value
+        recordAction("SPEED_CHANGE", {value = Value})
    end,
 })
 
@@ -600,6 +715,7 @@ local jumpSlider = localPlayerTab:CreateSlider({
    Flag = "Slider2",
    Callback = function(Value)
         Humanoid.JumpPower = Value
+        recordAction("JUMP_CHANGE", {value = Value})
    end,
 })
 
@@ -626,6 +742,7 @@ seedsTab:CreateDropdown({
         end
         print("Selected:", table.concat(filtered, ", "))
         wantedFruits = filtered
+        recordAction("FRUITS_SELECTED", {fruits = filtered})
         print("Updated!")
    end,
 })
@@ -637,6 +754,7 @@ seedsTab:CreateToggle({
     Flag = "AutoBuyToggle",
     Callback = function(Value)
         autoBuyEnabled = Value
+        recordAction("AUTO_BUY", {enabled = Value})
         print("Auto-Buy set to: "..tostring(Value))
         
         -- Jika diaktifkan, langsung coba beli
@@ -664,6 +782,7 @@ sellTab:CreateToggle({
     Callback = function(Value)
         print("set shouldSell to: "..tostring(Value))
         shouldSell = Value
+        recordAction("AUTO_SELL", {enabled = Value})
     end,
 })
 
@@ -677,12 +796,14 @@ sellTab:CreateSlider({
    Callback = function(Value)
         print("AutoSellItems updated to: "..Value)
         AutoSellItems = Value
+        recordAction("SELL_THRESHOLD", {value = Value})
    end,
 })
 
 sellTab:CreateButton({
     Name = "Sell All Now",
     Callback = function()
+        recordAction("MANUAL_SELL", {})
         sellAll()
     end,
 })
@@ -696,85 +817,6 @@ end
 -- Monitoring Tab
 local MonitoringTab = Window:CreateTab("Monitoring", "activity")
 MonitoringTab:CreateSection("Action Recorder")
-
--- Table to store recorded actions
-local recordedActions = {}
-local isRecording = false
-local startTime = 0
-
--- Function to add an action to the recording
-local function recordAction(actionType, details)
-    if not isRecording then return end
-    
-    local elapsedTime = os.clock() - startTime
-    table.insert(recordedActions, {
-        time = elapsedTime,
-        type = actionType,
-        details = details
-    })
-end
-
--- Hook into important functions to record actions
-
--- Record planting
-local originalPlantFire = Plant.FireServer
-Plant.FireServer = function(self, ...)
-    local args = {...}
-    recordAction("PLANT", {
-        position = args[1],
-        seedType = args[2]
-    })
-    return originalPlantFire(self, ...)
-end
-
--- Record buying seeds
-local originalBuyFire = BuySeedStock.FireServer
-BuySeedStock.FireServer = function(self, ...)
-    local args = {...}
-    recordAction("BUY_SEEDS", {
-        seedType = args[1]
-    })
-    return originalBuyFire(self, ...)
-end
-
--- Record selling
-local originalSellFire = sellAllRemote.FireServer
-sellAllRemote.FireServer = function(self, ...)
-    recordAction("SELL", {
-        timestamp = os.time()
-    })
-    return originalSellFire(self, ...)
-end
-
--- Record harvesting (proximity prompt activation)
-local originalFirePrompt = fireproximityprompt
-fireproximityprompt = function(prompt, ...)
-    if prompt and prompt.Parent and prompt.Parent:IsDescendantOf(Workspace) then
-        local plant = prompt.Parent
-        while plant and plant.Parent ~= Workspace do
-            plant = plant.Parent
-        end
-        
-        if plant and plant:FindFirstChild("Name") then
-            recordAction("HARVEST", {
-                plantName = plant.Name,
-                position = plant.PrimaryPart and plant.PrimaryPart.Position
-            })
-        end
-    end
-    return originalFirePrompt(prompt, ...)
-end
-
--- Record teleportation
-local originalHRPSet = HRP.SetPrimaryPartCFrame
-HRP.SetPrimaryPartCFrame = function(self, cframe)
-    if isRecording and self == HRP then
-        recordAction("TELEPORT", {
-            position = cframe.Position
-        })
-    end
-    return originalHRPSet(self, cframe)
-end
 
 -- Create UI elements for monitoring
 local recordingStatus = MonitoringTab:CreateParagraph({
@@ -871,11 +913,15 @@ MonitoringTab:CreateButton({
             elseif action.type == "BUY_SEEDS" then
                 output = output .. "Bought " .. tostring(action.details.seedType) .. " seeds"
             elseif action.type == "SELL" then
-                output = output .. "Sold all items"
+                output = output .. "Sold all items (had " .. tostring(action.details.backpackItems or 0) .. " items)"
             elseif action.type == "HARVEST" then
                 output = output .. "Harvested " .. tostring(action.details.plantName) .. " at " .. tostring(action.details.position)
             elseif action.type == "TELEPORT" then
-                output = output .. "Teleported to " .. tostring(action.details.position)
+                output = output .. "Teleported " .. string.format("%.1f", action.details.distance or 0) .. " studs"
+            elseif action.type == "REMOVE_PLANT" then
+                output = output .. "Removed " .. tostring(action.details.plantName) .. " at " .. tostring(action.details.position)
+            else
+                output = output .. tostring(action.details and next(action.details) and "Details: " .. tostring(action.details) or "No details")
             end
             
             output = output .. "\n"

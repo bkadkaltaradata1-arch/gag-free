@@ -1,135 +1,695 @@
---// =================================================================================
---// SKRIP MULTI-TOOL "DISBEAR" (LAYOUT TOKO & SCROLL FINAL FIX)
---// Versi 8.2 - Oleh Asisten AI & DisBear
---// Finalisasi: Tata letak Toko diperbaiki total, scroll horizontal dihapus.
---// =================================================================================
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local FarmsFolder = Workspace.Farm
+local Players = game:GetService("Players")
+local BuySeedStock = ReplicatedStorage.GameEvents.BuySeedStock
+local Plant = ReplicatedStorage.GameEvents.Plant_RE
+local Backpack = Players.LocalPlayer.Backpack
+local Character = Players.LocalPlayer.Character
+local sellAllRemote = ReplicatedStorage.GameEvents.Sell_Inventory
+local Steven = Workspace.NPCS.Steven
+local Sam = Workspace.NPCS.Sam
+local HRP = Players.LocalPlayer.Character.HumanoidRootPart
+local CropsListAndStocks = {}
+local SeedShopGUI = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.ScrollingFrame
+local shopTimer = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.Frame.Timer
+local shopTime = 0
+local Humanoid = Character:WaitForChild("Humanoid")
+wantedFruits = {}
+local plantAura = false
+local AutoSellItems = 70
+local shouldSell = false
+local removeItem = ReplicatedStorage.GameEvents.Remove_Item
+local plantToRemove
+local shouldAutoPlant = false
+local isSelling = false
+local byteNetReliable = ReplicatedStorage:FindFirstChild("ByteNetReliable")
+local autoBuyEnabled = false
+local lastShopStock = {}
+local isBuying = false -- Flag untuk menandai sedang membeli
 
-print("Memulai Skrip DisBear Multi-Tool v8.2 (FINAL)...")
-if not game:IsLoaded() then game.Loaded:Wait() end
-task.wait(1)
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Window = Rayfield:CreateWindow({
+   Name = "Grow A Garden",
+   Icon = 0,
+   LoadingTitle = "Rayfield Interface Suite",
+   LoadingSubtitle = "by Sirius",
+   Theme = "Default",
+   ToggleUIKeybind = "K",
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false,
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = nil,
+      FileName = "GAGscript"
+   },
+})
 
-local function gethui() return game:GetService("CoreGui") end
-
--- =================================================================================
---// DATABASE & VARIABEL GLOBAL
--- =================================================================================
-local LocalPlayer = game:GetService("Players").LocalPlayer
-local TweenService = game:GetService("TweenService")
-local isActionInProgress = false
-local isBuying = false
-local isMinimized = false
-local selectedPlant, mutasiOnly, teleportFarmEnabled, originalTeleportPosition, farmFolder, HRP
-local cook_data = {}
-local eggStandPosition = Vector3.new(-288, 2, -2)
-
-local shop_item_lists = {
-    Bibit = {"Corn","Daffodil","Watermelon","Pumpkin","Apple","Bamboo","Coconut","Cactus","Dragon Fruit","Mango","Grape","Mushroom","Pepper","Cacao","Beanstalk","Enkaku","Avocado","Zenflare","Sakura Bush","Rose","Sunflower","Giant Pinecone","Giant Strawberry","Giant Watermelon","Giant Pumpkin","Giant Corn"},
-    Perkakas = {"Basic Sprinkler","Advanced Sprinkler","Medium Toy","Medium Treat","Godly Sprinkler","Master Sprinkler","Grandmaster Sprinkler","Watering Can","Trading Ticket","Recall Wrench","Trowel"},
-    Telur = {"Rare Summer Egg", "Mythical Egg", "Paradise Egg", "Bug Egg"}
-}
-local shopGuiPaths = {Bibit = "Seed_Shop", Perkakas = "Gear_Shop", Telur = "PetShop_UI"}
-local shopRemotes={Telur="ReplicatedStorage.GameEvents.BuyPetEgg",Bibit="ReplicatedStorage.GameEvents.BuySeedStock",Perkakas="ReplicatedStorage.GameEvents.BuyGearStock"}
-
--- =================================================================================
---// FUNGSI-FUNGSI INTI
--- =================================================================================
-local function getItemStock(shopType, itemName)
-    local playerGui = LocalPlayer:FindFirstChild("PlayerGui"); if not playerGui then return nil, "PlayerGui tidak ada" end
-    local shopGuiName = shopGuiPaths[shopType]; if not shopGuiName then return nil, "Jenis toko salah" end
-    local shopFrame = playerGui:FindFirstChild(shopGuiName, true); if not shopFrame then return nil, "Buka Toko '"..shopType.."' dulu!" end
-    local itemFrame = shopFrame:FindFirstChild("Frame", true):FindFirstChild("ScrollingFrame", true):FindFirstChild(itemName, true)
-    if not itemFrame then return nil, "Item '"..itemName.."' tidak ada." end
-    local stockLabel = itemFrame:FindFirstChild("Main_Frame", true):FindFirstChild("Stock_Text", true)
-    if stockLabel and stockLabel:IsA("TextLabel") then
-        local stockText = stockLabel.Text:lower()
-        if stockText:find("no stock") then return 0 end
-        local quantity = stockText:match("x(%d+)") or stockText:match("(%d+)")
-        return tonumber(quantity) or 1
-    end
-    return nil, "Label stok tidak ada."
-end
-local function buyItem(shopType, itemName, quantity, ui, itemFrameToUpdate)
-    local remotePath=shopRemotes[shopType];if not remotePath then ui.logLabel.Text="Error: Jenis toko salah.";return end
-    local remote=game;for _,part in ipairs(remotePath:split("."))do remote=remote:FindFirstChild(part,true);if not remote then ui.logLabel.Text="Error: Remote tidak ada.";return end end
-    if remote:IsA("RemoteEvent")then 
-        isBuying = true
-        for i=1,quantity do 
-            if not isBuying then ui.logLabel.Text="Pembelian dihentikan.";break end
-            ui.logLabel.Text=string.format("Membeli %s (%d/%d)...",itemName,i,quantity)
-            remote:FireServer(itemName);task.wait(0.35)
+local function findPlayerFarm()
+    for i,v in pairs(FarmsFolder:GetChildren()) do
+        if v.Important.Data.Owner.Value == Players.LocalPlayer.Name then
+            return v
         end
-        if isBuying and itemFrameToUpdate then
-            local currentStock, err = getItemStock(shopType, itemName)
-            if currentStock then
-                local stockLabel = itemFrameToUpdate:FindFirstChild("StockLabel")
-                if stockLabel then
-                    if currentStock > 0 then stockLabel.Text = "Stok: " .. currentStock; stockLabel.TextColor3 = Color3.fromRGB(132, 255, 135)
-                    else stockLabel.Text = "HABIS"; stockLabel.TextColor3 = Color3.fromRGB(255, 120, 120) end
+    end
+    return nil
+end
+
+local function removePlantsOfKind(kind)
+    if not kind or kind[1] == "None Selected" then
+        print("No plant selected to remove")
+        return
+    end
+    
+    print("Kind: "..kind[1])
+    local Shovel = Backpack:FindFirstChild("Shovel [Destroy Plants]") or Backpack:FindFirstChild("Shovel")
+    
+    if not Shovel then
+        print("Shovel not found in backpack")
+        return
+    end
+    
+    Shovel.Parent = Character
+    wait(0.5) -- Wait for shovel to equip
+    
+    for _,plant in pairs(findPlayerFarm().Important.Plants_Physical:GetChildren()) do
+        if plant.Name == kind[1] then
+            if plant:FindFirstChild("Fruit_Spawn") then
+                local spawnPoint = plant.Fruit_Spawn
+                HRP.CFrame = plant.PrimaryPart.CFrame
+                wait(0.2)
+                removeItem:FireServer(spawnPoint)
+                wait(0.1)
+            end
+        end
+    end 
+    
+    -- Return shovel to backpack
+    if Shovel and Shovel.Parent == Character then
+        Shovel.Parent = Backpack
+    end
+end
+
+local function getAllIFromDict(Dict)
+    local newList = {}
+    for i,_ in pairs(Dict) do
+        table.insert(newList, i)
+    end
+    return newList
+end
+
+local function isInTable(table,value)
+    for _,i in pairs(table) do
+        if i==value then
+            return true
+        end
+    end
+    return false
+end
+
+local function getPlantedFruitTypes()
+    local list = {}
+    local farm = findPlayerFarm()
+    if not farm then return list end
+    
+    for _,plant in pairs(farm.Important.Plants_Physical:GetChildren()) do
+        if not(isInTable(list, plant.Name)) then
+            table.insert(list, plant.Name)
+        end
+    end
+    return list
+end
+
+local Tab = Window:CreateTab("Plants", "rewind")
+Tab:CreateSection("Remove Plants")
+local PlantToRemoveDropdown = Tab:CreateDropdown({
+   Name = "Choose A Plant To Remove",
+   Options = getPlantedFruitTypes(),
+   CurrentOption = {"None Selected"},
+   MultipleOptions = false,
+   Flag = "Dropdown1", 
+   Callback = function(Options)
+    plantToRemove = Options
+   end,
+})
+
+Tab:CreateButton({
+    Name = "Refresh Selection",
+    Callback = function()
+        PlantToRemoveDropdown:Refresh(getPlantedFruitTypes())
+    end,
+})
+
+Tab:CreateButton({
+    Name = "Remove Selected Plant",
+    Callback = function()
+        removePlantsOfKind(plantToRemove)
+    end,
+})
+
+Tab:CreateSection("Harvesting Plants")
+
+local function printCropStocks()
+    for i,v in pairs(CropsListAndStocks) do
+        print(i.."'s Stock Is:", v)
+    end
+end
+
+local function StripPlantStock(UnstrippedStock)
+    local num = string.match(UnstrippedStock, "%d+")
+    return num
+end
+
+function getCropsListAndStock()
+    local oldStock = CropsListAndStocks
+    CropsListAndStocks = {} -- Reset the table
+    for _,Plant in pairs(SeedShopGUI:GetChildren()) do
+        if Plant:FindFirstChild("Main_Frame") and Plant.Main_Frame:FindFirstChild("Stock_Text") then
+            local PlantName = Plant.Name
+            local PlantStock = StripPlantStock(Plant.Main_Frame.Stock_Text.Text)
+            CropsListAndStocks[PlantName] = PlantStock
+        end
+    end
+    
+    -- Cek jika stok berubah (toko di-refresh)
+    local isRefreshed = false
+    for cropName, stock in pairs(CropsListAndStocks) do
+        if oldStock[cropName] ~= stock then
+            isRefreshed = true
+            break
+        end
+    end
+    
+    return isRefreshed
+end
+
+local playerFarm = findPlayerFarm()
+getCropsListAndStock()
+
+local function getPlantingBoundaries(farm)
+    local offset = Vector3.new(15.2844,0,28.356)
+    local edges = {}
+    local PlantingLocations = farm.Important.Plant_Locations:GetChildren()
+    local rect1Center = PlantingLocations[1].Position
+    local rect2Center = PlantingLocations[2].Position
+    edges["1TopLeft"] = rect1Center + offset
+    edges["1BottomRight"] = rect1Center - offset
+    edges["2TopLeft"] = rect2Center + offset
+    edges["2BottomRight"] = rect2Center - offset
+    return edges
+end
+
+local function collectPlant(plant)
+    -- Fixed collection method using proximity prompts instead of byteNetReliable
+    if plant:FindFirstChild("ProximityPrompt") then
+        fireproximityprompt(plant.ProximityPrompt)
+    else
+        -- Check children for proximity prompts
+        for _, child in pairs(plant:GetChildren()) do
+            if child:FindFirstChild("ProximityPrompt") then
+                fireproximityprompt(child.ProximityPrompt)
+                break
+            end
+        end
+    end
+end
+
+local function GetAllPlants()
+    local plantsTable = {}
+    for _, Plant in pairs(playerFarm.Important.Plants_Physical:GetChildren()) do
+        if Plant:FindFirstChild("Fruits") then
+            for _, miniPlant in pairs(Plant.Fruits:GetChildren()) do
+                table.insert(plantsTable, miniPlant)
+            end
+        else
+            table.insert(plantsTable, Plant)
+        end
+    end
+    return plantsTable
+end
+
+local function CollectAllPlants()
+    local plants = GetAllPlants()
+    print("Got "..#plants.." Plants")
+    
+    -- Shuffle the plants table to randomize collection order
+    for i = #plants, 2, -1 do
+        local j = math.random(i)
+        plants[i], plants[j] = plants[j], plants[i]
+    end
+    
+    for _,plant in pairs(plants) do
+        collectPlant(plant)
+        task.wait(0.05)
+    end
+end
+
+Tab:CreateButton({
+    Name = "Collect All Plants",
+    Callback = function()
+        CollectAllPlants()
+        print("Collecting All Plants")
+    end,
+})
+
+spawn(function()
+    while true do
+        if plantAura then
+            local plants = GetAllPlants()
+            
+            -- Shuffle the plants table to randomize collection order
+            for i = #plants, 2, -1 do
+                local j = math.random(i)
+                plants[i], plants[j] = plants[j], plants[i]
+            end
+            
+            for _, plant in pairs(plants) do
+                if plant:FindFirstChild("Fruits") then
+                    for _, miniPlant in pairs(plant.Fruits:GetChildren()) do
+                        for _, child in pairs(miniPlant:GetChildren()) do
+                            if child:FindFirstChild("ProximityPrompt") then
+                                fireproximityprompt(child.ProximityPrompt)
+                            end
+                        end
+                        task.wait(0.01)
+                    end
+                else
+                    for _, child in pairs(plant:GetChildren()) do
+                        if child:FindFirstChild("ProximityPrompt") then
+                            fireproximityprompt(child.ProximityPrompt)
+                        end
+                        task.wait(0.01)
+                    end
                 end
             end
         end
-        if isBuying then ui.logLabel.Text=string.format("Selesai membeli %d %s.", quantity, itemName) end
-        isBuying = false
-    else ui.logLabel.Text="Error: Path bukan Remote." end
-end
-local function triggerHarvest(prompt) pcall(function() if firesignal then firesignal(prompt, "Triggered") end end); pcall(function() if fireproximityprompt then fireproximityprompt(prompt) end end) end
-local function isPromptMutated(prompt) local fruitModel=prompt;while fruitModel and(fruitModel.Parent and fruitModel.Parent.Name~="Fruits")do fruitModel=fruitModel.Parent end;if not fruitModel or(fruitModel.Parent and fruitModel.Parent.Name~="Fruits")then return false end;local k={"gold","shine","sfx","smoke","special","frozen","shell","celestial","windstruck","moonlit","amber","shocked","swirl","particle"};for _,d in ipairs(fruitModel:GetDescendants())do if d:IsA("ParticleEmitter")or d:IsA("Smoke")or d:IsA("Sparkles")or d:IsA("Beam")or d:IsA("PointLight")then return true end;local n=d.Name:lower();for _,w in ipairs(k)do if n:find(w)then return true end end end;return false end
-local function getPlantsInRadius(radius) local r={};if not farmFolder or not HRP then return r end;local rp=HRP.Position;local rs=radius*radius;local fn={};for _,p in ipairs(farmFolder:GetChildren())do if p:IsA("Model")and p.PrimaryPart then local dv=p.PrimaryPart.Position-rp;local ds=dv.X^2+dv.Y^2+dv.Z^2;if ds<=rs then if not fn[p.Name]then table.insert(r,p.Name);fn[p.Name]=true end end end end;return r end
-local function startAutoHarvest(ui,radius) while isActionInProgress and task.wait(0.2)do local f=false;if farmFolder and HRP then for _,p in ipairs(farmFolder:GetChildren())do if not isActionInProgress then break end;if p:IsA("Model")and p.PrimaryPart and p.Name==selectedPlant then if(p.PrimaryPart.Position-HRP.Position).Magnitude<=radius then for _,d in ipairs(p:GetDescendants())do if d:IsA("ProximityPrompt")and d.Enabled then local m=isPromptMutated(d);if(not mutasiOnly)or(mutasiOnly and m)then triggerHarvest(d);f=true end end end end end end end;ui.logLabel.Text="Scan: "..tostring(selectedPlant);if not f then task.wait(0.3)end end end
-local function initializeHarvest() if farmFolder and HRP then return true end;local c=LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait();HRP=c:WaitForChild("HumanoidRootPart",10);local s,f=pcall(function()return workspace:WaitForChild("Plots",15)end);if not s or not f then s,f=pcall(function()return workspace:WaitForChild("Farm"):WaitForChild("Farm"):WaitForChild("Important"):WaitForChild("Plants_Physical",15)end)end;if s and f and HRP then farmFolder=f;return true else return false end end
-local function initializeCook() local c=LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait();local s,d=pcall(function()local m=workspace:WaitForChild("Interaction"):WaitForChild("UpdateItems"):WaitForChild("CookingEvent"):WaitForChild("CookingEventModel",10);return{B=LocalPlayer:WaitForChild("Backpack",10),H=c:WaitForChild("Humanoid",10),R=game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("CookingPotService_RE",10),P=m:WaitForChild("CookingPotPart"):WaitForChild("GetFoodProxPrompt",10),T=m:WaitForChild("IngredientsBoard"):WaitForChild("CookTimeDisplay"):WaitForChild("Face"):WaitForChild("SurfaceGui"):WaitForChild("TimeDisplayFrame"):WaitForChild("TimeLabel",10)}end);if s then cook_data=d;return true else return false end end
-local function findTools(n,q) local f={};for _,t in ipairs(cook_data.B:GetChildren())do if t:IsA("Tool")then local b=t:GetAttribute("f");if b and type(b)=="string"and b:lower():find(n:lower(),1,true)and t:GetAttribute("Seed")==nil then table.insert(f,t);if #f>=q then break end end end end;return f end
-local function cookProcess(ui) if not initializeCook()then ui.logLabel.Text="Error: Dekati panci masak.";isActionInProgress=false;return end;ui.logLabel.Text="Verifikasi resep..."for _,i in ipairs(ui.recipe)do if #findTools(i.name,i.quantity)<i.quantity then ui.logLabel.Text=string.format("Error: Bahan '%s' kurang!",i.name);isActionInProgress=false;return end end;for _,i in ipairs(ui.recipe)do local t=findTools(i.name,i.quantity);for c=1,i.quantity do if not isActionInProgress then return end;ui.logLabel.Text=string.format("Memasukkan %s...",i.name);cook_data.H:EquipTool(t[c]);task.wait(0.7);cook_data.R:FireServer("SubmitHeldPlant");task.wait(1)end end;cook_data.H:UnequipTools();ui.logLabel.Text="Menunggu waktu..."local r,a,m=false,0,50;while not r and a<m and isActionInProgress do if cook_data.T and typeof(cook_data.T.Text)=="string"and cook_data.T.Text:find(":",1,true)then r=true else task.wait(0.1);a=a+1 end end;if not r or not isActionInProgress then ui.logLabel.Text="Error: Gagal deteksi waktu.";isActionInProgress=false;return end;local s=cook_data.T.Text;local _,min,sec=pcall(function()return tonumber(s:match("(%d+):"))or 0,tonumber(s:match(":(%d+)"))or 0 end);if not _ then min,sec=0,0 end;local tot=(min*60)+sec;if tot<=0 or not isActionInProgress then ui.logLabel.Text="Error: Waktu tidak valid.";isActionInProgress=false;return end;cook_data.R:FireServer("CookBest");while tot>0 and isActionInProgress do local m,s=math.floor(tot/60),tot%60;ui.logLabel.Text=string.format("Memasak... %02d:%02d",m,s);task.wait(1);tot=tot-1 end;if not isActionInProgress then return end;ui.logLabel.Text="Mengambil hasil..."pcall(function()firesignal(cook_data.P,"Triggered")end);pcall(function()fireproximityprompt(cook_data.P)end);task.wait(1);ui.logLabel.Text="Siklus masak selesai."end
-
--- =================================================================================
---// PEMBUATAN GUI
--- =================================================================================
-if game:GetService("CoreGui"):FindFirstChild("DisBearGUI") then game:GetService("CoreGui"):FindFirstChild("DisBearGUI"):Destroy() end
-local ScreenGui=Instance.new("ScreenGui",gethui());ScreenGui.Name="DisBearGUI";ScreenGui.ResetOnSpawn=false;local MainFrame=Instance.new("Frame",ScreenGui);MainFrame.Name="MainFrame";MainFrame.Size=UDim2.new(0,280,0,320);MainFrame.Position=UDim2.new(0.02,0,0.15,0);MainFrame.BackgroundColor3=Color3.fromRGB(30,32,35);MainFrame.BackgroundTransparency=0.1;MainFrame.Active=true;MainFrame.Draggable=true;Instance.new("UICorner",MainFrame).CornerRadius=UDim.new(0,8);local TitleBar=Instance.new("Frame",MainFrame);TitleBar.Name="TitleBar";TitleBar.Size=UDim2.new(1,0,0,30);TitleBar.BackgroundTransparency=1;local Title=Instance.new("TextLabel",TitleBar);Title.Size=UDim2.new(1,-60,1,0);Title.Position=UDim2.fromOffset(8,0);Title.BackgroundTransparency=1;Title.Font=Enum.Font.SourceSansBold;Title.Text="👑 DisBear";Title.TextColor3=Color3.fromRGB(255,222,89);Title.TextSize=20;Title.TextXAlignment=Enum.TextXAlignment.Left;local CloseButton=Instance.new("TextButton",TitleBar);CloseButton.Size=UDim2.new(0,30,1,0);CloseButton.Position=UDim2.new(1,-30,0,0);CloseButton.BackgroundTransparency=1;CloseButton.Font=Enum.Font.SourceSansBold;CloseButton.Text="X";CloseButton.TextColor3=Color3.fromRGB(255,120,120);CloseButton.TextSize=20;local MinimizeButton=Instance.new("TextButton",TitleBar);MinimizeButton.Size=UDim2.new(0,30,1,0);MinimizeButton.Position=UDim2.new(1,-60,0,0);MinimizeButton.BackgroundTransparency=1;MinimizeButton.Font=Enum.Font.SourceSansBold;MinimizeButton.Text="—";MinimizeButton.TextColor3=Color3.new(1,1,1);MinimizeButton.TextSize=24;local EggButton=Instance.new("TextButton",TitleBar);EggButton.Size=UDim2.new(0,24,0,24);EggButton.Position=UDim2.new(1,-92,0,3);EggButton.BackgroundColor3=Color3.fromRGB(253,221,92);EggButton.Font=Enum.Font.SourceSansBold;EggButton.Text="🥚";EggButton.TextSize=16;Instance.new("UICorner",EggButton).CornerRadius=UDim.new(1,0);local ScrollingFrame=Instance.new("ScrollingFrame",MainFrame);ScrollingFrame.Name="ScrollingContainer";ScrollingFrame.Size=UDim2.new(1,0,1,-38);ScrollingFrame.Position=UDim2.new(0,0,0,38);ScrollingFrame.BackgroundTransparency=1;ScrollingFrame.BorderSizePixel=0;ScrollingFrame.ScrollBarThickness=6;ScrollingFrame.ScrollBarImageColor3=Color3.fromRGB(80,80,80);ScrollingFrame.AutomaticCanvasSize=Enum.AutomaticSize.Y;ScrollingFrame.ScrollingDirection=Enum.ScrollingDirection.Y;local UIListLayout=Instance.new("UIListLayout",ScrollingFrame);UIListLayout.Padding=UDim.new(0,8);UIListLayout.SortOrder=Enum.SortOrder.LayoutOrder;UIListLayout.HorizontalAlignment=Enum.HorizontalAlignment.Center
-local function createAccordionSection(name,order)local h=Instance.new("TextButton",ScrollingFrame);h.Name=name.."Header";h.Size=UDim2.new(1,-16,0,35);h.BackgroundColor3=Color3.fromRGB(45,47,50);h.TextColor3=Color3.new(1,1,1);h.Text=" "..name;h.Font=Enum.Font.SourceSansBold;h.TextSize=18;h.TextXAlignment=Enum.TextXAlignment.Left;h.LayoutOrder=order;Instance.new("UICorner",h).CornerRadius=UDim.new(0,6);local a=Instance.new("TextLabel",h);a.Size=UDim2.new(0,30,1,0);a.Position=UDim2.new(1,-30,0,0);a.BackgroundTransparency=1;a.Text="▼";a.TextColor3=Color3.new(1,1,1);a.Font=Enum.Font.SourceSansBold;a.TextSize=20;local c=Instance.new("Frame",ScrollingFrame);c.Name=name.."Content";c.BackgroundTransparency=1;c.ClipsDescendants=true;c.LayoutOrder=order+1;c.Visible=false;c.Size=UDim2.new(1,-16,0,0);local cl=Instance.new("UIListLayout",c);cl.Padding=UDim.new(0,5);local cp=Instance.new("UIPadding",c);cp.PaddingTop=UDim.new(0,5);cp.PaddingBottom=UDim.new(0,5);h.MouseButton1Click:Connect(function()c.Visible=not c.Visible;a.Text=c.Visible and"▲"or"▼";task.wait();if c.Visible then c.Size=UDim2.new(1,-16,0,cl.AbsoluteContentSize.Y+10)else c.Size=UDim2.new(1,-16,0,0)end end);return c end
-
-local HarvestContent=createAccordionSection("🌱 Auto Panen",1);local harvestUI={};do local p=HarvestContent;local rf=Instance.new("Frame",p);rf.LayoutOrder=1;rf.Size=UDim2.new(1,0,0,30);rf.BackgroundTransparency=1;local rl=Instance.new("TextLabel",rf);rl.Size=UDim2.new(0,90,1,0);rl.BackgroundTransparency=1;rl.Text="Jarak Scan:";rl.TextColor3=Color3.new(1,1,1);rl.Font=Enum.Font.SourceSans;rl.TextSize=16;rl.TextXAlignment=Enum.TextXAlignment.Left;harvestUI.RadiusInput=Instance.new("TextBox",rf);harvestUI.RadiusInput.Size=UDim2.new(1,-100,1,0);harvestUI.RadiusInput.Position=UDim2.new(0,90,0,0);harvestUI.RadiusInput.Text="50";local function cs(t)local b=Instance.new("TextButton",p);b.Text=t;b.Size=UDim2.new(1,0,0,35);b.BackgroundColor3=Color3.fromRGB(55,57,60);b.TextColor3=Color3.new(1,1,1);b.Font=Enum.Font.SourceSans;b.TextSize=14;Instance.new("UICorner",b).CornerRadius=UDim.new(0,6);return b end;harvestUI.DropdownButton=cs("Pilih Tanaman...");harvestUI.DropdownButton.LayoutOrder=2;harvestUI.MutasiToggle=cs("❌ Panen Hanya Mutasi");harvestUI.MutasiToggle.LayoutOrder=3;harvestUI.TeleportFarmToggle=cs("❌ Teleport & Farm");harvestUI.TeleportFarmToggle.LayoutOrder=4;harvestUI.actionButton=cs("Mulai Panen");harvestUI.actionButton.LayoutOrder=5;harvestUI.actionButton.Size=UDim2.new(1,0,0,40);harvestUI.actionButton.BackgroundColor3=Color3.fromRGB(25,140,75);harvestUI.actionButton.Font=Enum.Font.SourceSansBold;harvestUI.actionButton.TextSize=18;harvestUI.logLabel=Instance.new("TextLabel",p);harvestUI.logLabel.LayoutOrder=6;harvestUI.logLabel.Size=UDim2.new(1,0,0,40);harvestUI.logLabel.BackgroundColor3=Color3.fromRGB(40,42,45);harvestUI.logLabel.TextColor3=Color3.fromRGB(200,200,200);harvestUI.logLabel.Text="Hasil panen akan ditampilkan di sini.";harvestUI.logLabel.Font=Enum.Font.SourceSans;harvestUI.logLabel.TextSize=14;harvestUI.logLabel.TextWrapped=true;Instance.new("UICorner",harvestUI.logLabel).CornerRadius=UDim.new(0,6);Instance.new("UICorner",harvestUI.RadiusInput).CornerRadius=UDim.new(0,6)end
-local CookContent=createAccordionSection("🔪 Auto Masak",2);local cookUI={};do local p=CookContent;local l=p:FindFirstChildOfClass("UIListLayout");l.Padding=UDim.new(0,4);local f=Instance.new("Frame",p);f.Size=UDim2.new(1,0,0,25);f.BackgroundTransparency=1;local l=Instance.new("TextLabel",f);l.Size=UDim2.new(0,50,1,0);l.BackgroundTransparency=1;l.Text="Loop:";l.TextColor3=Color3.new(1,1,1);l.Font=Enum.Font.SourceSansBold;l.TextSize=16;l.TextXAlignment=Enum.TextXAlignment.Left;cookUI.LoopInput=Instance.new("TextBox",f);cookUI.LoopInput.Size=UDim2.new(1,-55,1,0);cookUI.LoopInput.Position=UDim2.new(0,50,0,0);cookUI.LoopInput.BackgroundColor3=Color3.fromRGB(55,57,60);cookUI.LoopInput.TextColor3=Color3.new(1,1,1);cookUI.LoopInput.Text="1";cookUI.LoopInput.Font=Enum.Font.SourceSans;cookUI.LoopInput.TextSize=14;Instance.new("UICorner",cookUI.LoopInput).CornerRadius=UDim.new(0,6);cookUI.recipeSlots={};for i=1,5 do local rf=Instance.new("Frame",p);rf.Size=UDim2.new(1,0,0,28);rf.BackgroundTransparency=1;local sl=Instance.new("TextLabel",rf);sl.Size=UDim2.new(0,20,1,0);sl.BackgroundTransparency=1;sl.Text=i..".";sl.TextColor3=Color3.new(1,1,1);local ni=Instance.new("TextBox",rf);ni.Size=UDim2.new(1,-90,1,0);ni.Position=UDim2.new(0,20,0,0);ni.PlaceholderText="Bahan..";local qi=Instance.new("TextBox",rf);qi.Size=UDim2.new(0,60,1,0);qi.Position=UDim2.new(1,-60,0,0);qi.PlaceholderText="Jmlh";cookUI.recipeSlots[i]={name=ni,quantity=qi};for _,o in ipairs({ni,qi})do o.BackgroundColor3=Color3.fromRGB(55,57,60);o.TextColor3=Color3.new(1,1,1);o.Font=Enum.Font.SourceSans;o.TextSize=13;Instance.new("UICorner",o).CornerRadius=UDim.new(0,4)end end;cookUI.actionButton=Instance.new("TextButton",p);cookUI.actionButton.Size=UDim2.new(1,0,0,40);cookUI.actionButton.BackgroundColor3=Color3.fromRGB(110,80,255);cookUI.actionButton.Text="Mulai Masak";cookUI.actionButton.TextColor3=Color3.new(1,1,1);cookUI.actionButton.Font=Enum.Font.SourceSansBold;cookUI.actionButton.TextSize=18;Instance.new("UICorner",cookUI.actionButton).CornerRadius=UDim.new(0,6);cookUI.logLabel=Instance.new("TextLabel",p);cookUI.logLabel.Size=UDim2.new(1,0,0,40);cookUI.logLabel.BackgroundColor3=Color3.fromRGB(40,42,45);cookUI.logLabel.TextColor3=Color3.fromRGB(200,200,200);cookUI.logLabel.Text="Hasil masak akan ditampilkan di sini.";cookUI.logLabel.Font=Enum.Font.SourceSans;cookUI.logLabel.TextSize=14;cookUI.logLabel.TextWrapped=true;Instance.new("UICorner",cookUI.logLabel).CornerRadius=UDim.new(0,6)end
-
--- [DIUBAH] BAGIAN TOKO & PEMBELIAN DENGAN TATA LETAK FINAL
-local ShopContent=createAccordionSection("🛒 Toko & Pembelian",3)
-local shopUI={}
-do
-    local parent = ShopContent
-    local controlsFrame = Instance.new("Frame", parent)
-    controlsFrame.BackgroundTransparency = 1
-    controlsFrame.Size = UDim2.new(1, 0, 0, 110) -- Ukuran untuk 3 tombol
-    local controlsLayout = Instance.new("UIListLayout", controlsFrame)
-    controlsLayout.Padding = UDim.new(0, 5)
-
-    shopUI.ShopType=Instance.new("TextButton",controlsFrame);shopUI.ShopType.Size=UDim2.new(1,0,0,30);shopUI.ShopType.BackgroundColor3=Color3.fromRGB(55,57,60);shopUI.ShopType.TextColor3=Color3.new(1,1,1);shopUI.ShopType.Text="Toko: Bibit";shopUI.ShopType.Font=Enum.Font.SourceSans;shopUI.ShopType.TextSize=14;Instance.new("UICorner",shopUI.ShopType).CornerRadius=UDim.new(0,6)
-    shopUI.BuyButton=Instance.new("TextButton",controlsFrame);shopUI.BuyButton.Size=UDim2.new(1,0,0,35);shopUI.BuyButton.BackgroundColor3=Color3.fromRGB(200,90,40);shopUI.BuyButton.TextColor3=Color3.new(1,1,1);shopUI.BuyButton.Text="Beli";shopUI.BuyButton.Font=Enum.Font.SourceSansBold;shopUI.BuyButton.TextSize=16;Instance.new("UICorner",shopUI.BuyButton).CornerRadius=UDim.new(0,6)
-    shopUI.ScanButton=Instance.new("TextButton",controlsFrame);shopUI.ScanButton.Size=UDim2.new(1,0,0,35);shopUI.ScanButton.BackgroundColor3=Color3.fromRGB(55,57,60);shopUI.ScanButton.TextColor3=Color3.new(1,1,1);shopUI.ScanButton.Text="Scan Toko";shopUI.ScanButton.Font=Enum.Font.SourceSansBold;shopUI.ScanButton.TextSize=16;Instance.new("UICorner",shopUI.ScanButton).CornerRadius=UDim.new(0,6)
-    
-    shopUI.ItemList=Instance.new("ScrollingFrame",parent);shopUI.ItemList.Size=UDim2.new(1,0,0,150);shopUI.ItemList.BackgroundColor3=Color3.fromRGB(40,42,45);shopUI.ItemList.AutomaticCanvasSize=Enum.AutomaticSize.Y;shopUI.ItemList.ScrollingDirection=Enum.ScrollingDirection.Y;Instance.new("UIListLayout",shopUI.ItemList).Padding=UDim.new(0,2)
-    
-    shopUI.logLabel=Instance.new("TextLabel",parent);shopUI.logLabel.Size=UDim2.new(1,0,0,40);shopUI.logLabel.BackgroundColor3=Color3.fromRGB(40,42,45);shopUI.logLabel.TextColor3=Color3.fromRGB(200,200,200);shopUI.logLabel.Text="Status pembelian akan ada di sini.";shopUI.logLabel.Font=Enum.Font.SourceSans;shopUI.logLabel.TextSize=14;shopUI.logLabel.TextWrapped=true;Instance.new("UICorner",shopUI.logLabel).CornerRadius=UDim.new(0,6)
-end
-
-
--- =================================================================================
---// KONEKSI LOGIKA KE GUI
--- =================================================================================
-local currentShopType="Bibit"
-shopUI.ShopType.MouseButton1Click:Connect(function()local types={"Bibit","Perkakas","Telur"};local currentIndex=table.find(types,currentShopType)or 0;local nextIndex=(currentIndex%#types)+1;currentShopType=types[nextIndex];shopUI.ShopType.Text="Toko: "..currentShopType;for _,v in ipairs(shopUI.ItemList:GetChildren())do if v:IsA("Frame")or v:IsA("TextButton")then v:Destroy()end end;shopUI.logLabel.Text="Pilih toko diubah. Silakan Scan."end)
-shopUI.ScanButton.MouseButton1Click:Connect(function()if isBuying then return end;shopUI.logLabel.Text="Scanning Toko "..currentShopType.."...";task.wait();for _,v in ipairs(shopUI.ItemList:GetChildren())do if v:IsA("Frame")or v:IsA("TextButton")then v:Destroy()end end;local listToScan=shop_item_lists[currentShopType];if not listToScan then shopUI.logLabel.Text="Daftar item untuk toko ini tidak ada.";return end;local itemsFound=0;for _,itemName in ipairs(listToScan)do local stock,err=getItemStock(currentShopType,itemName);if stock then itemsFound=itemsFound+1;local itemFrame=Instance.new("TextButton",shopUI.ItemList);itemFrame.Size=UDim2.new(1,0,0,25);itemFrame.BackgroundColor3=Color3.fromRGB(55,57,60);itemFrame.Text="";local nameLabel=Instance.new("TextLabel",itemFrame);nameLabel.Size=UDim2.new(1,-80,1,0);nameLabel.BackgroundTransparency=1;nameLabel.TextColor3=Color3.new(1,1,1);nameLabel.Text=itemName;nameLabel.Font=Enum.Font.SourceSans;nameLabel.TextSize=14;nameLabel.TextXAlignment=Enum.TextXAlignment.Left;nameLabel.TextTruncate=Enum.TextTruncate.AtEnd;local stockLabel=Instance.new("TextLabel",itemFrame);stockLabel.Name="StockLabel";stockLabel.Size=UDim2.new(0,70,1,0);stockLabel.Position=UDim2.new(1,-70,0,0);stockLabel.BackgroundTransparency=1;stockLabel.Font=Enum.Font.SourceSansBold;stockLabel.TextSize=14;if stock>0 then stockLabel.Text="Stok: "..stock;stockLabel.TextColor3=Color3.fromRGB(132,255,135)else stockLabel.Text="HABIS";stockLabel.TextColor3=Color3.fromRGB(255,120,120)end;itemFrame.MouseButton1Click:Connect(function()if isBuying then return end;task.spawn(buyItem,currentShopType,itemName,1,shopUI,itemFrame)end)else shopUI.logLabel.Text="Scan Gagal: "..err;return end end;shopUI.logLabel.Text="Scan selesai. Ditemukan "..itemsFound.." item."end)
-shopUI.BuyButton.MouseButton1Click:Connect(function()
-    if isBuying then isBuying=false;return end
-    local itemsToBuy={};for _,itemFrame in ipairs(shopUI.ItemList:GetChildren())do if itemFrame:IsA("TextButton")then local itemName=itemFrame:FindFirstChildOfClass("TextLabel").Text;local stockText=itemFrame:FindFirstChild("StockLabel").Text;local stock=tonumber(stockText:match("%d+"));if stock and stock>0 then table.insert(itemsToBuy,{name=itemName,quantity=stock,frame=itemFrame})end end end
-    if #itemsToBuy>0 then task.spawn(function()isBuying=true;shopUI.BuyButton.Text="Berhenti";for _,itemData in ipairs(itemsToBuy)do if not isBuying then break end;buyItem(currentShopType,itemData.name,itemData.quantity,shopUI,itemData.frame);task.wait(0.5)end;isBuying=false;shopUI.BuyButton.Text="Beli"end)
-    else shopUI.logLabel.Text="Tidak ada item berstok untuk dibeli."end
+        task.wait(0.1)
+    end
 end)
-harvestUI.actionButton.MouseButton1Click:Connect(function()if isActionInProgress then isActionInProgress=false;return end;if not initializeHarvest()then harvestUI.logLabel.Text="Error: Kebun tidak ditemukan.";return end;if not selectedPlant then harvestUI.logLabel.Text="Error: Pilih tanaman dulu.";return end;isActionInProgress=true;harvestUI.actionButton.Text="Berhenti";harvestUI.actionButton.BackgroundColor3=Color3.fromRGB(255,80,80);task.spawn(function()if teleportFarmEnabled then originalTeleportPosition=HRP.CFrame;local t=farmFolder:FindFirstChild(selectedPlant,true);if t and t.PrimaryPart then HRP.CFrame=CFrame.new(t.PrimaryPart.Position+Vector3.new(0,3.5,0));task.wait(0.2)end end;local r=tonumber(harvestUI.RadiusInput.Text)or 50;startAutoHarvest(harvestUI,r);if teleportFarmEnabled and originalTeleportPosition then HRP.CFrame=originalTeleportPosition;originalTeleportPosition=nil end;isActionInProgress=false;harvestUI.actionButton.Text="Mulai Panen";harvestUI.actionButton.BackgroundColor3=Color3.fromRGB(25,140,75);if harvestUI.logLabel.Text:find("Scan")then harvestUI.logLabel.Text="Panen dihentikan."end end)end)
-harvestUI.DropdownButton.MouseButton1Click:Connect(function()local PlantListFrame=MainFrame:FindFirstChild("PlantListFrame");if PlantListFrame then PlantListFrame:Destroy();return end;if not initializeHarvest()then harvestUI.logLabel.Text="Gagal init kebun!";return end;local radius=tonumber(harvestUI.RadiusInput.Text)or 50;PlantListFrame=Instance.new("ScrollingFrame",MainFrame);PlantListFrame.Name="PlantListFrame";PlantListFrame.Size=UDim2.new(0,230,0,150);PlantListFrame.Position=UDim2.fromOffset(15,harvestUI.DropdownButton.AbsolutePosition.Y-MainFrame.AbsolutePosition.Y+35);PlantListFrame.BackgroundColor3=Color3.fromRGB(45,47,50);PlantListFrame.BorderColor3=Color3.fromRGB(255,222,89);PlantListFrame.BorderSizePixel=1;Instance.new("UICorner",PlantListFrame).CornerRadius=UDim.new(0,6);PlantListFrame.AutomaticCanvasSize=Enum.AutomaticSize.Y;local PlantListLayout=Instance.new("UIListLayout",PlantListFrame);PlantListLayout.Padding=UDim.new(0,4);local plantList=getPlantsInRadius(radius);if #plantList==0 then local NoPlantLabel=Instance.new("TextLabel",PlantListFrame);NoPlantLabel.Size=UDim2.new(1,0,0,25);NoPlantLabel.BackgroundTransparency=1;NoPlantLabel.TextColor3=Color3.new(1,1,1);NoPlantLabel.Text="Tidak ada tanaman di sekitar...";NoPlantLabel.Font=Enum.Font.SourceSansItalic;NoPlantLabel.TextSize=14 end;for _,plantName in ipairs(plantList)do local b=Instance.new("TextButton",PlantListFrame);b.Size=UDim2.new(1,-8,0,25);b.BackgroundColor3=Color3.fromRGB(55,57,60);b.TextColor3=Color3.new(1,1,1);b.Text=plantName;b.Font=Enum.Font.SourceSans;b.TextSize=14;b.MouseButton1Click:Connect(function()selectedPlant=plantName;harvestUI.DropdownButton.Text="🌿 "..plantName;PlantListFrame:Destroy()end)end end)
-harvestUI.MutasiToggle.MouseButton1Click:Connect(function()mutasiOnly=not mutasiOnly;if mutasiOnly then harvestUI.MutasiToggle.Text="✅ Panen Hanya Mutasi";harvestUI.MutasiToggle.TextColor3=Color3.fromRGB(132,255,135)else harvestUI.MutasiToggle.Text="❌ Panen Hanya Mutasi";harvestUI.MutasiToggle.TextColor3=Color3.new(1,1,1)end end)
-harvestUI.TeleportFarmToggle.MouseButton1Click:Connect(function()teleportFarmEnabled=not teleportFarmEnabled;if teleportFarmEnabled then harvestUI.TeleportFarmToggle.Text="✅ Teleport & Farm";harvestUI.TeleportFarmToggle.BackgroundColor3=Color3.fromRGB(80,180,120)else harvestUI.TeleportFarmToggle.Text="❌ Teleport & Farm";harvestUI.TeleportFarmToggle.BackgroundColor3=Color3.fromRGB(55,57,60)end end)
-cookUI.actionButton.MouseButton1Click:Connect(function()if isActionInProgress then isActionInProgress=false;cookUI.actionButton.Text="Mulai Masak";return end;local r={};for i=1,5 do local n,q=cookUI.recipeSlots[i].name.Text,tonumber(cookUI.recipeSlots[i].quantity.Text);if n and n~=""and q and q>0 then table.insert(r,{name=n,quantity=q})end end;local l=tonumber(cookUI.LoopInput.Text)or 1;if #r>0 and l>0 then isActionInProgress=true;cookUI.actionButton.Text="Berhenti";task.spawn(function()for i=1,l do if not isActionInProgress then break end;cookUI.logLabel.Text=string.format("Loop masak %d/%d...",i,l);cookProcess({recipe=r,logLabel=cookUI.logLabel});if not isActionInProgress then break end;if i<l then cookUI.logLabel.Text="Jeda antar loop...";task.wait(3)end end;isActionInProgress=false;cookUI.actionButton.Text="Mulai Masak";cookUI.logLabel.Text="Semua loop selesai."end)else cookUI.logLabel.Text="Error: Isi resep/loop."end end)
-EggButton.MouseButton1Click:Connect(function()if isActionInProgress or isBuying then return end;local Character=LocalPlayer.Character;local RootPart=Character and Character:FindFirstChild("HumanoidRootPart");if RootPart then RootPart.CFrame=CFrame.new(eggStandPosition) end end)
-CloseButton.MouseButton1Click:Connect(function()isActionInProgress=false;isBuying=false;if teleportFarmEnabled and originalTeleportPosition then HRP.CFrame=originalTeleportPosition end;task.wait(0.1);ScreenGui:Destroy()end)
-MinimizeButton.MouseButton1Click:Connect(function()isMinimized=not isMinimized;local PlantListFrame=MainFrame:FindFirstChild("PlantListFrame");if PlantListFrame then PlantListFrame:Destroy() end;if isMinimized then ScrollingFrame.Visible=false;TweenService:Create(MainFrame,TweenInfo.new(0.3),{Size=UDim2.new(0,260,0,46)}):Play();MinimizeButton.Text="+"else ScrollingFrame.Visible=true;TweenService:Create(MainFrame,TweenInfo.new(0.3),{Size=UDim2.new(0,260,0,300)}):Play();MinimizeButton.Text="—"end end)
-ScrollingFrame:GetPropertyChangedSignal("CanvasPosition"):Connect(function()local PlantListFrame=MainFrame:FindFirstChild("PlantListFrame");if PlantListFrame then PlantListFrame:Destroy()end end)
+
+local function getRandomPlantingLocation(edges)
+    local rectangles = {
+        {edges["1TopLeft"], edges["1BottomRight"]},
+        {edges["2TopLeft"], edges["2BottomRight"]}
+    }
+
+    local chosen = rectangles[math.random(1, #rectangles)]
+    local a = chosen[1]
+    local b = chosen[2]
+
+    local minX, maxX = math.min(a.X, b.X), math.max(a.X, b.X)
+    local minZ, maxZ = math.min(a.Z, b.Z), math.max(a.Z, b.Z)
+    local Y = 0.13552704453468323
+
+    -- Add some randomness to the Y position as well
+    local randY = Y + (math.random() * 0.1 - 0.05) -- Small random variation
+    
+    local randX = math.random() * (maxX - minX) + minX
+    local randZ = math.random() * (maxZ - minZ) + minZ
+
+    return CFrame.new(randX, randY, randZ)
+end
+
+local function areThereSeeds()
+    for _,Item in pairs(Backpack:GetChildren()) do
+        if Item:FindFirstChild("Seed Local Script") then
+            return true
+        end
+    end
+    print("Seeds Not Found!")
+    return false
+end
+
+local function plantAllSeeds()
+    print("Planting All Seeds...")
+    task.wait(1)
+    
+    local edges = getPlantingBoundaries(playerFarm)
+    
+    while areThereSeeds() do
+        print("There Are Seeds!")
+        for _,Item in pairs(Backpack:GetChildren()) do
+            if Item:FindFirstChild("Seed Local Script") then
+                Item.Parent = Character
+                wait(0.1)
+                local location = getRandomPlantingLocation(edges)
+                local args = {
+                    [1] = location.Position,
+                    [2] = Item:GetAttribute("Seed")
+                }
+                Plant:FireServer(unpack(args))
+                wait(0.1)
+                if Item and Item:IsDescendantOf(game) and Item.Parent ~= Backpack then
+                    pcall(function()
+                        Item.Parent = Backpack
+                    end)
+                end
+            end
+        end
+        wait(0.5) -- Small delay to prevent infinite loop
+    end
+end
+
+Tab:CreateToggle({
+   Name = "Harvest Plants Aura",
+   CurrentValue = false,
+   Flag = "Toggle1",
+   Callback = function(Value)
+    plantAura = Value
+    print("Plant Aura Set To: ".. tostring(Value))
+   end,
+})
+
+local testingTab = Window:CreateTab("Testing","rewind")
+testingTab:CreateSection("List Crops Names And Prices")
+testingTab:CreateButton({
+    Name = "Print Out All Crops Names And Stocks",
+    Callback = function()
+        printCropStocks()
+        print("Printed")
+    end,
+})
+
+Tab:CreateSection("Plant")
+Tab:CreateButton({
+    Name = "Plant all Seeds",
+    Callback = function()
+        plantAllSeeds()
+    end,
+})
+
+Tab:CreateToggle({
+    Name = "Auto Plant",
+    CurrentValue = false,
+    flag = "ToggleAutoPlant",
+    Callback = function(Value)
+        shouldAutoPlant = Value
+    end,
+})
+
+testingTab:CreateSection("Shop")
+local RayFieldShopTimer = testingTab:CreateParagraph({Title = "Shop Timer", Content = "Waiting..."})
+
+testingTab:CreateSection("Plot Corners")
+testingTab:CreateButton({
+    Name = "Teleport edges",
+    Callback = function()
+        local edges = getPlantingBoundaries(playerFarm)
+        for i,v in pairs(edges) do
+            HRP.CFrame = CFrame.new(v)
+            wait(2)
+        end
+    end,
+})
+
+testingTab:CreateButton({
+    Name = "Teleport random plantable position",
+    Callback = function()
+        HRP.CFrame = getRandomPlantingLocation(getPlantingBoundaries(playerFarm))
+    end,
+})
+
+local function buyCropSeeds(cropName)
+    local args = {[1] = cropName}
+    local success, errorMsg = pcall(function()
+        BuySeedStock:FireServer(unpack(args))
+    end)
+    
+    if not success then
+        print("Error buying seeds:", errorMsg)
+        return false
+    end
+    return true
+end
+
+function buyWantedCropSeeds()
+    if #wantedFruits == 0 then
+        print("No fruits selected to buy")
+        return false
+    end
+    
+    if isBuying then
+        print("Already buying seeds, please wait...")
+        return false
+    end
+    
+    isBuying = true
+    
+    local beforePos = HRP.CFrame
+    local humanoid = Character:FindFirstChildOfClass("Humanoid")
+    
+    -- Pastikan karakter bisa bergerak
+    if humanoid then
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end
+    
+    -- Pergi ke NPC Sam
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
+    wait(1.5) -- Tunggu sampai sampai di lokasi
+    
+    -- Pastikan kita menghadap ke NPC
+    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
+    wait(0.5)
+    
+    local boughtAny = false
+    
+    for _, fruitName in ipairs(wantedFruits) do
+        local stock = tonumber(CropsListAndStocks[fruitName] or 0)
+        print("Trying to buy "..fruitName..", stock: "..tostring(stock))
+        
+        if stock > 0 then
+            for j = 1, stock do
+                local success = buyCropSeeds(fruitName)
+                if success then
+                    boughtAny = true
+                    print("Bought "..fruitName.." seed "..j.."/"..stock)
+                else
+                    print("Failed to buy "..fruitName)
+                end
+                wait(0.2) -- Tunggu sebentar antara pembelian
+            end
+        else
+            print("No stock for "..fruitName)
+        end
+    end
+    
+    -- Kembali ke posisi semula
+    wait(0.5)
+    HRP.CFrame = beforePos
+    
+    isBuying = false
+    return boughtAny
+end
+
+local function onShopRefresh()
+    print("Shop Refreshed")
+    getCropsListAndStock()
+    if wantedFruits and #wantedFruits > 0 and autoBuyEnabled then
+        print("Auto-buying selected fruits...")
+        
+        -- Tunggu sebentar sebelum membeli untuk memastikan UI sudah update
+        wait(2)
+        buyWantedCropSeeds()
+    end
+end
+
+local function getTimeInSeconds(input)
+    if not input then return 0 end
+    local minutes = tonumber(input:match("(%d+)m")) or 0
+    local seconds = tonumber(input:match("(%d+)s")) or 0
+    return minutes * 60 + seconds
+end
+
+local function sellAll()
+    local OrgPos = HRP.CFrame
+    HRP.CFrame = Steven.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
+    wait(1.5)
+    
+    isSelling = true
+    sellAllRemote:FireServer()
+    
+    -- Wait until items are sold
+    local startTime = tick()
+    while #Backpack:GetChildren() >= AutoSellItems and tick() - startTime < 10 do
+        sellAllRemote:FireServer()
+        wait(0.5)
+    end
+    
+    HRP.CFrame = OrgPos
+    isSelling = false
+end
+
+spawn(function() 
+    while true do
+        if shopTimer and shopTimer.Text then
+            shopTime = getTimeInSeconds(shopTimer.Text)
+            local shopTimeText = "Shop Resets in " .. shopTime .. "s"
+            RayFieldShopTimer:Set({Title = "Shop Timer", Content = shopTimeText})
+            
+            -- Cek jika toko di-refresh dengan membandingkan stok
+            local isRefreshed = getCropsListAndStock()
+            
+            if isRefreshed and autoBuyEnabled and not isBuying then
+                print("Shop refreshed, auto-buying...")
+                onShopRefresh()
+                wait(5)
+            end
+        end
+        
+        if shouldSell and #(Backpack:GetChildren()) >= AutoSellItems and not isSelling then
+            sellAll()
+        end
+        
+        wait(0.5)
+    end
+end)
+
+localPlayerTab = Window:CreateTab("LocalPlayer")
+localPlayerTab:CreateButton({
+    Name = "TP Wand",
+    Callback = function()
+        local mouse = Players.LocalPlayer:GetMouse()
+        local TPWand = Instance.new("Tool", Backpack)
+        TPWand.Name = "TP Wand"
+        TPWand.RequiresHandle = false
+        mouse.Button1Down:Connect(function()
+            if Character:FindFirstChild("TP Wand") then
+                HRP.CFrame = mouse.Hit + Vector3.new(0, 3, 0)
+            end
+        end)
+    end,    
+})
+
+localPlayerTab:CreateButton({
+    Name = "Destroy TP Wand",
+    Callback = function()
+        if Backpack:FindFirstChild("TP Wand") then
+            Backpack:FindFirstChild("TP Wand"):Destroy()
+        end
+        if Character:FindFirstChild("TP Wand") then
+            Character:FindFirstChild("TP Wand"):Destroy()
+        end
+    end,    
+})
+
+local speedSlider = localPlayerTab:CreateSlider({
+   Name = "Speed",
+   Range = {1, 500},
+   Increment = 5,
+   Suffix = "Speed",
+   CurrentValue = 20,
+   Flag = "Slider1",
+   Callback = function(Value)
+        Humanoid.WalkSpeed = Value
+   end,
+})
+
+localPlayerTab:CreateButton({
+    Name = "Default Speed",
+    Callback = function()
+        speedSlider:Set(20)
+    end,
+})
+
+local jumpSlider = localPlayerTab:CreateSlider({
+   Name = "Jump Power",
+   Range = {1, 500},
+   Increment = 5,
+   Suffix = "Jump Power",
+   CurrentValue = 50,
+   Flag = "Slider2",
+   Callback = function(Value)
+        Humanoid.JumpPower = Value
+   end,
+})
+
+localPlayerTab:CreateButton({
+    Name = "Default Jump Power",
+    Callback = function()
+        jumpSlider:Set(50)
+    end,
+})
+
+local seedsTab = Window:CreateTab("Seeds")
+seedsTab:CreateDropdown({
+   Name = "Fruits To Buy",
+   Options = getAllIFromDict(CropsListAndStocks),
+   CurrentOption = {"None Selected"},
+   MultipleOptions = true,
+   Flag = "Dropdown1", 
+   Callback = function(Options)
+        local filtered = {}
+        for _, fruit in ipairs(Options) do
+            if fruit ~= "None Selected" then
+                table.insert(filtered, fruit)
+            end
+        end
+        print("Selected:", table.concat(filtered, ", "))
+        wantedFruits = filtered
+        print("Updated!")
+   end,
+})
+
+-- Tambahkan toggle untuk enable/disable auto-buy
+seedsTab:CreateToggle({
+    Name = "Enable Auto-Buy",
+    CurrentValue = false,
+    Flag = "AutoBuyToggle",
+    Callback = function(Value)
+        autoBuyEnabled = Value
+        print("Auto-Buy set to: "..tostring(Value))
+        
+        -- Jika diaktifkan, langsung coba beli
+        if Value and #wantedFruits > 0 then
+            spawn(function()
+                wait(1)
+                buyWantedCropSeeds()
+            end)
+        end
+    end,
+})
+
+seedsTab:CreateButton({
+    Name = "Buy Selected Fruits Now",
+    Callback = function()
+        buyWantedCropSeeds()
+    end,
+})
+
+local sellTab = Window:CreateTab("Sell")
+sellTab:CreateToggle({
+    Name = "Should Sell?",
+    CurrentValue = false,
+    flag = "Toggle2",
+    Callback = function(Value)
+        print("set shouldSell to: "..tostring(Value))
+        shouldSell = Value
+    end,
+})
+
+sellTab:CreateSlider({
+   Name = "Minimum Items to auto sell",
+   Range = {1, 200},
+   Increment = 1,
+   Suffix = "Items",
+   CurrentValue = 70,
+   Flag = "Slider2",
+   Callback = function(Value)
+        print("AutoSellItems updated to: "..Value)
+        AutoSellItems = Value
+   end,
+})
+
+sellTab:CreateButton({
+    Name = "Sell All Now",
+    Callback = function()
+        sellAll()
+    end,
+})
+
+-- Initialize the player farm reference
+playerFarm = findPlayerFarm()
+if not playerFarm then
+    warn("Player farm not found!")
+end
+
+print("Grow A Garden script loaded successfully!")

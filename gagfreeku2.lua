@@ -1,3 +1,4 @@
+-- v2
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -27,7 +28,6 @@ local byteNetReliable = ReplicatedStorage:FindFirstChild("ByteNetReliable")
 local autoBuyEnabled = false
 local lastShopStock = {}
 local isBuying = false -- Flag untuk menandai sedang membeli
-local autoBuyGreenButton = false -- Flag untuk autobuy tombol hijau
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
@@ -481,107 +481,9 @@ function buyWantedCropSeeds()
     return boughtAny
 end
 
--- Fungsi untuk mendeteksi dan mengklik tombol hijau (harga seeds)
-local function checkAndClickGreenPriceButtons()
-    local seedShopFrame = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
-    if not seedShopFrame then 
-        print("Seed Shop GUI tidak ditemukan")
-        return false 
-    end
-    
-    local scrollingFrame = seedShopFrame.Frame:FindFirstChild("ScrollingFrame")
-    if not scrollingFrame then
-        print("ScrollingFrame tidak ditemukan")
-        return false
-    end
-    
-    local clickedAny = false
-    
-    -- Iterasi melalui semua item di toko
-    for _, plantFrame in pairs(scrollingFrame:GetChildren()) do
-        if plantFrame:IsA("Frame") and plantFrame:FindFirstChild("Main_Frame") then
-            local mainFrame = plantFrame.Main_Frame
-            
-            -- Cari tombol harga yang berwarna hijau
-            for _, child in pairs(mainFrame:GetChildren()) do
-                if child:IsA("TextButton") and child.Visible then
-                    -- Periksa apakah ini tombol harga (biasanya berisi angka)
-                    if child.Text ~= "" and tonumber(child.Text) then
-                        -- Periksa warna background (hijau)
-                        if child.BackgroundColor3 then
-                            local r, g, b = child.BackgroundColor3.R, child.BackgroundColor3.G, child.BackgroundColor3.B
-                            -- Warna hijau biasanya memiliki G value yang tinggi
-                            if g > 0.7 and r < 0.5 and b < 0.5 then
-                                print("Tombol hijau ditemukan: "..plantFrame.Name.." - "..child.Text)
-                                
-                                -- Coba klik tombol
-                                local clickEvent = child:FindFirstChild("Activated")
-                                if clickEvent then
-                                    clickEvent:Fire()
-                                    print("Berhasil mengklik tombol harga hijau: "..child.Text)
-                                    clickedAny = true
-                                    wait(0.2) -- Tunggu sebentar antara klik
-                                else
-                                    print("Tidak dapat menemukan event Activated pada tombol")
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    return clickedAny
-end
-
--- Fungsi alternatif: klik semua tombol yang terlihat di toko
-local function clickAllVisibleButtons()
-    local seedShopFrame = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
-    if not seedShopFrame then return false end
-    
-    local scrollingFrame = seedShopFrame.Frame:FindFirstChild("ScrollingFrame")
-    if not scrollingFrame then return false end
-    
-    local clickedAny = false
-    
-    for _, plantFrame in pairs(scrollingFrame:GetChildren()) do
-        if plantFrame:IsA("Frame") and plantFrame.Visible then
-            for _, child in pairs(plantFrame:GetDescendants()) do
-                if child:IsA("TextButton") and child.Visible then
-                    local clickEvent = child:FindFirstChild("Activated")
-                    if clickEvent then
-                        clickEvent:Fire()
-                        print("Mengklik tombol: "..plantFrame.Name)
-                        clickedAny = true
-                        wait(0.1)
-                    end
-                end
-            end
-        end
-    end
-    
-    return clickedAny
-end
-
 local function onShopRefresh()
     print("Shop Refreshed")
     getCropsListAndStock()
-    
-    -- Cek dan klik tombol hijau jika autoBuyGreenButton aktif
-    if autoBuyGreenButton then
-        print("Mencari tombol hijau...")
-        local success = checkAndClickGreenPriceButtons()
-        
-        -- Jika tidak menemukan tombol hijau, coba klik semua tombol yang terlihat
-        if not success then
-            print("Tidak menemukan tombol hijau, mencoba klik semua tombol...")
-            clickAllVisibleButtons()
-        end
-        
-        wait(1) -- Tunggu sebentar setelah mengklik tombol
-    end
-    
     if wantedFruits and #wantedFruits > 0 and autoBuyEnabled then
         print("Auto-buying selected fruits...")
         
@@ -627,7 +529,7 @@ spawn(function()
             -- Cek jika toko di-refresh dengan membandingkan stok
             local isRefreshed = getCropsListAndStock()
             
-            if isRefreshed and (autoBuyEnabled or autoBuyGreenButton) and not isBuying then
+            if isRefreshed and autoBuyEnabled and not isBuying then
                 print("Shop refreshed, auto-buying...")
                 onShopRefresh()
                 wait(5)
@@ -747,43 +649,10 @@ seedsTab:CreateToggle({
     end,
 })
 
--- Tambahkan toggle untuk enable/disable auto-buy tombol hijau
-seedsTab:CreateToggle({
-    Name = "Auto-Click Green Price Buttons",
-    CurrentValue = false,
-    Flag = "AutoBuyGreenButton",
-    Callback = function(Value)
-        autoBuyGreenButton = Value
-        print("Auto-Click Green Price Buttons set to: "..tostring(Value))
-        
-        -- Jika diaktifkan, langsung cek dan klik tombol hijau
-        if Value then
-            spawn(function()
-                wait(1)
-                checkAndClickGreenPriceButtons()
-            end)
-        end
-    end,
-})
-
 seedsTab:CreateButton({
     Name = "Buy Selected Fruits Now",
     Callback = function()
         buyWantedCropSeeds()
-    end,
-})
-
-seedsTab:CreateButton({
-    Name = "Click Green Price Buttons Now",
-    Callback = function()
-        checkAndClickGreenPriceButtons()
-    end,
-})
-
-seedsTab:CreateButton({
-    Name = "Click All Visible Buttons",
-    Callback = function()
-        clickAllVisibleButtons()
     end,
 })
 
@@ -823,5 +692,215 @@ playerFarm = findPlayerFarm()
 if not playerFarm then
     warn("Player farm not found!")
 end
+
+-- Monitoring Tab
+local MonitoringTab = Window:CreateTab("Monitoring", "activity")
+MonitoringTab:CreateSection("Action Recorder")
+
+-- Table to store recorded actions
+local recordedActions = {}
+local isRecording = false
+local startTime = 0
+
+-- Function to add an action to the recording
+local function recordAction(actionType, details)
+    if not isRecording then return end
+    
+    local elapsedTime = os.clock() - startTime
+    table.insert(recordedActions, {
+        time = elapsedTime,
+        type = actionType,
+        details = details
+    })
+end
+
+-- Hook into important functions to record actions
+
+-- Record planting
+local originalPlantFire = Plant.FireServer
+Plant.FireServer = function(self, ...)
+    local args = {...}
+    recordAction("PLANT", {
+        position = args[1],
+        seedType = args[2]
+    })
+    return originalPlantFire(self, ...)
+end
+
+-- Record buying seeds
+local originalBuyFire = BuySeedStock.FireServer
+BuySeedStock.FireServer = function(self, ...)
+    local args = {...}
+    recordAction("BUY_SEEDS", {
+        seedType = args[1]
+    })
+    return originalBuyFire(self, ...)
+end
+
+-- Record selling
+local originalSellFire = sellAllRemote.FireServer
+sellAllRemote.FireServer = function(self, ...)
+    recordAction("SELL", {
+        timestamp = os.time()
+    })
+    return originalSellFire(self, ...)
+end
+
+-- Record harvesting (proximity prompt activation)
+local originalFirePrompt = fireproximityprompt
+fireproximityprompt = function(prompt, ...)
+    if prompt and prompt.Parent and prompt.Parent:IsDescendantOf(Workspace) then
+        local plant = prompt.Parent
+        while plant and plant.Parent ~= Workspace do
+            plant = plant.Parent
+        end
+        
+        if plant and plant:FindFirstChild("Name") then
+            recordAction("HARVEST", {
+                plantName = plant.Name,
+                position = plant.PrimaryPart and plant.PrimaryPart.Position
+            })
+        end
+    end
+    return originalFirePrompt(prompt, ...)
+end
+
+-- Record teleportation
+local originalHRPSet = HRP.SetPrimaryPartCFrame
+HRP.SetPrimaryPartCFrame = function(self, cframe)
+    if isRecording and self == HRP then
+        recordAction("TELEPORT", {
+            position = cframe.Position
+        })
+    end
+    return originalHRPSet(self, cframe)
+end
+
+-- Create UI elements for monitoring
+local recordingStatus = MonitoringTab:CreateParagraph({
+    Title = "Recording Status",
+    Content = "Not Recording"
+})
+
+local actionCount = MonitoringTab:CreateParagraph({
+    Title = "Actions Recorded",
+    Content = "0"
+})
+
+MonitoringTab:CreateToggle({
+    Name = "Start/Stop Recording",
+    CurrentValue = false,
+    Flag = "RecordingToggle",
+    Callback = function(Value)
+        isRecording = Value
+        if Value then
+            -- Start recording
+            recordedActions = {}
+            startTime = os.clock()
+            recordingStatus:Set({Title = "Recording Status", Content = "Recording..."})
+            actionCount:Set({Title = "Actions Recorded", Content = "0"})
+            Rayfield:Notify({
+                Title = "Recording Started",
+                Content = "Now recording all character actions",
+                Duration = 3,
+                Image = 0
+            })
+        else
+            -- Stop recording
+            recordingStatus:Set({Title = "Recording Status", Content = "Stopped ("..#recordedActions.." actions)"})
+            Rayfield:Notify({
+                Title = "Recording Stopped",
+                Content = "Recorded "..#recordedActions.." actions",
+                Duration = 3,
+                Image = 0
+            })
+        end
+    end,
+})
+
+MonitoringTab:CreateButton({
+    Name = "Clear Recording",
+    Callback = function()
+        recordedActions = {}
+        actionCount:Set({Title = "Actions Recorded", Content = "0"})
+        Rayfield:Notify({
+            Title = "Recording Cleared",
+            Content = "All recorded actions have been cleared",
+            Duration = 3,
+            Image = 0
+        })
+    end,
+})
+
+MonitoringTab:CreateButton({
+    Name = "Export Recording",
+    Callback = function()
+        if #recordedActions == 0 then
+            Rayfield:Notify({
+                Title = "Export Failed",
+                Content = "No actions to export",
+                Duration = 3,
+                Image = 0
+            })
+            return
+        end
+        
+        -- Convert to JSON-like format
+        local exportData = {
+            metadata = {
+                game = "Grow A Garden",
+                player = Players.LocalPlayer.Name,
+                recordingDate = os.date("%Y-%m-%d %H:%M:%S"),
+                duration = os.clock() - startTime
+            },
+            actions = recordedActions
+        }
+        
+        -- Format as string
+        local output = "Grow A Garden Action Recording\n"
+        output = output .. "Player: " .. exportData.metadata.player .. "\n"
+        output = output .. "Date: " .. exportData.metadata.recordingDate .. "\n"
+        output = output .. "Duration: " .. string.format("%.2f", exportData.metadata.duration) .. " seconds\n"
+        output = output .. "Actions: " .. #exportData.actions .. "\n\n"
+        
+        for i, action in ipairs(exportData.actions) do
+            output = output .. string.format("[%.2fs] %s: ", action.time, action.type)
+            
+            if action.type == "PLANT" then
+                output = output .. "Planted " .. tostring(action.details.seedType) .. " at " .. tostring(action.details.position)
+            elseif action.type == "BUY_SEEDS" then
+                output = output .. "Bought " .. tostring(action.details.seedType) .. " seeds"
+            elseif action.type == "SELL" then
+                output = output .. "Sold all items"
+            elseif action.type == "HARVEST" then
+                output = output .. "Harvested " .. tostring(action.details.plantName) .. " at " .. tostring(action.details.position)
+            elseif action.type == "TELEPORT" then
+                output = output .. "Teleported to " .. tostring(action.details.position)
+            end
+            
+            output = output .. "\n"
+        end
+        
+        -- Copy to clipboard
+        setclipboard(output)
+        
+        Rayfield:Notify({
+            Title = "Recording Exported",
+            Content = #recordedActions .. " actions copied to clipboard",
+            Duration = 5,
+            Image = 0
+        })
+    end,
+})
+
+-- Update action count periodically
+spawn(function()
+    while true do
+        if isRecording then
+            actionCount:Set({Title = "Actions Recorded", Content = tostring(#recordedActions)})
+        end
+        wait(1)
+    end
+end)
 
 print("Grow A Garden script loaded successfully!")

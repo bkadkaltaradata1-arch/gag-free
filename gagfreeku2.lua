@@ -1,4 +1,3 @@
--- v1
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -482,27 +481,87 @@ function buyWantedCropSeeds()
     return boughtAny
 end
 
--- Fungsi baru untuk mendeteksi dan mengklik tombol hijau RESTOCK
-local function checkAndClickGreenButton()
+-- Fungsi untuk mendeteksi dan mengklik tombol hijau (harga seeds)
+local function checkAndClickGreenPriceButtons()
     local seedShopFrame = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
-    if not seedShopFrame then return false end
+    if not seedShopFrame then 
+        print("Seed Shop GUI tidak ditemukan")
+        return false 
+    end
     
-    local restockButton = seedShopFrame.Frame:FindFirstChild("RESTOCK")
-    if restockButton and restockButton.Visible then
-        print("Tombol RESTOCK hijau ditemukan, mengklik...")
-        
-        -- Simulasikan klik pada tombol
-        local clickEvent = restockButton:FindFirstChild("Activated")
-        if clickEvent then
-            clickEvent:Fire()
-            print("Berhasil mengklik tombol RESTOCK")
-            return true
-        else
-            print("Tidak dapat menemukan event Activated pada tombol RESTOCK")
+    local scrollingFrame = seedShopFrame.Frame:FindFirstChild("ScrollingFrame")
+    if not scrollingFrame then
+        print("ScrollingFrame tidak ditemukan")
+        return false
+    end
+    
+    local clickedAny = false
+    
+    -- Iterasi melalui semua item di toko
+    for _, plantFrame in pairs(scrollingFrame:GetChildren()) do
+        if plantFrame:IsA("Frame") and plantFrame:FindFirstChild("Main_Frame") then
+            local mainFrame = plantFrame.Main_Frame
+            
+            -- Cari tombol harga yang berwarna hijau
+            for _, child in pairs(mainFrame:GetChildren()) do
+                if child:IsA("TextButton") and child.Visible then
+                    -- Periksa apakah ini tombol harga (biasanya berisi angka)
+                    if child.Text ~= "" and tonumber(child.Text) then
+                        -- Periksa warna background (hijau)
+                        if child.BackgroundColor3 then
+                            local r, g, b = child.BackgroundColor3.R, child.BackgroundColor3.G, child.BackgroundColor3.B
+                            -- Warna hijau biasanya memiliki G value yang tinggi
+                            if g > 0.7 and r < 0.5 and b < 0.5 then
+                                print("Tombol hijau ditemukan: "..plantFrame.Name.." - "..child.Text)
+                                
+                                -- Coba klik tombol
+                                local clickEvent = child:FindFirstChild("Activated")
+                                if clickEvent then
+                                    clickEvent:Fire()
+                                    print("Berhasil mengklik tombol harga hijau: "..child.Text)
+                                    clickedAny = true
+                                    wait(0.2) -- Tunggu sebentar antara klik
+                                else
+                                    print("Tidak dapat menemukan event Activated pada tombol")
+                                end
+                            end
+                        end
+                    end
+                end
+            end
         end
     end
     
-    return false
+    return clickedAny
+end
+
+-- Fungsi alternatif: klik semua tombol yang terlihat di toko
+local function clickAllVisibleButtons()
+    local seedShopFrame = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
+    if not seedShopFrame then return false end
+    
+    local scrollingFrame = seedShopFrame.Frame:FindFirstChild("ScrollingFrame")
+    if not scrollingFrame then return false end
+    
+    local clickedAny = false
+    
+    for _, plantFrame in pairs(scrollingFrame:GetChildren()) do
+        if plantFrame:IsA("Frame") and plantFrame.Visible then
+            for _, child in pairs(plantFrame:GetDescendants()) do
+                if child:IsA("TextButton") and child.Visible then
+                    local clickEvent = child:FindFirstChild("Activated")
+                    if clickEvent then
+                        clickEvent:Fire()
+                        print("Mengklik tombol: "..plantFrame.Name)
+                        clickedAny = true
+                        wait(0.1)
+                    end
+                end
+            end
+        end
+    end
+    
+    return clickedAny
 end
 
 local function onShopRefresh()
@@ -511,10 +570,16 @@ local function onShopRefresh()
     
     -- Cek dan klik tombol hijau jika autoBuyGreenButton aktif
     if autoBuyGreenButton then
-        local success = checkAndClickGreenButton()
-        if success then
-            wait(1) -- Tunggu sebentar setelah mengklik tombol
+        print("Mencari tombol hijau...")
+        local success = checkAndClickGreenPriceButtons()
+        
+        -- Jika tidak menemukan tombol hijau, coba klik semua tombol yang terlihat
+        if not success then
+            print("Tidak menemukan tombol hijau, mencoba klik semua tombol...")
+            clickAllVisibleButtons()
         end
+        
+        wait(1) -- Tunggu sebentar setelah mengklik tombol
     end
     
     if wantedFruits and #wantedFruits > 0 and autoBuyEnabled then
@@ -684,18 +749,18 @@ seedsTab:CreateToggle({
 
 -- Tambahkan toggle untuk enable/disable auto-buy tombol hijau
 seedsTab:CreateToggle({
-    Name = "Auto-Click Green RESTOCK Button",
+    Name = "Auto-Click Green Price Buttons",
     CurrentValue = false,
     Flag = "AutoBuyGreenButton",
     Callback = function(Value)
         autoBuyGreenButton = Value
-        print("Auto-Click Green RESTOCK Button set to: "..tostring(Value))
+        print("Auto-Click Green Price Buttons set to: "..tostring(Value))
         
         -- Jika diaktifkan, langsung cek dan klik tombol hijau
         if Value then
             spawn(function()
                 wait(1)
-                checkAndClickGreenButton()
+                checkAndClickGreenPriceButtons()
             end)
         end
     end,
@@ -709,9 +774,16 @@ seedsTab:CreateButton({
 })
 
 seedsTab:CreateButton({
-    Name = "Click Green RESTOCK Button Now",
+    Name = "Click Green Price Buttons Now",
     Callback = function()
-        checkAndClickGreenButton()
+        checkAndClickGreenPriceButtons()
+    end,
+})
+
+seedsTab:CreateButton({
+    Name = "Click All Visible Buttons",
+    Callback = function()
+        clickAllVisibleButtons()
     end,
 })
 

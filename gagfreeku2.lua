@@ -1,3 +1,4 @@
+ -- auth zen
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -480,6 +481,57 @@ function buyWantedCropSeeds()
     return boughtAny
 end
 
+-- Fungsi untuk membeli seed tertentu
+local function buySpecificSeed(seedName)
+    if isBuying then
+        print("Already buying seeds, please wait...")
+        return false
+    end
+    
+    isBuying = true
+    
+    local beforePos = HRP.CFrame
+    local humanoid = Character:FindFirstChildOfClass("Humanoid")
+    
+    -- Pastikan karakter bisa bergerak
+    if humanoid then
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end
+    
+    -- Pergi ke NPC Sam
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
+    wait(1.5)
+    
+    -- Pastikan kita menghadap ke NPC
+    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
+    wait(0.5)
+    
+    local stock = tonumber(CropsListAndStocks[seedName] or 0)
+    local bought = false
+    
+    if stock > 0 then
+        for j = 1, stock do
+            local success = buyCropSeeds(seedName)
+            if success then
+                bought = true
+                print("Bought "..seedName.." seed "..j.."/"..stock)
+            else
+                print("Failed to buy "..seedName)
+            end
+            wait(0.2)
+        end
+    else
+        print("No stock for "..seedName)
+    end
+    
+    -- Kembali ke posisi semula
+    wait(0.5)
+    HRP.CFrame = beforePos
+    
+    isBuying = false
+    return bought
+end
+
 local function onShopRefresh()
     print("Shop Refreshed")
     getCropsListAndStock()
@@ -654,6 +706,54 @@ seedsTab:CreateButton({
         buyWantedCropSeeds()
     end,
 })
+
+-- Section baru untuk melihat dan membeli seed individual
+seedsTab:CreateSection("Available Seeds Stock")
+
+-- Fungsi untuk membuat UI stock seeds
+local function createSeedStockUI()
+    getCropsListAndStock() -- Refresh data stok
+    
+    -- Hapus section sebelumnya jika ada
+    if seedsTab:FindFirstChild("SeedStockSection") then
+        seedsTab:FindFirstChild("SeedStockSection"):Destroy()
+    end
+    
+    local seedStockSection = seedsTab:CreateSection("Available Seeds Stock")
+    seedStockSection.Name = "SeedStockSection"
+    
+    -- Buat UI untuk setiap seed yang tersedia
+    for seedName, stock in pairs(CropsListAndStocks) do
+        local stockNumber = tonumber(stock) or 0
+        
+        -- Buat label untuk menampilkan info seed
+        local seedInfo = seedsTab:CreateLabel("• " .. seedName .. " - Stock: " .. stock)
+        
+        -- Buat button untuk membeli seed ini
+        seedsTab:CreateButton({
+            Name = "Buy " .. seedName,
+            Callback = function()
+                print("Attempting to buy " .. seedName)
+                buySpecificSeed(seedName)
+            end,
+        })
+        
+        -- Tambahkan spacer
+        seedsTab:CreateParagraph({Title = "", Content = ""})
+    end
+    
+    -- Button untuk refresh stock
+    seedsTab:CreateButton({
+        Name = "Refresh Stock List",
+        Callback = function()
+            createSeedStockUI()
+            print("Seed stock list refreshed!")
+        end,
+    })
+end
+
+-- Panggil fungsi untuk membuat UI stock seeds
+createSeedStockUI()
 
 local sellTab = Window:CreateTab("Sell")
 sellTab:CreateToggle({

@@ -24,8 +24,9 @@ local plantToRemove
 local shouldAutoPlant = false
 local isSelling = false
 local byteNetReliable = ReplicatedStorage:FindFirstChild("ByteNetReliable")
-local autoBuyEnabled = false -- Tambahkan variabel untuk status autobuy
-local lastShopStock = {} -- Untuk melacak perubahan stok
+local autoBuyEnabled = false
+local lastShopStock = {}
+local isBuying = false -- Flag untuk menandai sedang membeli
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
@@ -409,37 +410,74 @@ testingTab:CreateButton({
 
 local function buyCropSeeds(cropName)
     local args = {[1] = cropName}
-    BuySeedStock:FireServer(unpack(args))
+    local success, errorMsg = pcall(function()
+        BuySeedStock:FireServer(unpack(args))
+    end)
+    
+    if not success then
+        print("Error buying seeds:", errorMsg)
+        return false
+    end
+    return true
 end
 
 function buyWantedCropSeeds()
     if #wantedFruits == 0 then
         print("No fruits selected to buy")
-        return
+        return false
     end
     
+    if isBuying then
+        print("Already buying seeds, please wait...")
+        return false
+    end
+    
+    isBuying = true
+    
     local beforePos = HRP.CFrame
-    wait()
-    HRP.CFrame = Sam.HumanoidRootPart.CFrame
+    local humanoid = Character:FindFirstChildOfClass("Humanoid")
+    
+    -- Pastikan karakter bisa bergerak
+    if humanoid then
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end
+    
+    -- Pergi ke NPC Sam
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
+    wait(1.5) -- Tunggu sampai sampai di lokasi
+    
+    -- Pastikan kita menghadap ke NPC
+    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
     wait(0.5)
+    
+    local boughtAny = false
     
     for _, fruitName in ipairs(wantedFruits) do
         local stock = tonumber(CropsListAndStocks[fruitName] or 0)
+        print("Trying to buy "..fruitName..", stock: "..tostring(stock))
+        
         if stock > 0 then
             for j = 1, stock do
-                buyCropSeeds(fruitName)
-                wait(0.1)
+                local success = buyCropSeeds(fruitName)
+                if success then
+                    boughtAny = true
+                    print("Bought "..fruitName.." seed "..j.."/"..stock)
+                else
+                    print("Failed to buy "..fruitName)
+                end
+                wait(0.2) -- Tunggu sebentar antara pembelian
             end
+        else
+            print("No stock for "..fruitName)
         end
     end
     
-    wait()
+    -- Kembali ke posisi semula
+    wait(0.5)
     HRP.CFrame = beforePos
-    print("Should Auto Plant: "..tostring(shouldAutoPlant))
-    if shouldAutoPlant then
-        print("Entered Auto Plant Function")
-        plantAllSeeds()
-    end
+    
+    isBuying = false
+    return boughtAny
 end
 
 local function onShopRefresh()
@@ -447,11 +485,15 @@ local function onShopRefresh()
     getCropsListAndStock()
     if wantedFruits and #wantedFruits > 0 and autoBuyEnabled then
         print("Auto-buying selected fruits...")
+        
+        -- Tunggu sebentar sebelum membeli untuk memastikan UI sudah update
+        wait(2)
         buyWantedCropSeeds()
     end
 end
 
 local function getTimeInSeconds(input)
+    if not input then return 0 end
     local minutes = tonumber(input:match("(%d+)m")) or 0
     local seconds = tonumber(input:match("(%d+)s")) or 0
     return minutes * 60 + seconds
@@ -459,8 +501,8 @@ end
 
 local function sellAll()
     local OrgPos = HRP.CFrame
-    HRP.CFrame = Steven.HumanoidRootPart.CFrame
-    wait(0.5)
+    HRP.CFrame = Steven.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
+    wait(1.5)
     
     isSelling = true
     sellAllRemote:FireServer()
@@ -486,7 +528,7 @@ spawn(function()
             -- Cek jika toko di-refresh dengan membandingkan stok
             local isRefreshed = getCropsListAndStock()
             
-            if isRefreshed and autoBuyEnabled then
+            if isRefreshed and autoBuyEnabled and not isBuying then
                 print("Shop refreshed, auto-buying...")
                 onShopRefresh()
                 wait(5)
@@ -595,11 +637,19 @@ seedsTab:CreateToggle({
     Callback = function(Value)
         autoBuyEnabled = Value
         print("Auto-Buy set to: "..tostring(Value))
+        
+        -- Jika diaktifkan, langsung coba beli
+        if Value and #wantedFruits > 0 then
+            spawn(function()
+                wait(1)
+                buyWantedCropSeeds()
+            end)
+        end
     end,
 })
 
 seedsTab:CreateButton({
-    Name = "Buy Selected Fruits",
+    Name = "Buy Selected Fruits Now",
     Callback = function()
         buyWantedCropSeeds()
     end,
@@ -641,3 +691,5 @@ playerFarm = findPlayerFarm()
 if not playerFarm then
     warn("Player farm not found!")
 end
+
+print("Grow A Garden script loaded successfully!")

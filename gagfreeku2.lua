@@ -1,4 +1,4 @@
-tambahkan menu disamping seed adalah stock seed dan bisa dibeli langsung
+-- tambahkan menu disamping seed adalah stock seed dan bisa dibeli langsung
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm

@@ -1,3 +1,4 @@
+-- v1
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -27,6 +28,7 @@ local byteNetReliable = ReplicatedStorage:FindFirstChild("ByteNetReliable")
 local autoBuyEnabled = false
 local lastShopStock = {}
 local isBuying = false -- Flag untuk menandai sedang membeli
+local autoBuyGreenButton = false -- Flag untuk autobuy tombol hijau
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
@@ -44,40 +46,6 @@ local Window = Rayfield:CreateWindow({
       FileName = "GAGscript"
    },
 })
-
--- Fungsi baru untuk mencari dan mengklik tombol "10C" hijau
-local function clickBuyButton(cropName)
-    local seedShopFrame = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.ScrollingFrame
-    local cropFrame = seedShopFrame:FindFirstChild(cropName)
-    
-    if cropFrame and cropFrame:FindFirstChild("Main_Frame") then
-        local mainFrame = cropFrame.Main_Frame
-        -- Cari tombol dengan teks "10C" yang berwarna hijau
-        for _, child in pairs(mainFrame:GetChildren()) do
-            if child:IsA("TextButton") and child.Text == "10C" then
-                -- Periksa apakah warnanya hijau (Anda mungkin perlu menyesuaikan kriteria ini)
-                if child.BackgroundColor3 == Color3.fromRGB(0, 170, 0) or 
-                   child.TextColor3 == Color3.fromRGB(0, 170, 0) or
-                   child.Text == "10C" then -- Jika kriteria warna tidak bekerja, gunakan teks saja
-                    -- Klik tombol
-                    local success, errorMsg = pcall(function()
-                        child:FireServer("MouseButton1Click")
-                    end)
-                    
-                    if not success then
-                        -- Coba metode lain jika yang pertama gagal
-                        pcall(function()
-                            child:FireServer("Activated")
-                        end)
-                    end
-                    
-                    return true
-                end
-            end
-        end
-    end
-    return false
-end
 
 local function findPlayerFarm()
     for i,v in pairs(FarmsFolder:GetChildren()) do
@@ -443,22 +411,15 @@ testingTab:CreateButton({
 })
 
 local function buyCropSeeds(cropName)
-    -- Gunakan fungsi baru untuk mengklik tombol "10C"
-    local success = clickBuyButton(cropName)
+    local args = {[1] = cropName}
+    local success, errorMsg = pcall(function()
+        BuySeedStock:FireServer(unpack(args))
+    end)
     
     if not success then
-        -- Fallback ke metode lama jika metode baru gagal
-        local args = {[1] = cropName}
-        local success, errorMsg = pcall(function()
-            BuySeedStock:FireServer(unpack(args))
-        end)
-        
-        if not success then
-            print("Error buying seeds:", errorMsg)
-            return false
-        end
+        print("Error buying seeds:", errorMsg)
+        return false
     end
-    
     return true
 end
 
@@ -521,9 +482,41 @@ function buyWantedCropSeeds()
     return boughtAny
 end
 
+-- Fungsi baru untuk mendeteksi dan mengklik tombol hijau RESTOCK
+local function checkAndClickGreenButton()
+    local seedShopFrame = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
+    if not seedShopFrame then return false end
+    
+    local restockButton = seedShopFrame.Frame:FindFirstChild("RESTOCK")
+    if restockButton and restockButton.Visible then
+        print("Tombol RESTOCK hijau ditemukan, mengklik...")
+        
+        -- Simulasikan klik pada tombol
+        local clickEvent = restockButton:FindFirstChild("Activated")
+        if clickEvent then
+            clickEvent:Fire()
+            print("Berhasil mengklik tombol RESTOCK")
+            return true
+        else
+            print("Tidak dapat menemukan event Activated pada tombol RESTOCK")
+        end
+    end
+    
+    return false
+end
+
 local function onShopRefresh()
     print("Shop Refreshed")
     getCropsListAndStock()
+    
+    -- Cek dan klik tombol hijau jika autoBuyGreenButton aktif
+    if autoBuyGreenButton then
+        local success = checkAndClickGreenButton()
+        if success then
+            wait(1) -- Tunggu sebentar setelah mengklik tombol
+        end
+    end
+    
     if wantedFruits and #wantedFruits > 0 and autoBuyEnabled then
         print("Auto-buying selected fruits...")
         
@@ -569,7 +562,7 @@ spawn(function()
             -- Cek jika toko di-refresh dengan membandingkan stok
             local isRefreshed = getCropsListAndStock()
             
-            if isRefreshed and autoBuyEnabled and not isBuying then
+            if isRefreshed and (autoBuyEnabled or autoBuyGreenButton) and not isBuying then
                 print("Shop refreshed, auto-buying...")
                 onShopRefresh()
                 wait(5)
@@ -689,10 +682,36 @@ seedsTab:CreateToggle({
     end,
 })
 
+-- Tambahkan toggle untuk enable/disable auto-buy tombol hijau
+seedsTab:CreateToggle({
+    Name = "Auto-Click Green RESTOCK Button",
+    CurrentValue = false,
+    Flag = "AutoBuyGreenButton",
+    Callback = function(Value)
+        autoBuyGreenButton = Value
+        print("Auto-Click Green RESTOCK Button set to: "..tostring(Value))
+        
+        -- Jika diaktifkan, langsung cek dan klik tombol hijau
+        if Value then
+            spawn(function()
+                wait(1)
+                checkAndClickGreenButton()
+            end)
+        end
+    end,
+})
+
 seedsTab:CreateButton({
     Name = "Buy Selected Fruits Now",
     Callback = function()
         buyWantedCropSeeds()
+    end,
+})
+
+seedsTab:CreateButton({
+    Name = "Click Green RESTOCK Button Now",
+    Callback = function()
+        checkAndClickGreenButton()
     end,
 })
 

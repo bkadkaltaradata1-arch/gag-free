@@ -24,6 +24,8 @@ local plantToRemove
 local shouldAutoPlant = false
 local isSelling = false
 local byteNetReliable = ReplicatedStorage:FindFirstChild("ByteNetReliable")
+local autoBuyEnabled = false -- Tambahkan variabel untuk status autobuy
+local lastShopStock = {} -- Untuk melacak perubahan stok
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
@@ -157,6 +159,7 @@ local function StripPlantStock(UnstrippedStock)
 end
 
 function getCropsListAndStock()
+    local oldStock = CropsListAndStocks
     CropsListAndStocks = {} -- Reset the table
     for _,Plant in pairs(SeedShopGUI:GetChildren()) do
         if Plant:FindFirstChild("Main_Frame") and Plant.Main_Frame:FindFirstChild("Stock_Text") then
@@ -165,6 +168,17 @@ function getCropsListAndStock()
             CropsListAndStocks[PlantName] = PlantStock
         end
     end
+    
+    -- Cek jika stok berubah (toko di-refresh)
+    local isRefreshed = false
+    for cropName, stock in pairs(CropsListAndStocks) do
+        if oldStock[cropName] ~= stock then
+            isRefreshed = true
+            break
+        end
+    end
+    
+    return isRefreshed
 end
 
 local playerFarm = findPlayerFarm()
@@ -182,33 +196,6 @@ local function getPlantingBoundaries(farm)
     edges["2BottomRight"] = rect2Center - offset
     return edges
 end
-
-spawn(function()
-    while true do
-        if plantAura then
-            for _, Plant in pairs(playerFarm.Important.Plants_Physical:GetChildren()) do
-                if Plant:FindFirstChild("Fruits") then
-                    for _, miniPlant in pairs(Plant.Fruits:GetChildren()) do
-                        for _, child in pairs(miniPlant:GetChildren()) do
-                            if child:FindFirstChild("ProximityPrompt") then
-                                fireproximityprompt(child.ProximityPrompt)
-                            end
-                        end
-                        task.wait(0.01)
-                    end
-                else
-                    for _, child in pairs(Plant:GetChildren()) do
-                        if child:FindFirstChild("ProximityPrompt") then
-                            fireproximityprompt(child.ProximityPrompt)
-                        end
-                        task.wait(0.01)
-                    end
-                end
-            end
-        end
-        task.wait(0.1)
-    end
-end)
 
 local function collectPlant(plant)
     -- Fixed collection method using proximity prompts instead of byteNetReliable
@@ -242,7 +229,13 @@ end
 local function CollectAllPlants()
     local plants = GetAllPlants()
     print("Got "..#plants.." Plants")
-
+    
+    -- Shuffle the plants table to randomize collection order
+    for i = #plants, 2, -1 do
+        local j = math.random(i)
+        plants[i], plants[j] = plants[j], plants[i]
+    end
+    
     for _,plant in pairs(plants) do
         collectPlant(plant)
         task.wait(0.05)
@@ -256,6 +249,41 @@ Tab:CreateButton({
         print("Collecting All Plants")
     end,
 })
+
+spawn(function()
+    while true do
+        if plantAura then
+            local plants = GetAllPlants()
+            
+            -- Shuffle the plants table to randomize collection order
+            for i = #plants, 2, -1 do
+                local j = math.random(i)
+                plants[i], plants[j] = plants[j], plants[i]
+            end
+            
+            for _, plant in pairs(plants) do
+                if plant:FindFirstChild("Fruits") then
+                    for _, miniPlant in pairs(plant.Fruits:GetChildren()) do
+                        for _, child in pairs(miniPlant:GetChildren()) do
+                            if child:FindFirstChild("ProximityPrompt") then
+                                fireproximityprompt(child.ProximityPrompt)
+                            end
+                        end
+                        task.wait(0.01)
+                    end
+                else
+                    for _, child in pairs(plant:GetChildren()) do
+                        if child:FindFirstChild("ProximityPrompt") then
+                            fireproximityprompt(child.ProximityPrompt)
+                        end
+                        task.wait(0.01)
+                    end
+                end
+            end
+        end
+        task.wait(0.1)
+    end
+end)
 
 local function getRandomPlantingLocation(edges)
     local rectangles = {
@@ -271,10 +299,13 @@ local function getRandomPlantingLocation(edges)
     local minZ, maxZ = math.min(a.Z, b.Z), math.max(a.Z, b.Z)
     local Y = 0.13552704453468323
 
+    -- Add some randomness to the Y position as well
+    local randY = Y + (math.random() * 0.1 - 0.05) -- Small random variation
+    
     local randX = math.random() * (maxX - minX) + minX
     local randZ = math.random() * (maxZ - minZ) + minZ
 
-    return CFrame.new(randX, Y, randZ)
+    return CFrame.new(randX, randY, randZ)
 end
 
 local function areThereSeeds()
@@ -414,7 +445,8 @@ end
 local function onShopRefresh()
     print("Shop Refreshed")
     getCropsListAndStock()
-    if wantedFruits and #wantedFruits > 0 then
+    if wantedFruits and #wantedFruits > 0 and autoBuyEnabled then
+        print("Auto-buying selected fruits...")
         buyWantedCropSeeds()
     end
 end
@@ -451,7 +483,11 @@ spawn(function()
             local shopTimeText = "Shop Resets in " .. shopTime .. "s"
             RayFieldShopTimer:Set({Title = "Shop Timer", Content = shopTimeText})
             
-            if shopTime <= 5 then
+            -- Cek jika toko di-refresh dengan membandingkan stok
+            local isRefreshed = getCropsListAndStock()
+            
+            if isRefreshed and autoBuyEnabled then
+                print("Shop refreshed, auto-buying...")
                 onShopRefresh()
                 wait(5)
             end
@@ -549,6 +585,17 @@ seedsTab:CreateDropdown({
         wantedFruits = filtered
         print("Updated!")
    end,
+})
+
+-- Tambahkan toggle untuk enable/disable auto-buy
+seedsTab:CreateToggle({
+    Name = "Enable Auto-Buy",
+    CurrentValue = false,
+    Flag = "AutoBuyToggle",
+    Callback = function(Value)
+        autoBuyEnabled = Value
+        print("Auto-Buy set to: "..tostring(Value))
+    end,
 })
 
 seedsTab:CreateButton({

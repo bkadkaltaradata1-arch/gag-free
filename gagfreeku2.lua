@@ -1,4 +1,3 @@
---v1
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -409,8 +408,8 @@ testingTab:CreateButton({
     end,
 })
 
--- Add this function to handle teleporting and talking to NPC Sam
-local function talkToSam()
+-- Add this function to handle teleporting, talking to NPC Sam, and buying carrot seeds
+local function talkToSamAndBuyCarrots()
     local currentPosition = HRP.CFrame
     local humanoid = Character:FindFirstChildOfClass("Humanoid")
     
@@ -427,32 +426,90 @@ local function talkToSam()
     HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
     wait(0.5)
     
-    -- Activate the proximity prompt to talk to Sam
+    -- Activate the proximity prompt to talk to Sam and open seed shop
+    local talkedToSam = false
     if Sam:FindFirstChildOfClass("ProximityPrompt") then
         fireproximityprompt(Sam:FindFirstChildOfClass("ProximityPrompt"))
-        print("Talking to Sam")
+        print("Talking to Sam to open seed shop")
+        talkedToSam = true
     else
         -- Check if Sam has a dialog part
         for _, part in pairs(Sam:GetChildren()) do
             if part:IsA("Part") and part:FindFirstChildOfClass("ProximityPrompt") then
                 fireproximityprompt(part:FindFirstChildOfClass("ProximityPrompt"))
                 print("Talking to Sam via part: " .. part.Name)
+                talkedToSam = true
                 break
             end
         end
     end
     
-    -- Wait a moment for the conversation
-    wait(2)
+    -- Wait for the seed shop to open
+    if talkedToSam then
+        wait(2)
+        
+        -- Check if seed shop GUI is visible
+        local seedShopGUI = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
+        if seedShopGUI and seedShopGUI.Enabled then
+            print("Seed shop opened successfully")
+            
+            -- Get current carrot stock
+            local carrotStock = 0
+            for _, plantFrame in pairs(SeedShopGUI:GetChildren()) do
+                if plantFrame.Name == "Carrot" and plantFrame:FindFirstChild("Main_Frame") then
+                    local stockText = plantFrame.Main_Frame:FindFirstChild("Stock_Text")
+                    if stockText then
+                        carrotStock = tonumber(string.match(stockText.Text, "%d+")) or 0
+                        print("Carrot stock: " .. carrotStock)
+                        break
+                    end
+                end
+            end
+            
+            -- Buy all carrot seeds
+            if carrotStock > 0 then
+                print("Buying " .. carrotStock .. " carrot seeds...")
+                
+                for i = 1, carrotStock do
+                    local success = pcall(function()
+                        BuySeedStock:FireServer("Carrot")
+                    end)
+                    
+                    if success then
+                        print("Bought carrot seed " .. i .. "/" .. carrotStock)
+                    else
+                        print("Failed to buy carrot seed " .. i)
+                    end
+                    
+                    wait(0.2) -- Small delay between purchases
+                end
+                
+                print("Finished buying carrot seeds")
+            else
+                print("No carrot seeds available in stock")
+            end
+            
+            -- Close the seed shop (if there's a close button)
+            local closeButton = seedShopGUI.Frame:FindFirstChild("Close")
+            if closeButton then
+                fireclickdetector(closeButton:FindFirstChildOfClass("ClickDetector"))
+            end
+        else
+            print("Seed shop did not open")
+        end
+    else
+        print("Could not talk to Sam")
+    end
     
     -- Return to original position
+    wait(0.5)
     HRP.CFrame = currentPosition
 end
 
 testingTab:CreateButton({
-    Name = "Teleport & Talk to Sam",
+    Name = "Talk to Sam & Buy Carrots",
     Callback = function()
-        talkToSam()
+        talkToSamAndBuyCarrots()
     end,
 })
 
@@ -528,6 +585,64 @@ function buyWantedCropSeeds()
     return boughtAny
 end
 
+-- Add a dedicated function for buying only carrots
+local function buyCarrotSeeds()
+    if isBuying then
+        print("Already buying seeds, please wait...")
+        return false
+    end
+    
+    isBuying = true
+    
+    local beforePos = HRP.CFrame
+    local humanoid = Character:FindFirstChildOfClass("Humanoid")
+    
+    -- Ensure character can move
+    if humanoid then
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end
+    
+    -- Go to NPC Sam
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Stand in front of NPC
+    wait(1.5) -- Wait to reach the location
+    
+    -- Make sure we're facing the NPC
+    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
+    wait(0.5)
+    
+    -- Get carrot stock
+    local carrotStock = tonumber(CropsListAndStocks["Carrot"] or 0)
+    print("Carrot stock: " .. carrotStock)
+    
+    local boughtAny = false
+    
+    if carrotStock > 0 then
+        for i = 1, carrotStock do
+            local success = pcall(function()
+                BuySeedStock:FireServer("Carrot")
+            end)
+            
+            if success then
+                boughtAny = true
+                print("Bought carrot seed " .. i .. "/" .. carrotStock)
+            else
+                print("Failed to buy carrot seed " .. i)
+            end
+            
+            wait(0.2) -- Small delay between purchases
+        end
+    else
+        print("No carrot seeds available")
+    end
+    
+    -- Return to original position
+    wait(0.5)
+    HRP.CFrame = beforePos
+    
+    isBuying = false
+    return boughtAny
+end
+
 local function onShopRefresh()
     print("Shop Refreshed")
     getCropsListAndStock()
@@ -576,9 +691,23 @@ spawn(function()
             -- Cek jika toko di-refresh dengan membandingkan stok
             local isRefreshed = getCropsListAndStock()
             
-            if isRefreshed and autoBuyEnabled and not isBuying then
-                print("Shop refreshed, auto-buying...")
-                onShopRefresh()
+            if isRefreshed and autoBuyEnabled then
+                print("Shop refreshed, checking for auto-buy...")
+                
+                -- If carrots are in wanted fruits OR if we want to specifically auto-buy carrots
+                local shouldBuyCarrots = false
+                for _, fruit in ipairs(wantedFruits) do
+                    if fruit == "Carrot" then
+                        shouldBuyCarrots = true
+                        break
+                    end
+                end
+                
+                if shouldBuyCarrots and not isBuying then
+                    wait(2) -- Wait for UI to update
+                    buyCarrotSeeds()
+                end
+                
                 wait(5)
             end
         end
@@ -611,18 +740,18 @@ localPlayerTab:CreateButton({
     Name = "Destroy TP Wand",
     Callback = function()
         if Backpack:FindFirstChild("TP Wand") then
-            Backpack:FindFirstChild("TP Wand"):Destroy()
+            Backpack:FindFirstChild("TP Wand":Destroy()
         end
         if Character:FindFirstChild("TP Wand") then
-            Character:FindFirstChild("TP Wand"):Destroy()
+            Character:FindFirstChild("TP Wand":Destroy()
         end
     end,    
 })
 
 localPlayerTab:CreateButton({
-    Name = "Teleport & Talk to Sam",
+    Name = "Talk to Sam & Buy Carrots",
     Callback = function()
-        talkToSam()
+        talkToSamAndBuyCarrots()
     end,
 })
 
@@ -707,6 +836,13 @@ seedsTab:CreateButton({
     Name = "Buy Selected Fruits Now",
     Callback = function()
         buyWantedCropSeeds()
+    end,
+})
+
+seedsTab:CreateButton({
+    Name = "Buy All Carrot Seeds",
+    Callback = function()
+        buyCarrotSeeds()
     end,
 })
 

@@ -1,4 +1,4 @@
--- Grow a Garden Auto Buyer untuk NPC Sammmm
+-- Grow a Garden Auto Buyer untuk NPC Sam
 -- Script untuk Delta Executor
 
 local gui = {}

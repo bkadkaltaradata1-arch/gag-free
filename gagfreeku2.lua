@@ -1,3 +1,4 @@
+-- c4
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -44,6 +45,33 @@ local Window = Rayfield:CreateWindow({
       FileName = "GAGscript"
    },
 })
+
+-- Function to open seed shop
+local function openSeedShop()
+    -- Pastikan karakter berada di dekat NPC Sam untuk membuka toko
+    local beforePos = HRP.CFrame
+    local humanoid = Character:FindFirstChildOfClass("Humanoid")
+    
+    -- Pergi ke NPC Sam
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
+    wait(1.5) -- Tunggu sampai sampai di lokasi
+    
+    -- Pastikan kita menghadap ke NPC
+    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
+    wait(0.5)
+    
+    -- Aktifkan ProximityPrompt untuk membuka toko
+    if Sam:FindFirstChild("ProximityPrompt") then
+        fireproximityprompt(Sam.ProximityPrompt)
+        print("Seed shop opened!")
+    else
+        warn("ProximityPrompt not found on Sam NPC")
+    end
+    
+    -- Tunggu sebentar sebelum kembali
+    wait(1)
+    HRP.CFrame = beforePos
+end
 
 local function findPlayerFarm()
     for i,v in pairs(FarmsFolder:GetChildren()) do
@@ -408,53 +436,7 @@ testingTab:CreateButton({
     end,
 })
 
-local function findGreenButton(seedFrame)
-    -- Mencari tombol hijau berdasarkan warna atau nama
-    for _, child in pairs(seedFrame:GetDescendants()) do
-        if child:IsA("ImageButton") or child:IsA("TextButton") then
-            -- Cek berdasarkan warna hijau (RGB approximate)
-            if child.BackgroundColor3 then
-                local r, g, b = child.BackgroundColor3.R, child.BackgroundColor3.G, child.BackgroundColor3.B
-                if g > r and g > b and g > 0.5 then
-                    return child
-                end
-            end
-            
-            -- Cek berdasarkan nama
-            if child.Name:lower():find("green") or child.Name:lower():find("buy") then
-                return child
-            end
-        end
-    end
-    return nil
-end
-
 local function buyCropSeeds(cropName)
-    -- Coba klik tombol hijau di GUI terlebih dahulu
-    local seedButton = SeedShopGUI:FindFirstChild(cropName)
-    if seedButton and seedButton:FindFirstChild("Main_Frame") then
-        local greenButton = findGreenButton(seedButton.Main_Frame)
-        
-        if greenButton then
-            -- Simulasikan klik pada tombol hijau
-            local success = pcall(function()
-                if greenButton:IsA("ImageButton") or greenButton:IsA("TextButton") then
-                    -- Coba untuk memicu event klik
-                    for _, connection in pairs(getconnections(greenButton.MouseButton1Click)) do
-                        connection:Fire()
-                    end
-                    return true
-                end
-            end)
-            
-            if success then
-                print("Clicked green button for: " .. cropName)
-                return true
-            end
-        end
-    end
-    
-    -- Fallback ke remote event jika tidak berhasil menemukan tombol hijau
     local args = {[1] = cropName}
     local success, errorMsg = pcall(function()
         BuySeedStock:FireServer(unpack(args))
@@ -673,6 +655,14 @@ seedsTab:CreateDropdown({
         wantedFruits = filtered
         print("Updated!")
    end,
+})
+
+-- Button untuk membuka shop seeds
+seedsTab:CreateButton({
+    Name = "Open Seed Shop",
+    Callback = function()
+        openSeedShop()
+    end,
 })
 
 -- Tambahkan toggle untuk enable/disable auto-buy

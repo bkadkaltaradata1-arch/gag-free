@@ -1,3 +1,4 @@
+-- v1
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -27,10 +28,6 @@ local byteNetReliable = ReplicatedStorage:FindFirstChild("ByteNetReliable")
 local autoBuyEnabled = false
 local lastShopStock = {}
 local isBuying = false -- Flag untuk menandai sedang membeli
-
--- Tambahkan variabel untuk melacak status toko
-local isShopOpen = false
-local lastShopCheck = 0
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
@@ -484,72 +481,66 @@ function buyWantedCropSeeds()
     return boughtAny
 end
 
--- Fungsi untuk memeriksa apakah toko Sam sudah terbuka
-local function isSamShopOpen()
-    if tick() - lastShopCheck < 1 then  -- Batasi pengecekan agar tidak terlalu sering
-        return isShopOpen
-    end
-    
-    lastShopCheck = tick()
-    
-    -- Cek apakah GUI toko benih terlihat
-    local seedShopGUI = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
-    if seedShopGUI and seedShopGUI.Enabled then
-        isShopOpen = true
-        return true
-    end
-    
-    isShopOpen = false
-    return false
-end
-
--- Fungsi untuk membeli semua benih wortel dari Sam
-local function buyAllCarrotSeeds()
-    if not isSamShopOpen() then
-        print("Toko Sam belum terbuka!")
+-- Function to teleport to Sam and buy all carrot seeds
+local function teleportToSamAndBuyCarrotSeeds()
+    if isBuying then
+        print("Already in the process of buying seeds")
         return false
     end
     
-    -- Pastikan karakter berada di depan Sam
+    isBuying = true
+    
+    -- Save current position
+    local originalPosition = HRP.CFrame
     local humanoid = Character:FindFirstChildOfClass("Humanoid")
+    
+    -- Pastikan karakter bisa bergerak
     if humanoid then
         humanoid:ChangeState(Enum.HumanoidStateType.Running)
     end
     
-    local beforePos = HRP.CFrame
-    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
-    wait(1.5)
+    -- Teleport to Sam
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Stand in front of Sam
+    wait(1.5) -- Wait for teleport to complete
     
-    -- Pastikan kita menghadap ke NPC
-    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
-    wait(0.5)
+    -- Activate the shop by interacting with Sam
+    if Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
+        fireproximityprompt(Sam.Head.ProximityPrompt)
+        print("Opened Sam's seed shop")
+        wait(1) -- Wait for shop to open
+    end
     
-    -- Dapatkan stok wortel
+    -- Refresh the crop list to get current stock
+    getCropsListAndStock()
+    
+    -- Check if carrot seeds are available
     local carrotStock = tonumber(CropsListAndStocks["Carrot"] or 0)
-    print("Stok wortel: "..tostring(carrotStock))
+    local boughtAny = false
     
-    -- Beli semua benih wortel yang tersedia
-    local bought = false
     if carrotStock > 0 then
+        print("Buying " .. carrotStock .. " carrot seeds")
+        
+        -- Buy all carrot seeds
         for i = 1, carrotStock do
             local success = buyCropSeeds("Carrot")
             if success then
-                bought = true
-                print("Membeli benih wortel "..i.."/"..carrotStock)
+                boughtAny = true
+                print("Bought carrot seed " .. i .. "/" .. carrotStock)
             else
-                print("Gagal membeli benih wortel")
+                print("Failed to buy carrot seed " .. i)
             end
-            wait(0.2) -- Tunggu sebentar antara pembelian
+            wait(0.2) -- Small delay between purchases
         end
     else
-        print("Tidak ada stok wortel")
+        print("No carrot seeds available in stock")
     end
     
-    -- Kembali ke posisi semula
+    -- Return to original position
     wait(0.5)
-    HRP.CFrame = beforePos
+    HRP.CFrame = originalPosition
     
-    return bought
+    isBuying = false
+    return boughtAny
 end
 
 local function onShopRefresh()
@@ -612,34 +603,6 @@ spawn(function()
         end
         
         wait(0.5)
-    end
-end)
-
--- Tambahkan bagian untuk auto-talk to Sam ketika toko terbuka
-spawn(function()
-    while true do
-        -- Jika toko baru saja terbuka dan auto-buy diaktifkan
-        if isSamShopOpen() and autoBuyEnabled then
-            -- Periksa apakah wortel ada dalam daftar yang ingin dibeli
-            local wantsCarrot = false
-            for _, fruit in ipairs(wantedFruits) do
-                if fruit == "Carrot" then
-                    wantsCarrot = true
-                    break
-                end
-            end
-            
-            -- Jika ingin membeli wortel, beli semua benih wortel
-            if wantsCarrot then
-                print("Toko Sam terbuka, membeli semua benih wortel...")
-                buyAllCarrotSeeds()
-                
-                -- Tunggu sebentar agar tidak melakukan pembelian berulang
-                wait(5)
-            end
-        end
-        
-        wait(1) -- Periksa setiap detik
     end
 end)
 
@@ -729,6 +692,14 @@ seedsTab:CreateDropdown({
    end,
 })
 
+-- Add button to teleport to Sam and buy carrot seeds
+seedsTab:CreateButton({
+    Name = "Teleport to Sam & Buy Carrot Seeds",
+    Callback = function()
+        teleportToSamAndBuyCarrotSeeds()
+    end,
+})
+
 -- Tambahkan toggle untuk enable/disable auto-buy
 seedsTab:CreateToggle({
     Name = "Enable Auto-Buy",
@@ -752,14 +723,6 @@ seedsTab:CreateButton({
     Name = "Buy Selected Fruits Now",
     Callback = function()
         buyWantedCropSeeds()
-    end,
-})
-
--- Tambahkan button untuk membeli semua benih wortel secara manual
-seedsTab:CreateButton({
-    Name = "Beli Semua Benih Wortel Sekarang",
-    Callback = function()
-        buyAllCarrotSeeds()
     end,
 })
 

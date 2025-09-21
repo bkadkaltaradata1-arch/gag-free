@@ -409,64 +409,16 @@ testingTab:CreateButton({
 })
 
 local function buyCropSeeds(cropName)
-    -- Cari GUI toko seeds dan temukan tombol harga untuk crop yang diinginkan
-    local seedShopGUI = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.ScrollingFrame
-    local cropFrame = seedShopGUI:FindFirstChild(cropName)
+    local args = {[1] = cropName}
+    local success, errorMsg = pcall(function()
+        BuySeedStock:FireServer(unpack(args))
+    end)
     
-    if cropFrame then
-        local priceButton = cropFrame.Main_Frame:FindFirstChild("Price_Button")
-        
-        if priceButton then
-            -- Simulasikan klik pada tombol harga
-            local success, errorMsg = pcall(function()
-                priceButton.Activated:Fire()
-            end)
-            
-            if success then
-                print("Successfully bought seeds for: " .. cropName)
-                return true
-            else
-                print("Error clicking price button: " .. errorMsg)
-                return false
-            end
-        else
-            print("Price button not found for: " .. cropName)
-            return false
-        end
-    else
-        print("Crop frame not found: " .. cropName)
+    if not success then
+        print("Error buying seeds:", errorMsg)
         return false
     end
-end
-
-local function openSeedShop()
-    -- Pergi ke NPC Sam
-    local beforePos = HRP.CFrame
-    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
-    wait(1.5)
-    
-    -- Pastikan kita menghadap ke NPC
-    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
-    wait(0.5)
-    
-    -- Aktifkan prompt untuk membuka toko
-    if Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
-        fireproximityprompt(Sam.Head.ProximityPrompt)
-        wait(1) -- Tunggu GUI toko terbuka
-        return true
-    else
-        print("Could not find proximity prompt on Sam")
-        HRP.CFrame = beforePos
-        return false
-    end
-end
-
-local function closeSeedShop()
-    -- Tutup GUI toko seeds jika terbuka
-    local seedShopGUI = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
-    if seedShopGUI and seedShopGUI.Enabled then
-        seedShopGUI.Enabled = false
-    end
+    return true
 end
 
 function buyWantedCropSeeds()
@@ -490,13 +442,13 @@ function buyWantedCropSeeds()
         humanoid:ChangeState(Enum.HumanoidStateType.Running)
     end
     
-    -- Buka toko seeds
-    local shopOpened = openSeedShop()
+    -- Pergi ke NPC Sam
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
+    wait(1.5) -- Tunggu sampai sampai di lokasi
     
-    if not shopOpened then
-        isBuying = false
-        return false
-    end
+    -- Pastikan kita menghadap ke NPC
+    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
+    wait(0.5)
     
     local boughtAny = false
     
@@ -520,8 +472,7 @@ function buyWantedCropSeeds()
         end
     end
     
-    -- Tutup toko dan kembali ke posisi semula
-    closeSeedShop()
+    -- Kembali ke posisi semula
     wait(0.5)
     HRP.CFrame = beforePos
     
@@ -732,6 +683,152 @@ sellTab:CreateButton({
     Name = "Sell All Now",
     Callback = function()
         sellAll()
+    end,
+})
+
+-- TAB BARU: NPC Interaction
+local npcTab = Window:CreateTab("NPC Interaction", "user") -- Tab baru untuk interaksi NPC
+
+npcTab:CreateSection("NPC Sam Interaction")
+
+-- Fungsi untuk membuka toko seed Sam
+local function openSamShop()
+    local humanoid = Character:FindFirstChildOfClass("Humanoid")
+    
+    -- Pastikan karakter bisa bergerak
+    if humanoid then
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end
+    
+    -- Pergi ke NPC Sam
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
+    wait(1.5) -- Tunggu sampai sampai di lokasi
+    
+    -- Pastikan kita menghadap ke NPC
+    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
+    wait(0.5)
+    
+    -- Aktifkan proximity prompt untuk membuka toko
+    if Sam:FindFirstChildOfClass("ProximityPrompt") then
+        fireproximityprompt(Sam:FindFirstChildOfClass("ProximityPrompt"))
+        print("Opened Sam's seed shop")
+    else
+        -- Coba cari prompt di children lainnya
+        for _, child in pairs(Sam:GetDescendants()) do
+            if child:IsA("ProximityPrompt") and child.Name == "Shop" then
+                fireproximityprompt(child)
+                print("Opened Sam's seed shop")
+                break
+            end
+        end
+    end
+end
+
+-- Fungsi untuk membeli seed dari Sam dan kembali
+local function buyFromSamAndReturn()
+    local beforePos = HRP.CFrame
+    openSamShop()
+    
+    -- Tunggu sebentar untuk GUI terbuka
+    wait(2)
+    
+    -- Sekarang beli seed yang diinginkan
+    if #wantedFruits > 0 then
+        buyWantedCropSeeds()
+    else
+        print("No fruits selected to buy")
+    end
+    
+    -- Tunggu sebentar sebelum kembali
+    wait(1)
+    
+    -- Kembali ke posisi semula
+    HRP.CFrame = beforePos
+end
+
+-- Button untuk teleport ke Sam
+npcTab:CreateButton({
+    Name = "Teleport to Sam",
+    Callback = function()
+        HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
+    end,
+})
+
+-- Button untuk membuka toko Sam
+npcTab:CreateButton({
+    Name = "Open Sam's Shop",
+    Callback = function()
+        openSamShop()
+    end,
+})
+
+-- Button untuk membeli dari Sam dan kembali
+npcTab:CreateButton({
+    Name = "Buy from Sam & Return",
+    Callback = function()
+        buyFromSamAndReturn()
+    end,
+})
+
+-- Auto-buy improvement dengan termasuk pergi ke Sam
+local function autoBuyWithSam()
+    if #wantedFruits == 0 then
+        print("No fruits selected to buy")
+        return false
+    end
+    
+    if isBuying then
+        print("Already buying seeds, please wait...")
+        return false
+    end
+    
+    isBuying = true
+    
+    -- Pergi ke Sam, buka toko, beli seed, dan kembali
+    buyFromSamAndReturn()
+    
+    isBuying = false
+    return true
+end
+
+-- Perbarui fungsi onShopRefresh untuk menggunakan metode baru
+local function onShopRefresh()
+    print("Shop Refreshed")
+    getCropsListAndStock()
+    if wantedFruits and #wantedFruits > 0 and autoBuyEnabled then
+        print("Auto-buying selected fruits...")
+        
+        -- Tunggu sebentar sebelum membeli untuk memastikan UI sudah update
+        wait(2)
+        autoBuyWithSam()
+    end
+end
+
+-- Perbarui toggle auto-buy untuk menggunakan metode baru
+seedsTab:CreateToggle({
+    Name = "Enable Auto-Buy (with Sam)",
+    CurrentValue = false,
+    Flag = "AutoBuyToggle",
+    Callback = function(Value)
+        autoBuyEnabled = Value
+        print("Auto-Buy set to: "..tostring(Value))
+        
+        -- Jika diaktifkan, langsung coba beli
+        if Value and #wantedFruits > 0 then
+            spawn(function()
+                wait(1)
+                autoBuyWithSam()
+            end)
+        end
+    end,
+})
+
+-- Tambahkan juga button untuk refresh shop stock
+npcTab:CreateButton({
+    Name = "Refresh Shop Stock",
+    Callback = function()
+        getCropsListAndStock()
+        print("Shop stock refreshed")
     end,
 })
 

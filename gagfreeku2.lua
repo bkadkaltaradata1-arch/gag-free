@@ -1,4 +1,3 @@
--- v1
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -409,11 +408,18 @@ testingTab:CreateButton({
     end,
 })
 
-local function buyCropSeeds(cropName)
-    -- First ensure we're interacting with Sam to open the shop
+-- Fungsi untuk membeli seed dengan retry mechanism
+local function buyCropSeeds(cropName, retryCount)
+    retryCount = retryCount or 0
+    if retryCount > 3 then
+        print("Failed to buy " .. cropName .. " after 3 attempts")
+        return false
+    end
+    
+    -- Interaksi dengan NPC Sam untuk membuka toko
     if Sam and Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
         fireproximityprompt(Sam.Head.ProximityPrompt)
-        wait(1) -- Wait for shop to open
+        wait(1.5) -- Tunggu lebih lama untuk memastikan toko terbuka
     end
     
     local args = {[1] = cropName}
@@ -422,10 +428,24 @@ local function buyCropSeeds(cropName)
     end)
     
     if not success then
-        print("Error buying seeds:", errorMsg)
-        return false
+        print("Error buying " .. cropName .. " seeds (attempt " .. (retryCount + 1) .. "):", errorMsg)
+        wait(1) -- Tunggu sebelum retry
+        return buyCropSeeds(cropName, retryCount + 1)
     end
+    
     return true
+end
+
+-- Fungsi untuk mengecek apakah seed berhasil dibeli
+local function checkSeedBought(seedName)
+    -- Cek apakah seed ada di backpack setelah pembelian
+    wait(0.5) -- Tunggu sebentar untuk proses pembelian
+    for _, item in pairs(Backpack:GetChildren()) do
+        if item:FindFirstChild("Seed Local Script") and item:GetAttribute("Seed") == seedName then
+            return true
+        end
+    end
+    return false
 end
 
 function buyWantedCropSeeds()
@@ -444,26 +464,26 @@ function buyWantedCropSeeds()
     local beforePos = HRP.CFrame
     local humanoid = Character:FindFirstChildOfClass("Humanoid")
     
-    -- Ensure we can move
+    -- Pastikan karakter bisa bergerak
     if humanoid then
         humanoid:ChangeState(Enum.HumanoidStateType.Running)
     end
     
-    -- Go to NPC Sam
+    -- Pergi ke NPC Sam
     HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
-    wait(1.5) -- Wait to reach the location
+    wait(2) -- Tunggu lebih lama sampai sampai di lokasi
     
-    -- Face the NPC
+    -- Pastikan kita menghadap ke NPC
     HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
     wait(0.5)
     
-    -- Interact with Sam to open shop
+    -- Interaksi dengan Sam untuk membuka toko
     if Sam and Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
         fireproximityprompt(Sam.Head.ProximityPrompt)
-        wait(2) -- Wait for shop to fully open
+        wait(2.5) -- Tunggu lebih lama untuk toko terbuka sepenuhnya
     end
     
-    -- Refresh stock information
+    -- Refresh informasi stok
     getCropsListAndStock()
     
     local boughtAny = false
@@ -476,24 +496,29 @@ function buyWantedCropSeeds()
             for j = 1, stock do
                 local success = buyCropSeeds(fruitName)
                 if success then
-                    boughtAny = true
-                    print("Bought "..fruitName.." seed "..j.."/"..stock)
-                    -- Update stock count after purchase
-                    CropsListAndStocks[fruitName] = tostring(stock - j)
+                    -- Verifikasi bahwa seed benar-benar dibeli
+                    if checkSeedBought(fruitName) then
+                        boughtAny = true
+                        print("Successfully bought "..fruitName.." seed "..j.."/"..stock)
+                        -- Update stok setelah pembelian berhasil
+                        CropsListAndStocks[fruitName] = tostring(stock - j)
+                    else
+                        print("Purchase of "..fruitName.." might have failed (seed not in backpack)")
+                    end
                 else
                     print("Failed to buy "..fruitName)
-                    break -- Stop trying this fruit if there's an error
+                    break -- Berhenti mencoba fruit ini jika ada error
                 end
-                wait(0.2) -- Wait between purchases
+                wait(0.5) -- Tunggu lebih lama antara pembelian
             end
         else
             print("No stock for "..fruitName)
         end
     end
     
-    -- Close shop by walking away
-    HRP.CFrame = beforePos
+    -- Kembali ke posisi semula
     wait(0.5)
+    HRP.CFrame = beforePos
     
     isBuying = false
     return boughtAny
@@ -505,8 +530,8 @@ local function onShopRefresh()
     if wantedFruits and #wantedFruits > 0 and autoBuyEnabled then
         print("Auto-buying selected fruits...")
         
-        -- Tunggu sebentar sebelum membeli untuk memastikan UI sudah update
-        wait(2)
+        -- Tunggu lebih lama sebelum membeli untuk memastikan UI sudah update
+        wait(3)
         buyWantedCropSeeds()
     end
 end
@@ -539,7 +564,7 @@ end
 
 -- Add cooldown mechanism
 local lastBuyAttempt = 0
-local BUY_COOLDOWN = 5 -- seconds
+local BUY_COOLDOWN = 10 -- seconds (increased cooldown)
 
 -- Add function to reset buying state
 local function resetBuyingState()
@@ -687,7 +712,7 @@ seedsTab:CreateToggle({
         -- Jika diaktifkan, langsung coba beli
         if Value and #wantedFruits > 0 then
             spawn(function()
-                wait(1)
+                wait(2) -- Tunggu lebih lama
                 buyWantedCropSeeds()
             end)
         end
@@ -717,6 +742,27 @@ seedsTab:CreateButton({
     Name = "Reset Buying State (If Stuck)",
     Callback = function()
         resetBuyingState()
+    end,
+})
+
+-- Add button to manually open shop
+seedsTab:CreateButton({
+    Name = "Open Shop Manually",
+    Callback = function()
+        local beforePos = HRP.CFrame
+        HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
+        wait(1.5)
+        if Sam and Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
+            fireproximityprompt(Sam.Head.ProximityPrompt)
+            Rayfield:Notify({
+                Title = "Shop Opened",
+                Content = "NPC Sam's shop has been opened",
+                Duration = 3,
+                Image = 0,
+            })
+        end
+        wait(1)
+        HRP.CFrame = beforePos
     end,
 })
 

@@ -1,4 +1,3 @@
--- v1
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -410,16 +409,64 @@ testingTab:CreateButton({
 })
 
 local function buyCropSeeds(cropName)
-    local args = {[1] = cropName}
-    local success, errorMsg = pcall(function()
-        BuySeedStock:FireServer(unpack(args))
-    end)
+    -- Cari GUI toko seeds dan temukan tombol harga untuk crop yang diinginkan
+    local seedShopGUI = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.ScrollingFrame
+    local cropFrame = seedShopGUI:FindFirstChild(cropName)
     
-    if not success then
-        print("Error buying seeds:", errorMsg)
+    if cropFrame then
+        local priceButton = cropFrame.Main_Frame:FindFirstChild("Price_Button")
+        
+        if priceButton then
+            -- Simulasikan klik pada tombol harga
+            local success, errorMsg = pcall(function()
+                priceButton.Activated:Fire()
+            end)
+            
+            if success then
+                print("Successfully bought seeds for: " .. cropName)
+                return true
+            else
+                print("Error clicking price button: " .. errorMsg)
+                return false
+            end
+        else
+            print("Price button not found for: " .. cropName)
+            return false
+        end
+    else
+        print("Crop frame not found: " .. cropName)
         return false
     end
-    return true
+end
+
+local function openSeedShop()
+    -- Pergi ke NPC Sam
+    local beforePos = HRP.CFrame
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
+    wait(1.5)
+    
+    -- Pastikan kita menghadap ke NPC
+    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
+    wait(0.5)
+    
+    -- Aktifkan prompt untuk membuka toko
+    if Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
+        fireproximityprompt(Sam.Head.ProximityPrompt)
+        wait(1) -- Tunggu GUI toko terbuka
+        return true
+    else
+        print("Could not find proximity prompt on Sam")
+        HRP.CFrame = beforePos
+        return false
+    end
+end
+
+local function closeSeedShop()
+    -- Tutup GUI toko seeds jika terbuka
+    local seedShopGUI = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
+    if seedShopGUI and seedShopGUI.Enabled then
+        seedShopGUI.Enabled = false
+    end
 end
 
 function buyWantedCropSeeds()
@@ -443,13 +490,13 @@ function buyWantedCropSeeds()
         humanoid:ChangeState(Enum.HumanoidStateType.Running)
     end
     
-    -- Pergi ke NPC Sam
-    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
-    wait(1.5) -- Tunggu sampai sampai di lokasi
+    -- Buka toko seeds
+    local shopOpened = openSeedShop()
     
-    -- Pastikan kita menghadap ke NPC
-    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
-    wait(0.5)
+    if not shopOpened then
+        isBuying = false
+        return false
+    end
     
     local boughtAny = false
     
@@ -473,7 +520,8 @@ function buyWantedCropSeeds()
         end
     end
     
-    -- Kembali ke posisi semula
+    -- Tutup toko dan kembali ke posisi semula
+    closeSeedShop()
     wait(0.5)
     HRP.CFrame = beforePos
     

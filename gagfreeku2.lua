@@ -1,4 +1,3 @@
--- v1
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -183,8 +182,10 @@ function getCropsListAndStock()
             local stockText = mainFrame:FindFirstChild("Stock_Text")
             if stockText then
                 local PlantName = Plant.Name
+                -- Remove _padding from the name if exists
+                local cleanName = PlantName:gsub("_padding$", "")
                 local PlantStock = StripPlantStock(stockText.Text)
-                CropsListAndStocks[PlantName] = PlantStock
+                CropsListAndStocks[cleanName] = PlantStock
             end
         end
     end
@@ -539,23 +540,25 @@ local function selectBlueberrySeed()
         return false
     end
     
-    -- Debug: Print all items in shop
-    print("Available seeds in shop:")
+    -- Debug: Print all items in shop with full names
+    print("Available seeds in shop (with full names):")
     for _, item in pairs(scrollingFrame:GetChildren()) do
         if item:IsA("Frame") then
             print(" - " .. item.Name)
         end
     end
     
-    -- Try different possible names for blueberry
-    local blueberryNames = {"Blueberry", "Blueberries", "BlueberrySeed", "Blueberry Seeds"}
-    local blueberryFrame = nil
-    
-    for _, name in ipairs(blueberryNames) do
-        blueberryFrame = scrollingFrame:FindFirstChild(name)
-        if blueberryFrame then
-            print("Found blueberry with name: " .. name)
-            break
+    -- Try to find blueberry with _padding
+    local blueberryFrame = scrollingFrame:FindFirstChild("Blueberry_padding")
+    if not blueberryFrame then
+        -- Try other possible names
+        local blueberryNames = {"Blueberry_padding", "Blueberries_padding", "BlueberrySeed_padding", "Blueberry"}
+        for _, name in ipairs(blueberryNames) do
+            blueberryFrame = scrollingFrame:FindFirstChild(name)
+            if blueberryFrame then
+                print("Found blueberry with name: " .. name)
+                break
+            end
         end
     end
     
@@ -587,43 +590,22 @@ local function selectBlueberrySeed()
     
     print("Found buy button: " .. buyButton.Name)
     
-    -- Try to click the button using different methods
-    local methods = {
-        function()
-            if buyButton:IsA("TextButton") or buyButton:IsA("ImageButton") then
-                buyButton:FireEvent("MouseButton1Click")
-                return true
-            end
-            return false
-        end,
-        function()
-            local remote = buyButton:FindFirstChildWhichIsA("RemoteEvent")
-            if remote then
-                remote:FireServer()
-                return true
-            end
-            return false
-        end,
-        function()
-            if buyButton:FindFirstChild("Click") then
-                buyButton.Click:Fire()
-                return true
-            end
-            return false
-        end
-    }
-    
-    for i, method in ipairs(methods) do
-        local success, result = pcall(method)
-        if success and result then
-            print("Successfully selected Blueberry using method " .. i)
+    -- Try to click the button
+    local success, result = pcall(function()
+        if buyButton:IsA("TextButton") or buyButton:IsA("ImageButton") then
+            buyButton:FireEvent("MouseButton1Click")
             return true
         end
-        wait(0.5)
-    end
+        return false
+    end)
     
-    print("All click methods failed")
-    return false
+    if success and result then
+        print("Successfully selected Blueberry seed")
+        return true
+    else
+        print("Failed to click button")
+        return false
+    end
 end
 
 -- Function to teleport to Sam and open the shop
@@ -662,32 +644,46 @@ local function teleportToSamAndOpenShop()
     HRP.CFrame = originalPosition
 end
 
--- Function to directly buy blueberry seeds
+-- Function to directly buy blueberry seeds (with _padding handling)
 local function buyBlueberrySeedsDirectly()
-    local args = {[1] = "Blueberry"}
+    -- Try with _padding first
+    local args = {[1] = "Blueberry_padding"}
     local success, errorMsg = pcall(function()
         BuySeedStock:FireServer(unpack(args))
     end)
     
     if success then
-        print("Successfully bought Blueberry seeds directly")
+        print("Successfully bought Blueberry_padding seeds")
         return true
     else
-        print("Error buying Blueberry seeds directly:", errorMsg)
+        print("Error buying Blueberry_padding:", errorMsg)
         
-        -- Try alternative names
-        local alternativeNames = {"Blueberries", "BlueberrySeed"}
-        for _, name in ipairs(alternativeNames) do
-            local args = {[1] = name}
-            local success2 = pcall(function()
-                BuySeedStock:FireServer(unpack(args))
-            end)
-            if success2 then
-                print("Successfully bought with name: " .. name)
-                return true
+        -- Try without _padding
+        local args = {[1] = "Blueberry"}
+        local success2, errorMsg2 = pcall(function()
+            BuySeedStock:FireServer(unpack(args))
+        end)
+        
+        if success2 then
+            print("Successfully bought Blueberry seeds")
+            return true
+        else
+            print("Error buying Blueberry:", errorMsg2)
+            
+            -- Try other possible names
+            local alternativeNames = {"Blueberries_padding", "BlueberrySeed_padding", "Blueberries", "BlueberrySeed"}
+            for _, name in ipairs(alternativeNames) do
+                local args = {[1] = name}
+                local success3 = pcall(function()
+                    BuySeedStock:FireServer(unpack(args))
+                end)
+                if success3 then
+                    print("Successfully bought with name: " .. name)
+                    return true
+                end
             end
+            return false
         end
-        return false
     end
 end
 
@@ -788,6 +784,8 @@ localPlayerTab:CreateButton({
 })
 
 local seedsTab = Window:CreateTab("Seeds")
+
+-- Update the dropdown to show clean names (without _padding)
 seedsTab:CreateDropdown({
    Name = "Fruits To Buy",
    Options = getAllIFromDict(CropsListAndStocks),

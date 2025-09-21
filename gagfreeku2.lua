@@ -1,3 +1,4 @@
+--v1
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -45,74 +46,6 @@ local Window = Rayfield:CreateWindow({
    },
 })
 
--- Function to open seed shop
-local function openSeedShop()
-    -- Simpan posisi awal
-    local beforePos = HRP.CFrame
-    local humanoid = Character:FindFirstChildOfClass("Humanoid")
-    
-    -- Pergi ke NPC Sam
-    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
-    wait(1.5)
-    
-    -- Pastikan kita menghadap ke NPC
-    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
-    wait(0.5)
-    
-    -- Cari dan aktifkan ProximityPrompt untuk membuka toko
-    local foundPrompt = false
-    
-    -- Cari ProximityPrompt di semua descendant Sam
-    for _, descendant in pairs(Sam:GetDescendants()) do
-        if descendant:IsA("ProximityPrompt") and string.find(descendant.Name:lower(), "seed") or string.find(descendant.ObjectText:lower(), "seed") then
-            fireproximityprompt(descendant)
-            print("Seed shop opened using prompt:", descendant.Name)
-            foundPrompt = true
-            break
-        end
-    end
-    
-    -- Jika tidak ditemukan prompt khusus seeds, coba prompt apapun
-    if not foundPrompt then
-        for _, descendant in pairs(Sam:GetDescendants()) do
-            if descendant:IsA("ProximityPrompt") then
-                fireproximityprompt(descendant)
-                print("Used general prompt:", descendant.Name)
-                foundPrompt = true
-                break
-            end
-        end
-    end
-    
-    -- Jika masih tidak ditemukan, coba clickdetector
-    if not foundPrompt then
-        for _, descendant in pairs(Sam:GetDescendants()) do
-            if descendant:IsA("ClickDetector") then
-                fireclickdetector(descendant)
-                print("Used click detector:", descendant.Name)
-                foundPrompt = true
-                break
-            end
-        end
-    end
-    
-    if not foundPrompt then
-        warn("No interaction method found on Sam NPC")
-        -- Coba gunakan remote event langsung sebagai fallback
-        local openShopRemote = ReplicatedStorage:FindFirstChild("OpenSeedShop") or ReplicatedStorage:FindFirstChild("OpenShop")
-        if openShopRemote then
-            openShopRemote:FireServer()
-            print("Used remote event to open shop")
-        end
-    end
-    
-    -- Tunggu sebentar untuk memastikan GUI terbuka
-    wait(1)
-    
-    -- Kembali ke posisi semula
-    HRP.CFrame = beforePos
-end
-
 local function findPlayerFarm()
     for i,v in pairs(FarmsFolder:GetChildren()) do
         if v.Important.Data.Owner.Value == Players.LocalPlayer.Name then
@@ -145,7 +78,7 @@ local function removePlantsOfKind(kind)
                 local spawnPoint = plant.Fruit_Spawn
                 HRP.CFrame = plant.PrimaryPart.CFrame
                 wait(0.2)
-                removeItem:FireServer(unpack({spawnPoint}))
+                removeItem:FireServer(spawnPoint)
                 wait(0.1)
             end
         end
@@ -476,6 +409,53 @@ testingTab:CreateButton({
     end,
 })
 
+-- Add this function to handle teleporting and talking to NPC Sam
+local function talkToSam()
+    local currentPosition = HRP.CFrame
+    local humanoid = Character:FindFirstChildOfClass("Humanoid")
+    
+    -- Ensure character can move
+    if humanoid then
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end
+    
+    -- Teleport to Sam
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Stand in front of NPC
+    wait(1.5) -- Wait to reach the location
+    
+    -- Make sure we're facing the NPC
+    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
+    wait(0.5)
+    
+    -- Activate the proximity prompt to talk to Sam
+    if Sam:FindFirstChildOfClass("ProximityPrompt") then
+        fireproximityprompt(Sam:FindFirstChildOfClass("ProximityPrompt"))
+        print("Talking to Sam")
+    else
+        -- Check if Sam has a dialog part
+        for _, part in pairs(Sam:GetChildren()) do
+            if part:IsA("Part") and part:FindFirstChildOfClass("ProximityPrompt") then
+                fireproximityprompt(part:FindFirstChildOfClass("ProximityPrompt"))
+                print("Talking to Sam via part: " .. part.Name)
+                break
+            end
+        end
+    end
+    
+    -- Wait a moment for the conversation
+    wait(2)
+    
+    -- Return to original position
+    HRP.CFrame = currentPosition
+end
+
+testingTab:CreateButton({
+    Name = "Teleport & Talk to Sam",
+    Callback = function()
+        talkToSam()
+    end,
+})
+
 local function buyCropSeeds(cropName)
     local args = {[1] = cropName}
     local success, errorMsg = pcall(function()
@@ -639,6 +619,13 @@ localPlayerTab:CreateButton({
     end,    
 })
 
+localPlayerTab:CreateButton({
+    Name = "Teleport & Talk to Sam",
+    Callback = function()
+        talkToSam()
+    end,
+})
+
 local speedSlider = localPlayerTab:CreateSlider({
    Name = "Speed",
    Range = {1, 500},
@@ -695,14 +682,6 @@ seedsTab:CreateDropdown({
         wantedFruits = filtered
         print("Updated!")
    end,
-})
-
--- Button untuk membuka shop seeds
-seedsTab:CreateButton({
-    Name = "Open Seed Shop",
-    Callback = function()
-        openSeedShop()
-    end,
 })
 
 -- Tambahkan toggle untuk enable/disable auto-buy

@@ -1,357 +1,695 @@
--- Script Grow a Garden - Pembelian Seed
--- Untuk Delta Executor Android
--- GUI Version
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local FarmsFolder = Workspace.Farm
+local Players = game:GetService("Players")
+local BuySeedStock = ReplicatedStorage.GameEvents.BuySeedStock
+local Plant = ReplicatedStorage.GameEvents.Plant_RE
+local Backpack = Players.LocalPlayer.Backpack
+local Character = Players.LocalPlayer.Character
+local sellAllRemote = ReplicatedStorage.GameEvents.Sell_Inventory
+local Steven = Workspace.NPCS.Steven
+local Sam = Workspace.NPCS.Sam
+local HRP = Players.LocalPlayer.Character.HumanoidRootPart
+local CropsListAndStocks = {}
+local SeedShopGUI = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.ScrollingFrame
+local shopTimer = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.Frame.Timer
+local shopTime = 0
+local Humanoid = Character:WaitForChild("Humanoid")
+wantedFruits = {}
+local plantAura = false
+local AutoSellItems = 70
+local shouldSell = false
+local removeItem = ReplicatedStorage.GameEvents.Remove_Item
+local plantToRemove
+local shouldAutoPlant = false
+local isSelling = false
+local byteNetReliable = ReplicatedStorage:FindFirstChild("ByteNetReliable")
+local autoBuyEnabled = false
+local lastShopStock = {}
+local isBuying = false -- Flag untuk menandai sedang membeli
 
--- Konfigurasi warna
-local white = 0xFFFFFFFF
-local green = 0xFF00FF00
-local red = 0xFFFF0000
-local blue = 0xFF0000FF
-local orange = 0xFFFF9800
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Window = Rayfield:CreateWindow({
+   Name = "Grow A Garden",
+   Icon = 0,
+   LoadingTitle = "Rayfield Interface Suite",
+   LoadingSubtitle = "by Sirius",
+   Theme = "Default",
+   ToggleUIKeybind = "K",
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false,
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = nil,
+      FileName = "GAGscript"
+   },
+})
 
--- Inisialisasi GUI
-function initGUI()
-    -- Hapus GUI lama jika ada
-    clearGUI()
-    
-    -- Buat window utama
-    w = createWindow("🌻 Grow a Garden - Auto Buy Seed", 300, 400)
-    
-    -- Judul
-    addLabel(w, "PILIH SEED UNTUK DIBELI", 10, 10, 280, 30)
-    setLabelTextColor(w, 0, green)
-    setLabelTextSize(w, 0, 16)
-    
-    -- Dropdown pilihan seed
-    addSpinner(w, {"Strawberry", "Carrot", "Tomato", "Lettuce", "Sunflower", "Rose", "Blueberry", "Corn"}, 10, 50, 280, 40)
-    
-    -- Input quantity
-    addLabel(w, "Quantity:", 10, 100, 100, 30)
-    addEditText(w, "1", 120, 100, 150, 40)
-    setEditTextInputType(w, 2, 2) -- Input type number
-    
-    -- Checkbox untuk auto scroll
-    addCheckBox(w, "Auto Scroll", 10, 150, 200, 30)
-    setCheckBoxState(w, 4, true)
-    
-    -- Checkbox untuk verbose logging
-    addCheckBox(w, "Detail Log", 10, 190, 200, 30)
-    setCheckBoxState(w, 5, true)
-    
-    -- Tombol start
-    addButton(w, "🚀 START BUYING", 10, 240, 280, 50)
-    setButtonTextColor(w, 6, white)
-    setButtonBackgroundColor(w, 6, 0xFF4CAF50)
-    
-    -- Tombol test
-    addButton(w, "🧪 TEST COLORS", 10, 300, 135, 40)
-    setButtonTextColor(w, 7, white)
-    setButtonBackgroundColor(w, 7, 0xFF2196F3)
-    
-    -- Tombol stop
-    addButton(w, "⏹️ STOP", 155, 300, 135, 40)
-    setButtonTextColor(w, 8, white)
-    setButtonBackgroundColor(w, 8, 0xFFF44336)
-    
-    -- Status label
-    addLabel(w, "Status: Ready", 10, 350, 280, 30)
-    setLabelTextColor(w, 9, orange)
+local function findPlayerFarm()
+    for i,v in pairs(FarmsFolder:GetChildren()) do
+        if v.Important.Data.Owner.Value == Players.LocalPlayer.Name then
+            return v
+        end
+    end
+    return nil
 end
 
--- Variabel global
-local running = false
-local selectedSeed = "Strawberry"
-local quantity = 1
-local autoScroll = true
-local verboseLog = true
-
--- Fungsi untuk menampilkan log di console
-function log(message, color)
-    color = color or white
-    if verboseLog then
-        print(string.format("<font color='#%06X'>%s</font>", color & 0xFFFFFF, message))
+local function removePlantsOfKind(kind)
+    if not kind or kind[1] == "None Selected" then
+        print("No plant selected to remove")
+        return
+    end
+    
+    print("Kind: "..kind[1])
+    local Shovel = Backpack:FindFirstChild("Shovel [Destroy Plants]") or Backpack:FindFirstChild("Shovel")
+    
+    if not Shovel then
+        print("Shovel not found in backpack")
+        return
+    end
+    
+    Shovel.Parent = Character
+    wait(0.5) -- Wait for shovel to equip
+    
+    for _,plant in pairs(findPlayerFarm().Important.Plants_Physical:GetChildren()) do
+        if plant.Name == kind[1] then
+            if plant:FindFirstChild("Fruit_Spawn") then
+                local spawnPoint = plant.Fruit_Spawn
+                HRP.CFrame = plant.PrimaryPart.CFrame
+                wait(0.2)
+                removeItem:FireServer(spawnPoint)
+                wait(0.1)
+            end
+        end
+    end 
+    
+    -- Return shovel to backpack
+    if Shovel and Shovel.Parent == Character then
+        Shovel.Parent = Backpack
     end
 end
 
--- Fungsi untuk update status GUI
-function updateStatus(message, color)
-    setLabelText(w, 9, "Status: " .. message)
-    setLabelTextColor(w, 9, color or orange)
-    refreshGUI()
-end
-
--- Fungsi untuk delay dengan feedback
-function delayMs(milliseconds)
-    if verboseLog then
-        log("⏳ Delay " .. milliseconds .. "ms...", blue)
+local function getAllIFromDict(Dict)
+    local newList = {}
+    for i,_ in pairs(Dict) do
+        table.insert(newList, i)
     end
-    sleep(milliseconds)
+    return newList
 end
 
--- Fungsi untuk mencari dan tap berdasarkan warna
-function tapColor(targetColor, tolerance, area, description)
-    tolerance = tolerance or 10
-    area = area or {x1=0, y1=0, x2=100, y2=100}
-    description = description or "object"
+local function isInTable(table,value)
+    for _,i in pairs(table) do
+        if i==value then
+            return true
+        end
+    end
+    return false
+end
+
+local function getPlantedFruitTypes()
+    local list = {}
+    local farm = findPlayerFarm()
+    if not farm then return list end
     
-    local x, y = findColor(targetColor, tolerance, area)
-    if x ~= -1 and y ~= -1 then
-        log("🎯 Ditemukan " .. description .. " di: " .. x .. "," .. y, green)
-        tap(x, y)
-        return true
+    for _,plant in pairs(farm.Important.Plants_Physical:GetChildren()) do
+        if not(isInTable(list, plant.Name)) then
+            table.insert(list, plant.Name)
+        end
+    end
+    return list
+end
+
+local Tab = Window:CreateTab("Plants", "rewind")
+Tab:CreateSection("Remove Plants")
+local PlantToRemoveDropdown = Tab:CreateDropdown({
+   Name = "Choose A Plant To Remove",
+   Options = getPlantedFruitTypes(),
+   CurrentOption = {"None Selected"},
+   MultipleOptions = false,
+   Flag = "Dropdown1", 
+   Callback = function(Options)
+    plantToRemove = Options
+   end,
+})
+
+Tab:CreateButton({
+    Name = "Refresh Selection",
+    Callback = function()
+        PlantToRemoveDropdown:Refresh(getPlantedFruitTypes())
+    end,
+})
+
+Tab:CreateButton({
+    Name = "Remove Selected Plant",
+    Callback = function()
+        removePlantsOfKind(plantToRemove)
+    end,
+})
+
+Tab:CreateSection("Harvesting Plants")
+
+local function printCropStocks()
+    for i,v in pairs(CropsListAndStocks) do
+        print(i.."'s Stock Is:", v)
+    end
+end
+
+local function StripPlantStock(UnstrippedStock)
+    local num = string.match(UnstrippedStock, "%d+")
+    return num
+end
+
+function getCropsListAndStock()
+    local oldStock = CropsListAndStocks
+    CropsListAndStocks = {} -- Reset the table
+    for _,Plant in pairs(SeedShopGUI:GetChildren()) do
+        if Plant:FindFirstChild("Main_Frame") and Plant.Main_Frame:FindFirstChild("Stock_Text") then
+            local PlantName = Plant.Name
+            local PlantStock = StripPlantStock(Plant.Main_Frame.Stock_Text.Text)
+            CropsListAndStocks[PlantName] = PlantStock
+        end
+    end
+    
+    -- Cek jika stok berubah (toko di-refresh)
+    local isRefreshed = false
+    for cropName, stock in pairs(CropsListAndStocks) do
+        if oldStock[cropName] ~= stock then
+            isRefreshed = true
+            break
+        end
+    end
+    
+    return isRefreshed
+end
+
+local playerFarm = findPlayerFarm()
+getCropsListAndStock()
+
+local function getPlantingBoundaries(farm)
+    local offset = Vector3.new(15.2844,0,28.356)
+    local edges = {}
+    local PlantingLocations = farm.Important.Plant_Locations:GetChildren()
+    local rect1Center = PlantingLocations[1].Position
+    local rect2Center = PlantingLocations[2].Position
+    edges["1TopLeft"] = rect1Center + offset
+    edges["1BottomRight"] = rect1Center - offset
+    edges["2TopLeft"] = rect2Center + offset
+    edges["2BottomRight"] = rect2Center - offset
+    return edges
+end
+
+local function collectPlant(plant)
+    -- Fixed collection method using proximity prompts instead of byteNetReliable
+    if plant:FindFirstChild("ProximityPrompt") then
+        fireproximityprompt(plant.ProximityPrompt)
     else
-        log("❌ Gagal menemukan " .. description, red)
-        return false
-    end
-end
-
--- Fungsi untuk mendapatkan warna berdasarkan nama seed
-function getSeedColor(seedName)
-    local colorMap = {
-        ["Strawberry"] = 0xFFFF0000,    -- Merah
-        ["Carrot"] = 0xFFFF5722,        -- Oranye
-        ["Tomato"] = 0xFFFF5252,        -- Merah muda
-        ["Lettuce"] = 0xFF4CAF50,       -- Hijau
-        ["Sunflower"] = 0xFFFFEB3B,     -- Kuning
-        ["Rose"] = 0xFFE91E63,          -- Pink
-        ["Blueberry"] = 0xFF3F51B5,     -- Biru
-        ["Corn"] = 0xFFFFC107,          -- Kuning tua
-    }
-    
-    return colorMap[seedName]
-end
-
--- Fungsi utama pembelian seed
-function buySeed(seedName, qty)
-    updateStatus("Memulai pembelian " .. seedName, blue)
-    log("🌱 MEMULAI PROSES PEMBELIAN: " .. seedName, green)
-    log("==================================", blue)
-    
-    -- Langkah 1: Buka toko
-    updateStatus("Mencari toko...", blue)
-    log("1. Mencari ikon toko...", white)
-    
-    -- Coba beberapa kemungkinan warna toko
-    local shopFound = false
-    local shopColors = {0xFF4CAF50, 0xFF388E3C, 0xFF66BB6A} -- Variasi hijau
-    
-    for _, color in ipairs(shopColors) do
-        if tapColor(color, 20, {x1=900, y1=1800, x2=1080, y2=1920}, "toko") then
-            shopFound = true
-            break
-        end
-    end
-    
-    if not shopFound then
-        updateStatus("Gagal menemukan toko", red)
-        log("❌ Gagal menemukan toko", red)
-        return false
-    end
-    
-    log("✅ Toko berhasil dibuka", green)
-    delayMs(2500)
-    
-    -- Langkah 2: Pilih kategori seeds
-    updateStatus("Memilih kategori seeds...", blue)
-    log("2. Memilih kategori Seeds...", white)
-    
-    local seedsCategoryFound = false
-    local categoryColors = {0xFFFFD700, 0xFFFFC107, 0xFFFFA000} -- Variasi emas/kuning
-    
-    for _, color in ipairs(categoryColors) do
-        if tapColor(color, 25, {x1=100, y1=300, x2=500, y2=600}, "kategori seeds") then
-            seedsCategoryFound = true
-            break
-        end
-    end
-    
-    if not seedsCategoryFound then
-        updateStatus("Gagal menemukan kategori", red)
-        log("❌ Gagal menemukan kategori Seeds", red)
-        return false
-    end
-    
-    log("✅ Kategori Seeds dipilih", green)
-    delayMs(2000)
-    
-    -- Langkah 3: Cari seed tertentu
-    updateStatus("Mencari " .. seedName .. "...", blue)
-    log("3. Mencari seed: " .. seedName, white)
-    
-    local seedFound = false
-    local scrollAttempts = 0
-    local maxScrolls = 3
-    
-    while not seedFound and scrollAttempts < maxScrolls and running do
-        local seedColor = getSeedColor(seedName)
-        if seedColor then
-            if tapColor(seedColor, 30, {x1=200, y1=400, x2=900, y2=1600}, seedName) then
-                seedFound = true
-                log("✅ " .. seedName .. " ditemukan", green)
-                delayMs(1500)
+        -- Check children for proximity prompts
+        for _, child in pairs(plant:GetChildren()) do
+            if child:FindFirstChild("ProximityPrompt") then
+                fireproximityprompt(child.ProximityPrompt)
                 break
             end
         end
-        
-        -- Auto scroll jika enabled
-        if autoScroll and scrollAttempts < maxScrolls - 1 then
-            updateStatus("Scroll mencari " .. seedName, blue)
-            log("↕️ Scroll ke bawah...", blue)
-            swipe(500, 1200, 500, 600, 800)
-            delayMs(2500)
+    end
+end
+
+local function GetAllPlants()
+    local plantsTable = {}
+    for _, Plant in pairs(playerFarm.Important.Plants_Physical:GetChildren()) do
+        if Plant:FindFirstChild("Fruits") then
+            for _, miniPlant in pairs(Plant.Fruits:GetChildren()) do
+                table.insert(plantsTable, miniPlant)
+            end
+        else
+            table.insert(plantsTable, Plant)
         end
-        
-        scrollAttempts = scrollAttempts + 1
+    end
+    return plantsTable
+end
+
+local function CollectAllPlants()
+    local plants = GetAllPlants()
+    print("Got "..#plants.." Plants")
+    
+    -- Shuffle the plants table to randomize collection order
+    for i = #plants, 2, -1 do
+        local j = math.random(i)
+        plants[i], plants[j] = plants[j], plants[i]
     end
     
-    if not seedFound then
-        updateStatus(seedName .. " tidak ditemukan", red)
-        log("❌ " .. seedName .. " tidak ditemukan", red)
+    for _,plant in pairs(plants) do
+        collectPlant(plant)
+        task.wait(0.05)
+    end
+end
+
+Tab:CreateButton({
+    Name = "Collect All Plants",
+    Callback = function()
+        CollectAllPlants()
+        print("Collecting All Plants")
+    end,
+})
+
+spawn(function()
+    while true do
+        if plantAura then
+            local plants = GetAllPlants()
+            
+            -- Shuffle the plants table to randomize collection order
+            for i = #plants, 2, -1 do
+                local j = math.random(i)
+                plants[i], plants[j] = plants[j], plants[i]
+            end
+            
+            for _, plant in pairs(plants) do
+                if plant:FindFirstChild("Fruits") then
+                    for _, miniPlant in pairs(plant.Fruits:GetChildren()) do
+                        for _, child in pairs(miniPlant:GetChildren()) do
+                            if child:FindFirstChild("ProximityPrompt") then
+                                fireproximityprompt(child.ProximityPrompt)
+                            end
+                        end
+                        task.wait(0.01)
+                    end
+                else
+                    for _, child in pairs(plant:GetChildren()) do
+                        if child:FindFirstChild("ProximityPrompt") then
+                            fireproximityprompt(child.ProximityPrompt)
+                        end
+                        task.wait(0.01)
+                    end
+                end
+            end
+        end
+        task.wait(0.1)
+    end
+end)
+
+local function getRandomPlantingLocation(edges)
+    local rectangles = {
+        {edges["1TopLeft"], edges["1BottomRight"]},
+        {edges["2TopLeft"], edges["2BottomRight"]}
+    }
+
+    local chosen = rectangles[math.random(1, #rectangles)]
+    local a = chosen[1]
+    local b = chosen[2]
+
+    local minX, maxX = math.min(a.X, b.X), math.max(a.X, b.X)
+    local minZ, maxZ = math.min(a.Z, b.Z), math.max(a.Z, b.Z)
+    local Y = 0.13552704453468323
+
+    -- Add some randomness to the Y position as well
+    local randY = Y + (math.random() * 0.1 - 0.05) -- Small random variation
+    
+    local randX = math.random() * (maxX - minX) + minX
+    local randZ = math.random() * (maxZ - minZ) + minZ
+
+    return CFrame.new(randX, randY, randZ)
+end
+
+local function areThereSeeds()
+    for _,Item in pairs(Backpack:GetChildren()) do
+        if Item:FindFirstChild("Seed Local Script") then
+            return true
+        end
+    end
+    print("Seeds Not Found!")
+    return false
+end
+
+local function plantAllSeeds()
+    print("Planting All Seeds...")
+    task.wait(1)
+    
+    local edges = getPlantingBoundaries(playerFarm)
+    
+    while areThereSeeds() do
+        print("There Are Seeds!")
+        for _,Item in pairs(Backpack:GetChildren()) do
+            if Item:FindFirstChild("Seed Local Script") then
+                Item.Parent = Character
+                wait(0.1)
+                local location = getRandomPlantingLocation(edges)
+                local args = {
+                    [1] = location.Position,
+                    [2] = Item:GetAttribute("Seed")
+                }
+                Plant:FireServer(unpack(args))
+                wait(0.1)
+                if Item and Item:IsDescendantOf(game) and Item.Parent ~= Backpack then
+                    pcall(function()
+                        Item.Parent = Backpack
+                    end)
+                end
+            end
+        end
+        wait(0.5) -- Small delay to prevent infinite loop
+    end
+end
+
+Tab:CreateToggle({
+   Name = "Harvest Plants Aura",
+   CurrentValue = false,
+   Flag = "Toggle1",
+   Callback = function(Value)
+    plantAura = Value
+    print("Plant Aura Set To: ".. tostring(Value))
+   end,
+})
+
+local testingTab = Window:CreateTab("Testing","rewind")
+testingTab:CreateSection("List Crops Names And Prices")
+testingTab:CreateButton({
+    Name = "Print Out All Crops Names And Stocks",
+    Callback = function()
+        printCropStocks()
+        print("Printed")
+    end,
+})
+
+Tab:CreateSection("Plant")
+Tab:CreateButton({
+    Name = "Plant all Seeds",
+    Callback = function()
+        plantAllSeeds()
+    end,
+})
+
+Tab:CreateToggle({
+    Name = "Auto Plant",
+    CurrentValue = false,
+    flag = "ToggleAutoPlant",
+    Callback = function(Value)
+        shouldAutoPlant = Value
+    end,
+})
+
+testingTab:CreateSection("Shop")
+local RayFieldShopTimer = testingTab:CreateParagraph({Title = "Shop Timer", Content = "Waiting..."})
+
+testingTab:CreateSection("Plot Corners")
+testingTab:CreateButton({
+    Name = "Teleport edges",
+    Callback = function()
+        local edges = getPlantingBoundaries(playerFarm)
+        for i,v in pairs(edges) do
+            HRP.CFrame = CFrame.new(v)
+            wait(2)
+        end
+    end,
+})
+
+testingTab:CreateButton({
+    Name = "Teleport random plantable position",
+    Callback = function()
+        HRP.CFrame = getRandomPlantingLocation(getPlantingBoundaries(playerFarm))
+    end,
+})
+
+local function buyCropSeeds(cropName)
+    local args = {[1] = cropName}
+    local success, errorMsg = pcall(function()
+        BuySeedStock:FireServer(unpack(args))
+    end)
+    
+    if not success then
+        print("Error buying seeds:", errorMsg)
         return false
     end
-    
-    -- Langkah 4: Pilih quantity
-    updateStatus("Memilih quantity...", blue)
-    log("4. Memilih quantity: " .. qty, white)
-    
-    -- Tap tombol plus (qty-1) kali
-    for i = 1, qty - 1 do
-        if tapColor(0xFF2196F3, 20, {x1=700, y1=1000, x2=800, y2=1100}, "tombol tambah") then
-            log("➕ Quantity: " .. (i + 1), blue)
-            delayMs(300)
-        end
-    end
-    
-    -- Langkah 5: Konfirmasi pembelian
-    updateStatus("Mengkonfirmasi pembelian...", blue)
-    log("5. Konfirmasi pembelian...", white)
-    
-    local buyFound = false
-    local buyColors = {0xFFFF9800, 0xFFF57C00, 0xFFE65100} -- Variasi oranye
-    
-    for _, color in ipairs(buyColors) do
-        if tapColor(color, 20, {x1=400, y1=1700, x2=700, y2=1850}, "tombol beli") then
-            buyFound = true
-            break
-        end
-    end
-    
-    if not buyFound then
-        updateStatus("Gagal konfirmasi", red)
-        log("❌ Gagal konfirmasi pembelian", red)
-        return false
-    end
-    
-    log("✅ Pembelian dikonfirmasi", green)
-    delayMs(2000)
-    
-    -- Langkah 6: Kembali ke menu utama
-    updateStatus("Kembali ke menu...", blue)
-    log("6. Kembali ke menu utama...", white)
-    
-    -- Coba beberapa cara untuk back
-    local backFound = tapColor(0xFFF44336, 20, {x1=50, y1=50, x2=150, y2=150}, "tombol back")
-    if not backFound then
-        keyevent("BACK")
-        log("🔙 Back dengan keyevent", blue)
-    end
-    
-    delayMs(1500)
-    
-    log("==================================", blue)
-    log("🎉 PEMBELIAN " .. seedName .. " BERHASIL!", green)
-    log("Total yang dibeli: " .. qty .. " seeds", green)
-    
-    updateStatus("Pembelian berhasil!", green)
     return true
 end
 
--- Fungsi test warna
-function testColors()
-    updateStatus("Testing warna...", blue)
-    log("🧪 MULAI TEST WARNA", blue)
+function buyWantedCropSeeds()
+    if #wantedFruits == 0 then
+        print("No fruits selected to buy")
+        return false
+    end
     
-    local testAreas = {
-        {name = "Toko", area = {x1=900, y1=1800, x2=1080, y2=1920}, colors = {0xFF4CAF50, 0xFF388E3C}},
-        {name = "Kategori", area = {x1=100, y1=300, x2=500, y2=600}, colors = {0xFFFFD700, 0xFFFFC107}},
-        {name = "Beli", area = {x1=400, y1=1700, x2=700, y2=1850}, colors = {0xFFFF9800, 0xFFF57C00}}
-    }
+    if isBuying then
+        print("Already buying seeds, please wait...")
+        return false
+    end
     
-    for _, test in ipairs(testAreas) do
-        log("🔍 Testing: " .. test.name, white)
-        for _, color in ipairs(test.colors) do
-            local x, y = findColor(color, 30, test.area)
-            if x ~= -1 then
-                log("✅ " .. string.format("Warna %X ditemukan di %d,%d", color, x, y), green)
-            else
-                log("❌ " .. string.format("Warna %X tidak ditemukan", color), red)
+    isBuying = true
+    
+    local beforePos = HRP.CFrame
+    local humanoid = Character:FindFirstChildOfClass("Humanoid")
+    
+    -- Pastikan karakter bisa bergerak
+    if humanoid then
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end
+    
+    -- Pergi ke NPC Sam
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
+    wait(1.5) -- Tunggu sampai sampai di lokasi
+    
+    -- Pastikan kita menghadap ke NPC
+    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
+    wait(0.5)
+    
+    local boughtAny = false
+    
+    for _, fruitName in ipairs(wantedFruits) do
+        local stock = tonumber(CropsListAndStocks[fruitName] or 0)
+        print("Trying to buy "..fruitName..", stock: "..tostring(stock))
+        
+        if stock > 0 then
+            for j = 1, stock do
+                local success = buyCropSeeds(fruitName)
+                if success then
+                    boughtAny = true
+                    print("Bought "..fruitName.." seed "..j.."/"..stock)
+                else
+                    print("Failed to buy "..fruitName)
+                end
+                wait(0.2) -- Tunggu sebentar antara pembelian
             end
-            delayMs(500)
+        else
+            print("No stock for "..fruitName)
         end
     end
     
-    updateStatus("Test warna selesai", green)
+    -- Kembali ke posisi semula
+    wait(0.5)
+    HRP.CFrame = beforePos
+    
+    isBuying = false
+    return boughtAny
 end
 
--- Main loop
-function mainLoop()
-    while running do
-        -- Baca input dari GUI
-        selectedSeed = getSpinnerValue(w, 1)
-        quantity = tonumber(getEditText(w, 2)) or 1
-        autoScroll = getCheckBoxState(w, 4)
-        verboseLog = getCheckBoxState(w, 5)
+local function onShopRefresh()
+    print("Shop Refreshed")
+    getCropsListAndStock()
+    if wantedFruits and #wantedFruits > 0 and autoBuyEnabled then
+        print("Auto-buying selected fruits...")
         
-        -- Batasi quantity
-        quantity = math.max(1, math.min(quantity, 10))
-        
-        -- Jalankan pembelian
-        buySeed(selectedSeed, quantity)
-        
-        -- Tunggu sebelum pembelian berikutnya
-        if running then
-            updateStatus("Menunggu 5 detik...", blue)
-            for i = 5, 1, -1 do
-                if not running then break end
-                updateStatus("Menunggu " .. i .. "s...", blue)
-                delayMs(1000)
+        -- Tunggu sebentar sebelum membeli untuk memastikan UI sudah update
+        wait(2)
+        buyWantedCropSeeds()
+    end
+end
+
+local function getTimeInSeconds(input)
+    if not input then return 0 end
+    local minutes = tonumber(input:match("(%d+)m")) or 0
+    local seconds = tonumber(input:match("(%d+)s")) or 0
+    return minutes * 60 + seconds
+end
+
+local function sellAll()
+    local OrgPos = HRP.CFrame
+    HRP.CFrame = Steven.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
+    wait(1.5)
+    
+    isSelling = true
+    sellAllRemote:FireServer()
+    
+    -- Wait until items are sold
+    local startTime = tick()
+    while #Backpack:GetChildren() >= AutoSellItems and tick() - startTime < 10 do
+        sellAllRemote:FireServer()
+        wait(0.5)
+    end
+    
+    HRP.CFrame = OrgPos
+    isSelling = false
+end
+
+spawn(function() 
+    while true do
+        if shopTimer and shopTimer.Text then
+            shopTime = getTimeInSeconds(shopTimer.Text)
+            local shopTimeText = "Shop Resets in " .. shopTime .. "s"
+            RayFieldShopTimer:Set({Title = "Shop Timer", Content = shopTimeText})
+            
+            -- Cek jika toko di-refresh dengan membandingkan stok
+            local isRefreshed = getCropsListAndStock()
+            
+            if isRefreshed and autoBuyEnabled and not isBuying then
+                print("Shop refreshed, auto-buying...")
+                onShopRefresh()
+                wait(5)
             end
         end
-    end
-end
-
--- Event handler untuk GUI
-function onGuiEvent(id, event)
-    if event == 0 then -- Click event
-        if id == 6 then -- Start button
-            running = true
-            setButtonText(w, 6, "⏸️ PAUSE")
-            setButtonBackgroundColor(w, 6, 0xFFFF9800)
-            updateStatus("Memulai...", blue)
-            mainLoop()
-            
-        elseif id == 7 then -- Test button
-            testColors()
-            
-        elseif id == 8 then -- Stop button
-            running = false
-            setButtonText(w, 6, "🚀 START BUYING")
-            setButtonBackgroundColor(w, 6, 0xFF4CAF50)
-            updateStatus("Dihentikan", orange)
-            log("⏹️ Script dihentikan oleh user", orange)
+        
+        if shouldSell and #(Backpack:GetChildren()) >= AutoSellItems and not isSelling then
+            sellAll()
         end
+        
+        wait(0.5)
     end
+end)
+
+localPlayerTab = Window:CreateTab("LocalPlayer")
+localPlayerTab:CreateButton({
+    Name = "TP Wand",
+    Callback = function()
+        local mouse = Players.LocalPlayer:GetMouse()
+        local TPWand = Instance.new("Tool", Backpack)
+        TPWand.Name = "TP Wand"
+        TPWand.RequiresHandle = false
+        mouse.Button1Down:Connect(function()
+            if Character:FindFirstChild("TP Wand") then
+                HRP.CFrame = mouse.Hit + Vector3.new(0, 3, 0)
+            end
+        end)
+    end,    
+})
+
+localPlayerTab:CreateButton({
+    Name = "Destroy TP Wand",
+    Callback = function()
+        if Backpack:FindFirstChild("TP Wand") then
+            Backpack:FindFirstChild("TP Wand"):Destroy()
+        end
+        if Character:FindFirstChild("TP Wand") then
+            Character:FindFirstChild("TP Wand"):Destroy()
+        end
+    end,    
+})
+
+local speedSlider = localPlayerTab:CreateSlider({
+   Name = "Speed",
+   Range = {1, 500},
+   Increment = 5,
+   Suffix = "Speed",
+   CurrentValue = 20,
+   Flag = "Slider1",
+   Callback = function(Value)
+        Humanoid.WalkSpeed = Value
+   end,
+})
+
+localPlayerTab:CreateButton({
+    Name = "Default Speed",
+    Callback = function()
+        speedSlider:Set(20)
+    end,
+})
+
+local jumpSlider = localPlayerTab:CreateSlider({
+   Name = "Jump Power",
+   Range = {1, 500},
+   Increment = 5,
+   Suffix = "Jump Power",
+   CurrentValue = 50,
+   Flag = "Slider2",
+   Callback = function(Value)
+        Humanoid.JumpPower = Value
+   end,
+})
+
+localPlayerTab:CreateButton({
+    Name = "Default Jump Power",
+    Callback = function()
+        jumpSlider:Set(50)
+    end,
+})
+
+local seedsTab = Window:CreateTab("Seeds")
+seedsTab:CreateDropdown({
+   Name = "Fruits To Buy",
+   Options = getAllIFromDict(CropsListAndStocks),
+   CurrentOption = {"None Selected"},
+   MultipleOptions = true,
+   Flag = "Dropdown1", 
+   Callback = function(Options)
+        local filtered = {}
+        for _, fruit in ipairs(Options) do
+            if fruit ~= "None Selected" then
+                table.insert(filtered, fruit)
+            end
+        end
+        print("Selected:", table.concat(filtered, ", "))
+        wantedFruits = filtered
+        print("Updated!")
+   end,
+})
+
+-- Tambahkan toggle untuk enable/disable auto-buy
+seedsTab:CreateToggle({
+    Name = "Enable Auto-Buy",
+    CurrentValue = false,
+    Flag = "AutoBuyToggle",
+    Callback = function(Value)
+        autoBuyEnabled = Value
+        print("Auto-Buy set to: "..tostring(Value))
+        
+        -- Jika diaktifkan, langsung coba beli
+        if Value and #wantedFruits > 0 then
+            spawn(function()
+                wait(1)
+                buyWantedCropSeeds()
+            end)
+        end
+    end,
+})
+
+seedsTab:CreateButton({
+    Name = "Buy Selected Fruits Now",
+    Callback = function()
+        buyWantedCropSeeds()
+    end,
+})
+
+local sellTab = Window:CreateTab("Sell")
+sellTab:CreateToggle({
+    Name = "Should Sell?",
+    CurrentValue = false,
+    flag = "Toggle2",
+    Callback = function(Value)
+        print("set shouldSell to: "..tostring(Value))
+        shouldSell = Value
+    end,
+})
+
+sellTab:CreateSlider({
+   Name = "Minimum Items to auto sell",
+   Range = {1, 200},
+   Increment = 1,
+   Suffix = "Items",
+   CurrentValue = 70,
+   Flag = "Slider2",
+   Callback = function(Value)
+        print("AutoSellItems updated to: "..Value)
+        AutoSellItems = Value
+   end,
+})
+
+sellTab:CreateButton({
+    Name = "Sell All Now",
+    Callback = function()
+        sellAll()
+    end,
+})
+
+-- Initialize the player farm reference
+playerFarm = findPlayerFarm()
+if not playerFarm then
+    warn("Player farm not found!")
 end
 
--- Inisialisasi program
-log("🌻 GROW A GARDEN - AUTO BUY SEED", green)
-log("GUI Version - Delta Executor", blue)
-log("==================================", blue)
-
--- Buat GUI
-initGUI()
-setGuiEventListener("onGuiEvent")
-updateStatus("GUI Ready - Pilih seed", green)
-
-log("GUI berhasil diinisialisasi", green)
-log("Pilih seed dan klik START untuk mulai", white)
+print("Grow A Garden script loaded successfully!")

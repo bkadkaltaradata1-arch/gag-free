@@ -1,4 +1,3 @@
--- v6
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -45,163 +44,6 @@ local Window = Rayfield:CreateWindow({
       FileName = "GAGscript"
    },
 })
-
--- Fungsi untuk mencari tombol buy di UI seed shop yang benar (bukan padding)
-local function findAndClickBuyButton(seedName)
-    local seedShopGui = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
-    if not seedShopGui then
-        print("Seed shop GUI not found")
-        return false
-    end
-    
-    -- Cari scrolling frame
-    local scrollingFrame = seedShopGui.Frame:FindFirstChild("ScrollingFrame")
-    if not scrollingFrame then
-        print("ScrollingFrame not found")
-        return false
-    end
-    
-    -- Cari frame untuk seed tertentu (bukan yang _padding)
-    local seedFrame
-    for _, child in pairs(scrollingFrame:GetChildren()) do
-        if child:IsA("Frame") and child.Name == seedName then
-            seedFrame = child
-            break
-        end
-    end
-    
-    if not seedFrame then
-        print("Seed frame not found for: " .. seedName)
-        return false
-    end
-    
-    -- Cari main frame
-    local mainFrame = seedFrame:FindFirstChild("Main_Frame")
-    if not mainFrame then
-        print("Main frame not found for: " .. seedName)
-        return false
-    end
-    
-    -- Cari tombol buy - coba beberapa kemungkinan nama
-    local buyButton = mainFrame:FindFirstChild("Buy_Button") or 
-                     mainFrame:FindFirstChild("BuyButton") or
-                     mainFrame:FindFirstChild("Button") or
-                     mainFrame:FindFirstChild("Purchase") or
-                     mainFrame:FindFirstChildOfClass("TextButton") or
-                     mainFrame:FindFirstChildOfClass("ImageButton")
-    
-    if buyButton then
-        print("Found buy button: " .. buyButton.Name .. " (" .. buyButton.ClassName .. ")")
-        
-        -- Simulasikan klik pada tombol
-        local success, errorMsg = pcall(function()
-            if buyButton:IsA("TextButton") or buyButton:IsA("ImageButton") then
-                -- Coba fire mouse click event
-                buyButton.MouseButton1Click:Fire()
-                print("Clicked buy button for: " .. seedName)
-                return true
-            end
-        end)
-        
-        if not success then
-            print("Error clicking button: " .. errorMsg)
-            -- Coba metode alternatif: panggil remote event langsung
-            local buySuccess, buyError = pcall(function()
-                BuySeedStock:FireServer(seedName)
-                return true
-            end)
-            return buySuccess
-        end
-        return success
-    else
-        print("Buy button not found for: " .. seedName)
-        -- Fallback: coba panggil remote event langsung
-        local success, errorMsg = pcall(function()
-            BuySeedStock:FireServer(seedName)
-            return true
-        end)
-        return success
-    end
-end
-
--- Fungsi untuk membeli seed dengan metode yang berbeda
-local function buySeedAlternative(seedName)
-    print("Attempting to buy: " .. seedName)
-    
-    -- Pastikan toko terbuka dengan benar
-    if Sam and Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
-        fireproximityprompt(Sam.Head.ProximityPrompt)
-        wait(1.5) -- Tunggu toko terbuka
-    end
-    
-    -- Coba metode pertama: klik tombol di UI
-    local success1 = findAndClickBuyButton(seedName)
-    if success1 then
-        print("UI button click successful for: " .. seedName)
-        return true
-    end
-    
-    -- Coba metode kedua: langsung fire server
-    wait(0.5)
-    local success2, result2 = pcall(function()
-        BuySeedStock:FireServer(seedName)
-        return true
-    end)
-    
-    if success2 then
-        print("Direct fire server successful for: " .. seedName)
-        return true
-    end
-    
-    -- Coba metode ketiga: gunakan remote event yang berbeda
-    local alternativeRemote = ReplicatedStorage:FindFirstChild("BuySeed") or 
-                             ReplicatedStorage:FindFirstChild("PurchaseSeed") or
-                             ReplicatedStorage:FindFirstChild("BuySeedStock")
-    
-    if alternativeRemote then
-        wait(0.5)
-        local success3, result3 = pcall(function()
-            alternativeRemote:FireServer(seedName)
-            return true
-        end)
-        
-        if success3 then
-            print("Alternative remote successful for: " .. seedName)
-            return true
-        end
-    end
-    
-    print("All purchase methods failed for: " .. seedName)
-    return false
-end
-
--- Fungsi untuk mendapatkan daftar seed yang tersedia (hanya yang bukan padding)
-local function getAvailableSeeds()
-    local seedsList = {}
-    local seedShopGui = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
-    
-    if seedShopGui then
-        local scrollingFrame = seedShopGui.Frame:FindFirstChild("ScrollingFrame")
-        if scrollingFrame then
-            for _, child in pairs(scrollingFrame:GetChildren()) do
-                if child:IsA("Frame") and not string.find(child.Name, "padding") and not string.find(child.Name, "Padding") then
-                    if child:FindFirstChild("Main_Frame") then
-                        table.insert(seedsList, child.Name)
-                    end
-                end
-            end
-        end
-    end
-    
-    -- Fallback: gunakan CropsListAndStocks jika tidak ada GUI
-    if #seedsList == 0 then
-        for seedName, _ in pairs(CropsListAndStocks) do
-            table.insert(seedsList, seedName)
-        end
-    end
-    
-    return seedsList
-end
 
 local function findPlayerFarm()
     for i,v in pairs(FarmsFolder:GetChildren()) do
@@ -317,24 +159,14 @@ local function StripPlantStock(UnstrippedStock)
     return num
 end
 
--- Update fungsi getCropsListAndStock untuk hanya mengambil seed yang bukan padding
 function getCropsListAndStock()
     local oldStock = CropsListAndStocks
     CropsListAndStocks = {} -- Reset the table
-    
-    local seedShopGui = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
-    if not seedShopGui then return false end
-    
-    local scrollingFrame = seedShopGui.Frame:FindFirstChild("ScrollingFrame")
-    if not scrollingFrame then return false end
-    
-    for _, child in pairs(scrollingFrame:GetChildren()) do
-        if child:IsA("Frame") and not string.find(child.Name, "padding") and not string.find(child.Name, "Padding") then
-            if child:FindFirstChild("Main_Frame") and child.Main_Frame:FindFirstChild("Stock_Text") then
-                local PlantName = child.Name
-                local PlantStock = StripPlantStock(child.Main_Frame.Stock_Text.Text)
-                CropsListAndStocks[PlantName] = PlantStock
-            end
+    for _,Plant in pairs(SeedShopGUI:GetChildren()) do
+        if Plant:FindFirstChild("Main_Frame") and Plant.Main_Frame:FindFirstChild("Stock_Text") then
+            local PlantName = Plant.Name
+            local PlantStock = StripPlantStock(Plant.Main_Frame.Stock_Text.Text)
+            CropsListAndStocks[PlantName] = PlantStock
         end
     end
     
@@ -576,36 +408,17 @@ testingTab:CreateButton({
     end,
 })
 
--- Fungsi untuk membeli seed dengan retry mechanism
-local function buyCropSeeds(cropName, retryCount)
-    retryCount = retryCount or 0
-    if retryCount > 3 then
-        print("Failed to buy " .. cropName .. " after 3 attempts")
-        return false
-    end
-    
-    -- Coba berbagai metode pembelian
-    local success = buySeedAlternative(cropName)
+local function buyCropSeeds(cropName)
+    local args = {[1] = cropName}
+    local success, errorMsg = pcall(function()
+        BuySeedStock:FireServer(unpack(args))
+    end)
     
     if not success then
-        print("Error buying " .. cropName .. " seeds (attempt " .. (retryCount + 1) .. ")")
-        wait(1) -- Tunggu sebelum retry
-        return buyCropSeeds(cropName, retryCount + 1)
+        print("Error buying seeds:", errorMsg)
+        return false
     end
-    
     return true
-end
-
--- Fungsi untuk mengecek apakah seed berhasil dibeli
-local function checkSeedBought(seedName)
-    -- Cek apakah seed ada di backpack setelah pembelian
-    wait(0.5) -- Tunggu sebentar untuk proses pembelian
-    for _, item in pairs(Backpack:GetChildren()) do
-        if item:FindFirstChild("Seed Local Script") and item:GetAttribute("Seed") == seedName then
-            return true
-        end
-    end
-    return false
 end
 
 function buyWantedCropSeeds()
@@ -630,21 +443,12 @@ function buyWantedCropSeeds()
     end
     
     -- Pergi ke NPC Sam
-    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
-    wait(2) -- Tunggu lebih lama sampai sampai di lokasi
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
+    wait(1.5) -- Tunggu sampai sampai di lokasi
     
     -- Pastikan kita menghadap ke NPC
     HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
     wait(0.5)
-    
-    -- Interaksi dengan Sam untuk membuka toko
-    if Sam and Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
-        fireproximityprompt(Sam.Head.ProximityPrompt)
-        wait(2.5) -- Tunggu lebih lama untuk toko terbuka sepenuhnya
-    end
-    
-    -- Refresh informasi stok
-    getCropsListAndStock()
     
     local boughtAny = false
     
@@ -656,20 +460,12 @@ function buyWantedCropSeeds()
             for j = 1, stock do
                 local success = buyCropSeeds(fruitName)
                 if success then
-                    -- Verifikasi bahwa seed benar-benar dibeli
-                    if checkSeedBought(fruitName) then
-                        boughtAny = true
-                        print("Successfully bought "..fruitName.." seed "..j.."/"..stock)
-                        -- Update stok setelah pembelian berhasil
-                        CropsListAndStocks[fruitName] = tostring(stock - j)
-                    else
-                        print("Purchase of "..fruitName.." might have failed (seed not in backpack)")
-                    end
+                    boughtAny = true
+                    print("Bought "..fruitName.." seed "..j.."/"..stock)
                 else
                     print("Failed to buy "..fruitName)
-                    break -- Berhenti mencoba fruit ini jika ada error
                 end
-                wait(0.5) -- Tunggu lebih lama antara pembelian
+                wait(0.2) -- Tunggu sebentar antara pembelian
             end
         else
             print("No stock for "..fruitName)
@@ -690,8 +486,8 @@ local function onShopRefresh()
     if wantedFruits and #wantedFruits > 0 and autoBuyEnabled then
         print("Auto-buying selected fruits...")
         
-        -- Tunggu lebih lama sebelum membeli untuk memastikan UI sudah update
-        wait(3)
+        -- Tunggu sebentar sebelum membeli untuk memastikan UI sudah update
+        wait(2)
         buyWantedCropSeeds()
     end
 end
@@ -722,17 +518,6 @@ local function sellAll()
     isSelling = false
 end
 
--- Add cooldown mechanism
-local lastBuyAttempt = 0
-local BUY_COOLDOWN = 10 -- seconds (increased cooldown)
-
--- Add function to reset buying state
-local function resetBuyingState()
-    isBuying = false
-    print("Buying state reset")
-end
-
-local lastShopTime = 0
 spawn(function() 
     while true do
         if shopTimer and shopTimer.Text then
@@ -740,19 +525,13 @@ spawn(function()
             local shopTimeText = "Shop Resets in " .. shopTime .. "s"
             RayFieldShopTimer:Set({Title = "Shop Timer", Content = shopTimeText})
             
-            -- Check if shop just refreshed (timer reset to max)
-            if shopTime > lastShopTime + 50 then  -- Assuming shop resets around 300 seconds
-                print("Shop refreshed detected by timer reset!")
-                onShopRefresh()
-            end
-            
-            lastShopTime = shopTime
-            
-            -- Also check stock changes periodically
+            -- Cek jika toko di-refresh dengan membandingkan stok
             local isRefreshed = getCropsListAndStock()
+            
             if isRefreshed and autoBuyEnabled and not isBuying then
-                print("Shop stock changed, auto-buying...")
+                print("Shop refreshed, auto-buying...")
                 onShopRefresh()
+                wait(5)
             end
         end
         
@@ -760,7 +539,7 @@ spawn(function()
             sellAll()
         end
         
-        wait(1) -- Reduced from 0.5 to 1 second to avoid spamming
+        wait(0.5)
     end
 end)
 
@@ -784,10 +563,10 @@ localPlayerTab:CreateButton({
     Name = "Destroy TP Wand",
     Callback = function()
         if Backpack:FindFirstChild("TP Wand") then
-            Backpack:FindFirstChild("TP Wand":Destroy()
+            Backpack:FindFirstChild("TP Wand"):Destroy()
         end
         if Character:FindFirstChild("TP Wand") then
-            Character:FindFirstChild("TP Wand":Destroy()
+            Character:FindFirstChild("TP Wand"):Destroy()
         end
     end,    
 })
@@ -831,11 +610,9 @@ localPlayerTab:CreateButton({
 })
 
 local seedsTab = Window:CreateTab("Seeds")
-
--- Update dropdown options untuk hanya menampilkan seed yang bukan padding
-local seedDropdown = seedsTab:CreateDropdown({
+seedsTab:CreateDropdown({
    Name = "Fruits To Buy",
-   Options = getAvailableSeeds(),
+   Options = getAllIFromDict(CropsListAndStocks),
    CurrentOption = {"None Selected"},
    MultipleOptions = true,
    Flag = "Dropdown1", 
@@ -852,21 +629,6 @@ local seedDropdown = seedsTab:CreateDropdown({
    end,
 })
 
--- Tambahkan fungsi refresh untuk dropdown
-seedsTab:CreateButton({
-    Name = "Refresh Seed List",
-    Callback = function()
-        local availableSeeds = getAvailableSeeds()
-        seedDropdown:Refresh(availableSeeds)
-        Rayfield:Notify({
-            Title = "Seed List Refreshed",
-            Content = "Available seeds list has been updated",
-            Duration = 3,
-            Image = 0,
-        })
-    end,
-})
-
 -- Tambahkan toggle untuk enable/disable auto-buy
 seedsTab:CreateToggle({
     Name = "Enable Auto-Buy",
@@ -876,20 +638,10 @@ seedsTab:CreateToggle({
         autoBuyEnabled = Value
         print("Auto-Buy set to: "..tostring(Value))
         
-        -- Add visual indicator
-        if Value then
-            Rayfield:Notify({
-                Title = "Auto-Buy Enabled",
-                Content = "Will automatically buy selected fruits when shop refreshes",
-                Duration = 3,
-                Image = 0,
-            })
-        end
-        
         -- Jika diaktifkan, langsung coba beli
         if Value and #wantedFruits > 0 then
             spawn(function()
-                wait(2) -- Tunggu lebih lama
+                wait(1)
                 buyWantedCropSeeds()
             end)
         end
@@ -899,87 +651,7 @@ seedsTab:CreateToggle({
 seedsTab:CreateButton({
     Name = "Buy Selected Fruits Now",
     Callback = function()
-        if tick() - lastBuyAttempt < BUY_COOLDOWN then
-            print("Please wait before trying to buy again")
-            Rayfield:Notify({
-                Title = "Cooldown",
-                Content = "Please wait " .. math.ceil(BUY_COOLDOWN - (tick() - lastBuyAttempt)) .. " seconds before buying again",
-                Duration = 3,
-                Image = 0,
-            })
-            return
-        end
-        lastBuyAttempt = tick()
         buyWantedCropSeeds()
-    end,
-})
-
--- Add button to reset buying state
-seedsTab:CreateButton({
-    Name = "Reset Buying State (If Stuck)",
-    Callback = function()
-        resetBuyingState()
-    end,
-})
-
--- Add button to manually open shop
-seedsTab:CreateButton({
-    Name = "Open Shop Manually",
-    Callback = function()
-        local beforePos = HRP.CFrame
-        HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
-        wait(1.5)
-        if Sam and Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
-            fireproximityprompt(Sam.Head.ProximityPrompt)
-            Rayfield:Notify({
-                Title = "Shop Opened",
-                Content = "NPC Sam's shop has been opened",
-                Duration = 3,
-                Image = 0,
-            })
-        end
-        wait(1)
-        HRP.CFrame = beforePos
-    end,
-})
-
--- Add button to debug UI elements
-seedsTab:CreateButton({
-    Name = "Debug Seed Shop UI",
-    Callback = function()
-        local seedShopGui = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
-        if seedShopGui then
-            print("=== Seed Shop UI Debug ===")
-            print("Found Seed_Shop GUI")
-            
-            -- Check scrolling frame
-            local scrollingFrame = seedShopGui.Frame:FindFirstChild("ScrollingFrame")
-            if scrollingFrame then
-                print("ScrollingFrame found with " .. #scrollingFrame:GetChildren() .. " children")
-                
-                -- List all seed frames
-                for _, child in pairs(scrollingFrame:GetChildren()) do
-                    if child:IsA("Frame") then
-                        print("Seed frame: " .. child.Name)
-                        
-                        -- Check for main frame
-                        local mainFrame = child:FindFirstChild("Main_Frame")
-                        if mainFrame then
-                            print("  Main_Frame found")
-                            
-                            -- Find all buttons
-                            for _, element in pairs(mainFrame:GetChildren()) do
-                                if element:IsA("TextButton") or element:IsA("ImageButton") then
-                                    print("  Button found: " .. element.Name .. " (" .. element.ClassName .. ")")
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        else
-            print("Seed_Shop GUI not found")
-        end
     end,
 })
 

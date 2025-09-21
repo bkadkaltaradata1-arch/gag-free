@@ -1,4 +1,4 @@
--- v5
+-- v6
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -46,7 +46,7 @@ local Window = Rayfield:CreateWindow({
    },
 })
 
--- Fungsi untuk mencari tombol buy di UI seed shop
+-- Fungsi untuk mencari tombol buy di UI seed shop yang benar (bukan padding)
 local function findAndClickBuyButton(seedName)
     local seedShopGui = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
     if not seedShopGui then
@@ -54,8 +54,22 @@ local function findAndClickBuyButton(seedName)
         return false
     end
     
-    -- Cari frame untuk seed tertentu
-    local seedFrame = seedShopGui.Frame.ScrollingFrame:FindFirstChild(seedName)
+    -- Cari scrolling frame
+    local scrollingFrame = seedShopGui.Frame:FindFirstChild("ScrollingFrame")
+    if not scrollingFrame then
+        print("ScrollingFrame not found")
+        return false
+    end
+    
+    -- Cari frame untuk seed tertentu (bukan yang _padding)
+    local seedFrame
+    for _, child in pairs(scrollingFrame:GetChildren()) do
+        if child:IsA("Frame") and child.Name == seedName then
+            seedFrame = child
+            break
+        end
+    end
+    
     if not seedFrame then
         print("Seed frame not found for: " .. seedName)
         return false
@@ -68,17 +82,21 @@ local function findAndClickBuyButton(seedName)
         return false
     end
     
-    -- Cari tombol buy (biasanya bernama "Buy_Button" atau similar)
+    -- Cari tombol buy - coba beberapa kemungkinan nama
     local buyButton = mainFrame:FindFirstChild("Buy_Button") or 
                      mainFrame:FindFirstChild("BuyButton") or
                      mainFrame:FindFirstChild("Button") or
+                     mainFrame:FindFirstChild("Purchase") or
                      mainFrame:FindFirstChildOfClass("TextButton") or
                      mainFrame:FindFirstChildOfClass("ImageButton")
     
     if buyButton then
+        print("Found buy button: " .. buyButton.Name .. " (" .. buyButton.ClassName .. ")")
+        
         -- Simulasikan klik pada tombol
         local success, errorMsg = pcall(function()
             if buyButton:IsA("TextButton") or buyButton:IsA("ImageButton") then
+                -- Coba fire mouse click event
                 buyButton.MouseButton1Click:Fire()
                 print("Clicked buy button for: " .. seedName)
                 return true
@@ -87,40 +105,61 @@ local function findAndClickBuyButton(seedName)
         
         if not success then
             print("Error clicking button: " .. errorMsg)
+            -- Coba metode alternatif: panggil remote event langsung
+            local buySuccess, buyError = pcall(function()
+                BuySeedStock:FireServer(seedName)
+                return true
+            end)
+            return buySuccess
         end
         return success
     else
         print("Buy button not found for: " .. seedName)
-        return false
+        -- Fallback: coba panggil remote event langsung
+        local success, errorMsg = pcall(function()
+            BuySeedStock:FireServer(seedName)
+            return true
+        end)
+        return success
     end
 end
 
 -- Fungsi untuk membeli seed dengan metode yang berbeda
 local function buySeedAlternative(seedName)
-    -- Coba metode pertama: langsung fire server
-    local success1, result1 = pcall(function()
+    print("Attempting to buy: " .. seedName)
+    
+    -- Pastikan toko terbuka dengan benar
+    if Sam and Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
+        fireproximityprompt(Sam.Head.ProximityPrompt)
+        wait(1.5) -- Tunggu toko terbuka
+    end
+    
+    -- Coba metode pertama: klik tombol di UI
+    local success1 = findAndClickBuyButton(seedName)
+    if success1 then
+        print("UI button click successful for: " .. seedName)
+        return true
+    end
+    
+    -- Coba metode kedua: langsung fire server
+    wait(0.5)
+    local success2, result2 = pcall(function()
         BuySeedStock:FireServer(seedName)
         return true
     end)
     
-    if success1 then
-        print("Direct fire server successful for: " .. seedName)
-        return true
-    end
-    
-    -- Coba metode kedua: klik tombol di UI
-    wait(0.5)
-    local success2 = findAndClickBuyButton(seedName)
     if success2 then
-        print("UI button click successful for: " .. seedName)
+        print("Direct fire server successful for: " .. seedName)
         return true
     end
     
     -- Coba metode ketiga: gunakan remote event yang berbeda
     local alternativeRemote = ReplicatedStorage:FindFirstChild("BuySeed") or 
-                             ReplicatedStorage:FindFirstChild("PurchaseSeed")
+                             ReplicatedStorage:FindFirstChild("PurchaseSeed") or
+                             ReplicatedStorage:FindFirstChild("BuySeedStock")
     
     if alternativeRemote then
+        wait(0.5)
         local success3, result3 = pcall(function()
             alternativeRemote:FireServer(seedName)
             return true
@@ -134,6 +173,34 @@ local function buySeedAlternative(seedName)
     
     print("All purchase methods failed for: " .. seedName)
     return false
+end
+
+-- Fungsi untuk mendapatkan daftar seed yang tersedia (hanya yang bukan padding)
+local function getAvailableSeeds()
+    local seedsList = {}
+    local seedShopGui = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
+    
+    if seedShopGui then
+        local scrollingFrame = seedShopGui.Frame:FindFirstChild("ScrollingFrame")
+        if scrollingFrame then
+            for _, child in pairs(scrollingFrame:GetChildren()) do
+                if child:IsA("Frame") and not string.find(child.Name, "padding") and not string.find(child.Name, "Padding") then
+                    if child:FindFirstChild("Main_Frame") then
+                        table.insert(seedsList, child.Name)
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Fallback: gunakan CropsListAndStocks jika tidak ada GUI
+    if #seedsList == 0 then
+        for seedName, _ in pairs(CropsListAndStocks) do
+            table.insert(seedsList, seedName)
+        end
+    end
+    
+    return seedsList
 end
 
 local function findPlayerFarm()
@@ -250,14 +317,24 @@ local function StripPlantStock(UnstrippedStock)
     return num
 end
 
+-- Update fungsi getCropsListAndStock untuk hanya mengambil seed yang bukan padding
 function getCropsListAndStock()
     local oldStock = CropsListAndStocks
     CropsListAndStocks = {} -- Reset the table
-    for _,Plant in pairs(SeedShopGUI:GetChildren()) do
-        if Plant:FindFirstChild("Main_Frame") and Plant.Main_Frame:FindFirstChild("Stock_Text") then
-            local PlantName = Plant.Name
-            local PlantStock = StripPlantStock(Plant.Main_Frame.Stock_Text.Text)
-            CropsListAndStocks[PlantName] = PlantStock
+    
+    local seedShopGui = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
+    if not seedShopGui then return false end
+    
+    local scrollingFrame = seedShopGui.Frame:FindFirstChild("ScrollingFrame")
+    if not scrollingFrame then return false end
+    
+    for _, child in pairs(scrollingFrame:GetChildren()) do
+        if child:IsA("Frame") and not string.find(child.Name, "padding") and not string.find(child.Name, "Padding") then
+            if child:FindFirstChild("Main_Frame") and child.Main_Frame:FindFirstChild("Stock_Text") then
+                local PlantName = child.Name
+                local PlantStock = StripPlantStock(child.Main_Frame.Stock_Text.Text)
+                CropsListAndStocks[PlantName] = PlantStock
+            end
         end
     end
     
@@ -707,10 +784,10 @@ localPlayerTab:CreateButton({
     Name = "Destroy TP Wand",
     Callback = function()
         if Backpack:FindFirstChild("TP Wand") then
-            Backpack:FindFirstChild("TP Wand"):Destroy()
+            Backpack:FindFirstChild("TP Wand":Destroy()
         end
         if Character:FindFirstChild("TP Wand") then
-            Character:FindFirstChild("TP Wand"):Destroy()
+            Character:FindFirstChild("TP Wand":Destroy()
         end
     end,    
 })
@@ -754,9 +831,11 @@ localPlayerTab:CreateButton({
 })
 
 local seedsTab = Window:CreateTab("Seeds")
-seedsTab:CreateDropdown({
+
+-- Update dropdown options untuk hanya menampilkan seed yang bukan padding
+local seedDropdown = seedsTab:CreateDropdown({
    Name = "Fruits To Buy",
-   Options = getAllIFromDict(CropsListAndStocks),
+   Options = getAvailableSeeds(),
    CurrentOption = {"None Selected"},
    MultipleOptions = true,
    Flag = "Dropdown1", 
@@ -771,6 +850,21 @@ seedsTab:CreateDropdown({
         wantedFruits = filtered
         print("Updated!")
    end,
+})
+
+-- Tambahkan fungsi refresh untuk dropdown
+seedsTab:CreateButton({
+    Name = "Refresh Seed List",
+    Callback = function()
+        local availableSeeds = getAvailableSeeds()
+        seedDropdown:Refresh(availableSeeds)
+        Rayfield:Notify({
+            Title = "Seed List Refreshed",
+            Content = "Available seeds list has been updated",
+            Duration = 3,
+            Image = 0,
+        })
+    end,
 })
 
 -- Tambahkan toggle untuk enable/disable auto-buy

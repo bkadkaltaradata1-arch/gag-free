@@ -1,3 +1,4 @@
+-- v1
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -11,6 +12,8 @@ local Steven = Workspace.NPCS.Steven
 local Sam = Workspace.NPCS.Sam
 local HRP = Players.LocalPlayer.Character.HumanoidRootPart
 local CropsListAndStocks = {}
+local SeedShopGUI = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.ScrollingFrame
+local shopTimer = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.Frame.Timer
 local shopTime = 0
 local Humanoid = Character:WaitForChild("Humanoid")
 wantedFruits = {}
@@ -24,19 +27,9 @@ local isSelling = false
 local byteNetReliable = ReplicatedStorage:FindFirstChild("ByteNetReliable")
 local autoBuyEnabled = false
 local lastShopStock = {}
-local isBuying = false
+local isBuying = false -- Flag untuk menandai sedang membeli
 
--- Load Rayfield safely
-local Rayfield = nil
-local success, err = pcall(function()
-    Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-end)
-
-if not success or not Rayfield then
-    warn("Failed to load Rayfield: " .. tostring(err))
-    return
-end
-
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
    Name = "Grow A Garden",
    Icon = 0,
@@ -77,7 +70,7 @@ local function removePlantsOfKind(kind)
     end
     
     Shovel.Parent = Character
-    wait(0.5)
+    wait(0.5) -- Wait for shovel to equip
     
     for _,plant in pairs(findPlayerFarm().Important.Plants_Physical:GetChildren()) do
         if plant.Name == kind[1] then
@@ -91,6 +84,7 @@ local function removePlantsOfKind(kind)
         end
     end 
     
+    -- Return shovel to backpack
     if Shovel and Shovel.Parent == Character then
         Shovel.Parent = Backpack
     end
@@ -168,28 +162,16 @@ end
 
 function getCropsListAndStock()
     local oldStock = CropsListAndStocks
-    CropsListAndStocks = {}
-    
-    local seedShopGui = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
-    if not seedShopGui then return false end
-    
-    local scrollingFrame = seedShopGui.Frame:FindFirstChild("ScrollingFrame")
-    if not scrollingFrame then return false end
-    
-    for _,Plant in pairs(scrollingFrame:GetChildren()) do
-        if Plant:IsA("Frame") and Plant:FindFirstChild("Main_Frame") then
-            local mainFrame = Plant.Main_Frame
-            local stockText = mainFrame:FindFirstChild("Stock_Text")
-            if stockText then
-                local PlantName = Plant.Name
-                -- Remove _padding from the name if exists
-                local cleanName = PlantName:gsub("_padding$", "")
-                local PlantStock = StripPlantStock(stockText.Text)
-                CropsListAndStocks[cleanName] = PlantStock
-            end
+    CropsListAndStocks = {} -- Reset the table
+    for _,Plant in pairs(SeedShopGUI:GetChildren()) do
+        if Plant:FindFirstChild("Main_Frame") and Plant.Main_Frame:FindFirstChild("Stock_Text") then
+            local PlantName = Plant.Name
+            local PlantStock = StripPlantStock(Plant.Main_Frame.Stock_Text.Text)
+            CropsListAndStocks[PlantName] = PlantStock
         end
     end
     
+    -- Cek jika stok berubah (toko di-refresh)
     local isRefreshed = false
     for cropName, stock in pairs(CropsListAndStocks) do
         if oldStock[cropName] ~= stock then
@@ -218,9 +200,11 @@ local function getPlantingBoundaries(farm)
 end
 
 local function collectPlant(plant)
+    -- Fixed collection method using proximity prompts instead of byteNetReliable
     if plant:FindFirstChild("ProximityPrompt") then
         fireproximityprompt(plant.ProximityPrompt)
     else
+        -- Check children for proximity prompts
         for _, child in pairs(plant:GetChildren()) do
             if child:FindFirstChild("ProximityPrompt") then
                 fireproximityprompt(child.ProximityPrompt)
@@ -248,6 +232,7 @@ local function CollectAllPlants()
     local plants = GetAllPlants()
     print("Got "..#plants.." Plants")
     
+    -- Shuffle the plants table to randomize collection order
     for i = #plants, 2, -1 do
         local j = math.random(i)
         plants[i], plants[j] = plants[j], plants[i]
@@ -272,6 +257,7 @@ spawn(function()
         if plantAura then
             local plants = GetAllPlants()
             
+            -- Shuffle the plants table to randomize collection order
             for i = #plants, 2, -1 do
                 local j = math.random(i)
                 plants[i], plants[j] = plants[j], plants[i]
@@ -315,7 +301,9 @@ local function getRandomPlantingLocation(edges)
     local minZ, maxZ = math.min(a.Z, b.Z), math.max(a.Z, b.Z)
     local Y = 0.13552704453468323
 
-    local randY = Y + (math.random() * 0.1 - 0.05)
+    -- Add some randomness to the Y position as well
+    local randY = Y + (math.random() * 0.1 - 0.05) -- Small random variation
+    
     local randX = math.random() * (maxX - minX) + minX
     local randZ = math.random() * (maxZ - minZ) + minZ
 
@@ -358,7 +346,7 @@ local function plantAllSeeds()
                 end
             end
         end
-        wait(0.5)
+        wait(0.5) -- Small delay to prevent infinite loop
     end
 end
 
@@ -422,6 +410,12 @@ testingTab:CreateButton({
 })
 
 local function buyCropSeeds(cropName)
+    -- First ensure we're interacting with Sam to open the shop
+    if Sam and Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
+        fireproximityprompt(Sam.Head.ProximityPrompt)
+        wait(1) -- Wait for shop to open
+    end
+    
     local args = {[1] = cropName}
     local success, errorMsg = pcall(function()
         BuySeedStock:FireServer(unpack(args))
@@ -450,15 +444,27 @@ function buyWantedCropSeeds()
     local beforePos = HRP.CFrame
     local humanoid = Character:FindFirstChildOfClass("Humanoid")
     
+    -- Ensure we can move
     if humanoid then
         humanoid:ChangeState(Enum.HumanoidStateType.Running)
     end
     
+    -- Go to NPC Sam
     HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
-    wait(1.5)
+    wait(1.5) -- Wait to reach the location
     
+    -- Face the NPC
     HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
     wait(0.5)
+    
+    -- Interact with Sam to open shop
+    if Sam and Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
+        fireproximityprompt(Sam.Head.ProximityPrompt)
+        wait(2) -- Wait for shop to fully open
+    end
+    
+    -- Refresh stock information
+    getCropsListAndStock()
     
     local boughtAny = false
     
@@ -472,18 +478,22 @@ function buyWantedCropSeeds()
                 if success then
                     boughtAny = true
                     print("Bought "..fruitName.." seed "..j.."/"..stock)
+                    -- Update stock count after purchase
+                    CropsListAndStocks[fruitName] = tostring(stock - j)
                 else
                     print("Failed to buy "..fruitName)
+                    break -- Stop trying this fruit if there's an error
                 end
-                wait(0.2)
+                wait(0.2) -- Wait between purchases
             end
         else
             print("No stock for "..fruitName)
         end
     end
     
-    wait(0.5)
+    -- Close shop by walking away
     HRP.CFrame = beforePos
+    wait(0.5)
     
     isBuying = false
     return boughtAny
@@ -494,6 +504,8 @@ local function onShopRefresh()
     getCropsListAndStock()
     if wantedFruits and #wantedFruits > 0 and autoBuyEnabled then
         print("Auto-buying selected fruits...")
+        
+        -- Tunggu sebentar sebelum membeli untuk memastikan UI sudah update
         wait(2)
         buyWantedCropSeeds()
     end
@@ -508,12 +520,13 @@ end
 
 local function sellAll()
     local OrgPos = HRP.CFrame
-    HRP.CFrame = Steven.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
+    HRP.CFrame = Steven.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
     wait(1.5)
     
     isSelling = true
     sellAllRemote:FireServer()
     
+    -- Wait until items are sold
     local startTime = tick()
     while #Backpack:GetChildren() >= AutoSellItems and tick() - startTime < 10 do
         sellAllRemote:FireServer()
@@ -524,181 +537,37 @@ local function sellAll()
     isSelling = false
 end
 
--- Function to find and click on Blueberry seed in the shop
-local function selectBlueberrySeed()
-    wait(2)
-    
-    local seedShopGui = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
-    if not seedShopGui then
-        print("Seed_Shop GUI not found")
-        return false
-    end
-    
-    local scrollingFrame = seedShopGui.Frame:FindFirstChild("ScrollingFrame")
-    if not scrollingFrame then
-        print("ScrollingFrame not found")
-        return false
-    end
-    
-    -- Debug: Print all items in shop with full names
-    print("Available seeds in shop (with full names):")
-    for _, item in pairs(scrollingFrame:GetChildren()) do
-        if item:IsA("Frame") then
-            print(" - " .. item.Name)
-        end
-    end
-    
-    -- Try to find blueberry with _padding
-    local blueberryFrame = scrollingFrame:FindFirstChild("Blueberry_padding")
-    if not blueberryFrame then
-        -- Try other possible names
-        local blueberryNames = {"Blueberry_padding", "Blueberries_padding", "BlueberrySeed_padding", "Blueberry"}
-        for _, name in ipairs(blueberryNames) do
-            blueberryFrame = scrollingFrame:FindFirstChild(name)
-            if blueberryFrame then
-                print("Found blueberry with name: " .. name)
-                break
-            end
-        end
-    end
-    
-    if not blueberryFrame then
-        print("Blueberry not found with any known names")
-        return false
-    end
-    
-    -- Find the buy button
-    local buyButton = blueberryFrame:FindFirstChild("Buy_Button") or 
-                     blueberryFrame:FindFirstChild("BuyButton") or
-                     blueberryFrame:FindFirstChild("Purchase_Button") or
-                     blueberryFrame:FindFirstChild("Button")
-    
-    if not buyButton then
-        -- Search for any button in the frame
-        for _, child in pairs(blueberryFrame:GetChildren()) do
-            if child:IsA("TextButton") or child:IsA("ImageButton") then
-                buyButton = child
-                break
-            end
-        end
-    end
-    
-    if not buyButton then
-        print("Buy button not found")
-        return false
-    end
-    
-    print("Found buy button: " .. buyButton.Name)
-    
-    -- Try to click the button
-    local success, result = pcall(function()
-        if buyButton:IsA("TextButton") or buyButton:IsA("ImageButton") then
-            buyButton:FireEvent("MouseButton1Click")
-            return true
-        end
-        return false
-    end)
-    
-    if success and result then
-        print("Successfully selected Blueberry seed")
-        return true
-    else
-        print("Failed to click button")
-        return false
-    end
+-- Add cooldown mechanism
+local lastBuyAttempt = 0
+local BUY_COOLDOWN = 5 -- seconds
+
+-- Add function to reset buying state
+local function resetBuyingState()
+    isBuying = false
+    print("Buying state reset")
 end
 
--- Function to teleport to Sam and open the shop
-local function teleportToSamAndOpenShop()
-    local originalPosition = HRP.CFrame
-    
-    -- Teleport to Sam
-    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
-    wait(1.5)
-    
-    -- Make sure we're facing Sam
-    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
-    wait(0.5)
-    
-    -- Activate the shop by firing proximity prompt
-    local foundPrompt = false
-    for _, part in pairs(Sam:GetChildren()) do
-        if part:IsA("BasePart") and part:FindFirstChild("ProximityPrompt") then
-            fireproximityprompt(part.ProximityPrompt)
-            foundPrompt = true
-            print("Opened Sam's shop")
-            break
-        end
-    end
-    
-    if foundPrompt then
-        -- Wait for the shop to open and select blueberry
-        wait(3)
-        selectBlueberrySeed()
-    else
-        print("Could not find ProximityPrompt on Sam")
-    end
-    
-    -- Return to original position
-    wait(2)
-    HRP.CFrame = originalPosition
-end
-
--- Function to directly buy blueberry seeds (with _padding handling)
-local function buyBlueberrySeedsDirectly()
-    -- Try with _padding first
-    local args = {[1] = "Blueberry_padding"}
-    local success, errorMsg = pcall(function()
-        BuySeedStock:FireServer(unpack(args))
-    end)
-    
-    if success then
-        print("Successfully bought Blueberry_padding seeds")
-        return true
-    else
-        print("Error buying Blueberry_padding:", errorMsg)
-        
-        -- Try without _padding
-        local args = {[1] = "Blueberry"}
-        local success2, errorMsg2 = pcall(function()
-            BuySeedStock:FireServer(unpack(args))
-        end)
-        
-        if success2 then
-            print("Successfully bought Blueberry seeds")
-            return true
-        else
-            print("Error buying Blueberry:", errorMsg2)
-            
-            -- Try other possible names
-            local alternativeNames = {"Blueberries_padding", "BlueberrySeed_padding", "Blueberries", "BlueberrySeed"}
-            for _, name in ipairs(alternativeNames) do
-                local args = {[1] = name}
-                local success3 = pcall(function()
-                    BuySeedStock:FireServer(unpack(args))
-                end)
-                if success3 then
-                    print("Successfully bought with name: " .. name)
-                    return true
-                end
-            end
-            return false
-        end
-    end
-end
-
+local lastShopTime = 0
 spawn(function() 
     while true do
-        local seedShopGui = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
-        if seedShopGui then
-            local timerFrame = seedShopGui.Frame:FindFirstChild("Frame")
-            if timerFrame then
-                local timerText = timerFrame:FindFirstChild("Timer")
-                if timerText and timerText.Text then
-                    shopTime = getTimeInSeconds(timerText.Text)
-                    local shopTimeText = "Shop Resets in " .. shopTime .. "s"
-                    RayFieldShopTimer:Set({Title = "Shop Timer", Content = shopTimeText})
-                end
+        if shopTimer and shopTimer.Text then
+            shopTime = getTimeInSeconds(shopTimer.Text)
+            local shopTimeText = "Shop Resets in " .. shopTime .. "s"
+            RayFieldShopTimer:Set({Title = "Shop Timer", Content = shopTimeText})
+            
+            -- Check if shop just refreshed (timer reset to max)
+            if shopTime > lastShopTime + 50 then  -- Assuming shop resets around 300 seconds
+                print("Shop refreshed detected by timer reset!")
+                onShopRefresh()
+            end
+            
+            lastShopTime = shopTime
+            
+            -- Also check stock changes periodically
+            local isRefreshed = getCropsListAndStock()
+            if isRefreshed and autoBuyEnabled and not isBuying then
+                print("Shop stock changed, auto-buying...")
+                onShopRefresh()
             end
         end
         
@@ -706,7 +575,7 @@ spawn(function()
             sellAll()
         end
         
-        wait(0.5)
+        wait(1) -- Reduced from 0.5 to 1 second to avoid spamming
     end
 end)
 
@@ -776,16 +645,7 @@ localPlayerTab:CreateButton({
     end,
 })
 
-localPlayerTab:CreateButton({
-    Name = "Teleport to Sam",
-    Callback = function()
-        HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
-    end,
-})
-
 local seedsTab = Window:CreateTab("Seeds")
-
--- Update the dropdown to show clean names (without _padding)
 seedsTab:CreateDropdown({
    Name = "Fruits To Buy",
    Options = getAllIFromDict(CropsListAndStocks),
@@ -805,20 +665,7 @@ seedsTab:CreateDropdown({
    end,
 })
 
-seedsTab:CreateButton({
-    Name = "Buy Blueberry Seeds Directly",
-    Callback = function()
-        buyBlueberrySeedsDirectly()
-    end,
-})
-
-seedsTab:CreateButton({
-    Name = "Teleport to Sam & Open Shop (Select Blueberry)",
-    Callback = function()
-        teleportToSamAndOpenShop()
-    end,
-})
-
+-- Tambahkan toggle untuk enable/disable auto-buy
 seedsTab:CreateToggle({
     Name = "Enable Auto-Buy",
     CurrentValue = false,
@@ -827,6 +674,17 @@ seedsTab:CreateToggle({
         autoBuyEnabled = Value
         print("Auto-Buy set to: "..tostring(Value))
         
+        -- Add visual indicator
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto-Buy Enabled",
+                Content = "Will automatically buy selected fruits when shop refreshes",
+                Duration = 3,
+                Image = 0,
+            })
+        end
+        
+        -- Jika diaktifkan, langsung coba beli
         if Value and #wantedFruits > 0 then
             spawn(function()
                 wait(1)
@@ -839,7 +697,26 @@ seedsTab:CreateToggle({
 seedsTab:CreateButton({
     Name = "Buy Selected Fruits Now",
     Callback = function()
+        if tick() - lastBuyAttempt < BUY_COOLDOWN then
+            print("Please wait before trying to buy again")
+            Rayfield:Notify({
+                Title = "Cooldown",
+                Content = "Please wait " .. math.ceil(BUY_COOLDOWN - (tick() - lastBuyAttempt)) .. " seconds before buying again",
+                Duration = 3,
+                Image = 0,
+            })
+            return
+        end
+        lastBuyAttempt = tick()
         buyWantedCropSeeds()
+    end,
+})
+
+-- Add button to reset buying state
+seedsTab:CreateButton({
+    Name = "Reset Buying State (If Stuck)",
+    Callback = function()
+        resetBuyingState()
     end,
 })
 

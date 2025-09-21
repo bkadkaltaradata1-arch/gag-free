@@ -45,6 +45,96 @@ local Window = Rayfield:CreateWindow({
    },
 })
 
+-- Fungsi untuk mencari tombol buy di UI seed shop
+local function findAndClickBuyButton(seedName)
+    local seedShopGui = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
+    if not seedShopGui then
+        print("Seed shop GUI not found")
+        return false
+    end
+    
+    -- Cari frame untuk seed tertentu
+    local seedFrame = seedShopGui.Frame.ScrollingFrame:FindFirstChild(seedName)
+    if not seedFrame then
+        print("Seed frame not found for: " .. seedName)
+        return false
+    end
+    
+    -- Cari main frame
+    local mainFrame = seedFrame:FindFirstChild("Main_Frame")
+    if not mainFrame then
+        print("Main frame not found for: " .. seedName)
+        return false
+    end
+    
+    -- Cari tombol buy (biasanya bernama "Buy_Button" atau similar)
+    local buyButton = mainFrame:FindFirstChild("Buy_Button") or 
+                     mainFrame:FindFirstChild("BuyButton") or
+                     mainFrame:FindFirstChild("Button") or
+                     mainFrame:FindFirstChildOfClass("TextButton") or
+                     mainFrame:FindFirstChildOfClass("ImageButton")
+    
+    if buyButton then
+        -- Simulasikan klik pada tombol
+        local success, errorMsg = pcall(function()
+            if buyButton:IsA("TextButton") or buyButton:IsA("ImageButton") then
+                buyButton.MouseButton1Click:Fire()
+                print("Clicked buy button for: " .. seedName)
+                return true
+            end
+        end)
+        
+        if not success then
+            print("Error clicking button: " .. errorMsg)
+        end
+        return success
+    else
+        print("Buy button not found for: " .. seedName)
+        return false
+    end
+end
+
+-- Fungsi untuk membeli seed dengan metode yang berbeda
+local function buySeedAlternative(seedName)
+    -- Coba metode pertama: langsung fire server
+    local success1, result1 = pcall(function()
+        BuySeedStock:FireServer(seedName)
+        return true
+    end)
+    
+    if success1 then
+        print("Direct fire server successful for: " .. seedName)
+        return true
+    end
+    
+    -- Coba metode kedua: klik tombol di UI
+    wait(0.5)
+    local success2 = findAndClickBuyButton(seedName)
+    if success2 then
+        print("UI button click successful for: " .. seedName)
+        return true
+    end
+    
+    -- Coba metode ketiga: gunakan remote event yang berbeda
+    local alternativeRemote = ReplicatedStorage:FindFirstChild("BuySeed") or 
+                             ReplicatedStorage:FindFirstChild("PurchaseSeed")
+    
+    if alternativeRemote then
+        local success3, result3 = pcall(function()
+            alternativeRemote:FireServer(seedName)
+            return true
+        end)
+        
+        if success3 then
+            print("Alternative remote successful for: " .. seedName)
+            return true
+        end
+    end
+    
+    print("All purchase methods failed for: " .. seedName)
+    return false
+end
+
 local function findPlayerFarm()
     for i,v in pairs(FarmsFolder:GetChildren()) do
         if v.Important.Data.Owner.Value == Players.LocalPlayer.Name then
@@ -416,19 +506,11 @@ local function buyCropSeeds(cropName, retryCount)
         return false
     end
     
-    -- Interaksi dengan NPC Sam untuk membuka toko
-    if Sam and Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
-        fireproximityprompt(Sam.Head.ProximityPrompt)
-        wait(1.5) -- Tunggu lebih lama untuk memastikan toko terbuka
-    end
-    
-    local args = {[1] = cropName}
-    local success, errorMsg = pcall(function()
-        BuySeedStock:FireServer(unpack(args))
-    end)
+    -- Coba berbagai metode pembelian
+    local success = buySeedAlternative(cropName)
     
     if not success then
-        print("Error buying " .. cropName .. " seeds (attempt " .. (retryCount + 1) .. "):", errorMsg)
+        print("Error buying " .. cropName .. " seeds (attempt " .. (retryCount + 1) .. ")")
         wait(1) -- Tunggu sebelum retry
         return buyCropSeeds(cropName, retryCount + 1)
     end
@@ -763,6 +845,46 @@ seedsTab:CreateButton({
         end
         wait(1)
         HRP.CFrame = beforePos
+    end,
+})
+
+-- Add button to debug UI elements
+seedsTab:CreateButton({
+    Name = "Debug Seed Shop UI",
+    Callback = function()
+        local seedShopGui = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
+        if seedShopGui then
+            print("=== Seed Shop UI Debug ===")
+            print("Found Seed_Shop GUI")
+            
+            -- Check scrolling frame
+            local scrollingFrame = seedShopGui.Frame:FindFirstChild("ScrollingFrame")
+            if scrollingFrame then
+                print("ScrollingFrame found with " .. #scrollingFrame:GetChildren() .. " children")
+                
+                -- List all seed frames
+                for _, child in pairs(scrollingFrame:GetChildren()) do
+                    if child:IsA("Frame") then
+                        print("Seed frame: " .. child.Name)
+                        
+                        -- Check for main frame
+                        local mainFrame = child:FindFirstChild("Main_Frame")
+                        if mainFrame then
+                            print("  Main_Frame found")
+                            
+                            -- Find all buttons
+                            for _, element in pairs(mainFrame:GetChildren()) do
+                                if element:IsA("TextButton") or element:IsA("ImageButton") then
+                                    print("  Button found: " .. element.Name .. " (" .. element.ClassName .. ")")
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        else
+            print("Seed_Shop GUI not found")
+        end
     end,
 })
 

@@ -1,3 +1,4 @@
+-- v4
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -162,11 +163,32 @@ end
 function getCropsListAndStock()
     local oldStock = CropsListAndStocks
     CropsListAndStocks = {} -- Reset the table
-    for _,Plant in pairs(SeedShopGUI:GetChildren()) do
-        if Plant:FindFirstChild("Main_Frame") and Plant.Main_Frame:FindFirstChild("Stock_Text") then
-            local PlantName = Plant.Name
-            local PlantStock = StripPlantStock(Plant.Main_Frame.Stock_Text.Text)
-            CropsListAndStocks[PlantName] = PlantStock
+    
+    -- Periksa apakah GUI toko seed ada dan visible
+    local seedShopGui = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
+    if not seedShopGui or not seedShopGui.Enabled then
+        print("Seed shop GUI not found or not visible")
+        return false
+    end
+    
+    local scrollingFrame = seedShopGui.Frame:FindFirstChild("ScrollingFrame")
+    if not scrollingFrame then
+        print("ScrollingFrame not found")
+        return false
+    end
+    
+    for _,Plant in pairs(scrollingFrame:GetChildren()) do
+        if Plant:IsA("Frame") and Plant:FindFirstChild("Main_Frame") then
+            local mainFrame = Plant.Main_Frame
+            local stockText = mainFrame:FindFirstChild("Stock_Text")
+            local seedNameText = mainFrame:FindFirstChild("Seed_Name")
+            
+            if stockText and seedNameText then
+                local PlantName = seedNameText.Text
+                local PlantStock = StripPlantStock(stockText.Text)
+                CropsListAndStocks[PlantName] = PlantStock
+                print("Found seed: "..PlantName.." with stock: "..PlantStock)
+            end
         end
     end
     
@@ -421,6 +443,20 @@ local function buyCropSeeds(cropName)
     return true
 end
 
+-- Function untuk mendapatkan nama seed yang benar dari tampilan
+local function getActualSeedName(displayName)
+    -- Konversi nama tampilan ke nama seed yang sesuai
+    local nameMap = {
+        ["Carrot"] = "Carrot Seed",
+        ["Tomato"] = "Tomato Seed",
+        ["Potato"] = "Potato Seed",
+        ["Corn"] = "Corn Seed",
+        -- Tambahkan mapping lainnya sesuai kebutuhan
+    }
+    
+    return nameMap[displayName] or displayName .. " Seed"
+end
+
 function buyWantedCropSeeds()
     if #wantedFruits == 0 then
         print("No fruits selected to buy")
@@ -444,28 +480,34 @@ function buyWantedCropSeeds()
     
     -- Pergi ke NPC Sam
     HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
-    wait(1.5) -- Tunggu sampai sampai di lokasi
+    wait(2) -- Tunggu lebih lama sampai sampai di lokasi
     
     -- Pastikan kita menghadap ke NPC
     HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
-    wait(0.5)
+    wait(1)
     
     local boughtAny = false
     
+    -- Refresh stok terlebih dahulu
+    getCropsListAndStock()
+    
     for _, fruitName in ipairs(wantedFruits) do
+        local actualSeedName = getActualSeedName(fruitName)
         local stock = tonumber(CropsListAndStocks[fruitName] or 0)
-        print("Trying to buy "..fruitName..", stock: "..tostring(stock))
+        print("Trying to buy "..fruitName.." ("..actualSeedName.."), stock: "..tostring(stock))
         
         if stock > 0 then
             for j = 1, stock do
-                local success = buyCropSeeds(fruitName)
+                local success = buyCropSeeds(actualSeedName)
                 if success then
                     boughtAny = true
-                    print("Bought "..fruitName.." seed "..j.."/"..stock)
+                    print("Successfully bought "..fruitName.." seed "..j.."/"..stock)
+                    -- Tunggu sebentar antara pembelian
+                    wait(0.5)
                 else
                     print("Failed to buy "..fruitName)
+                    break -- Berhenti jika gagal
                 end
-                wait(0.2) -- Tunggu sebentar antara pembelian
             end
         else
             print("No stock for "..fruitName)
@@ -473,10 +515,11 @@ function buyWantedCropSeeds()
     end
     
     -- Kembali ke posisi semula
-    wait(0.5)
+    wait(1)
     HRP.CFrame = beforePos
     
     isBuying = false
+    print("Finished buying seeds")
     return boughtAny
 end
 
@@ -487,7 +530,7 @@ local function onShopRefresh()
         print("Auto-buying selected fruits...")
         
         -- Tunggu sebentar sebelum membeli untuk memastikan UI sudah update
-        wait(2)
+        wait(3)
         buyWantedCropSeeds()
     end
 end
@@ -609,10 +652,39 @@ localPlayerTab:CreateButton({
     end,
 })
 
+-- Function untuk mendapatkan daftar tanaman yang tersedia
+local function getAvailableCrops()
+    local crops = {}
+    
+    -- Coba ambil dari GUI toko jika tersedia
+    local seedShopGui = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
+    if seedShopGui and seedShopGui.Enabled then
+        local scrollingFrame = seedShopGui.Frame:FindFirstChild("ScrollingFrame")
+        if scrollingFrame then
+            for _, frame in pairs(scrollingFrame:GetChildren()) do
+                if frame:IsA("Frame") and frame:FindFirstChild("Main_Frame") then
+                    local mainFrame = frame.Main_Frame
+                    local seedNameText = mainFrame:FindFirstChild("Seed_Name")
+                    if seedNameText then
+                        table.insert(crops, seedNameText.Text)
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Jika tidak ada di GUI, gunakan daftar default
+    if #crops == 0 then
+        crops = {"Carrot", "Tomato", "Potato", "Corn", "Watermelon", "Pumpkin"}
+    end
+    
+    return crops
+end
+
 local seedsTab = Window:CreateTab("Seeds")
 seedsTab:CreateDropdown({
    Name = "Fruits To Buy",
-   Options = getAllIFromDict(CropsListAndStocks),
+   Options = getAvailableCrops(),
    CurrentOption = {"None Selected"},
    MultipleOptions = true,
    Flag = "Dropdown1", 
@@ -641,7 +713,7 @@ seedsTab:CreateToggle({
         -- Jika diaktifkan, langsung coba beli
         if Value and #wantedFruits > 0 then
             spawn(function()
-                wait(1)
+                wait(2)
                 buyWantedCropSeeds()
             end)
         end
@@ -652,6 +724,17 @@ seedsTab:CreateButton({
     Name = "Buy Selected Fruits Now",
     Callback = function()
         buyWantedCropSeeds()
+    end,
+})
+
+seedsTab:CreateButton({
+    Name = "Refresh Crops List",
+    Callback = function()
+        -- Refresh dropdown dengan tanaman yang tersedia
+        local dropdown = seedsTab.Flags["Dropdown1"]
+        if dropdown then
+            dropdown:Refresh(getAvailableCrops())
+        end
     end,
 })
 

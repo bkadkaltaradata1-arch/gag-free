@@ -1,4 +1,4 @@
--- v1
+-- v2
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -481,68 +481,6 @@ function buyWantedCropSeeds()
     return boughtAny
 end
 
--- Function to teleport to Sam and buy all carrot seeds
-local function teleportToSamAndBuyCarrotSeeds()
-    if isBuying then
-        print("Already in the process of buying seeds")
-        return false
-    end
-    
-    isBuying = true
-    
-    -- Save current position
-    local originalPosition = HRP.CFrame
-    local humanoid = Character:FindFirstChildOfClass("Humanoid")
-    
-    -- Pastikan karakter bisa bergerak
-    if humanoid then
-        humanoid:ChangeState(Enum.HumanoidStateType.Running)
-    end
-    
-    -- Teleport to Sam
-    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Stand in front of Sam
-    wait(1.5) -- Wait for teleport to complete
-    
-    -- Activate the shop by interacting with Sam
-    if Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
-        fireproximityprompt(Sam.Head.ProximityPrompt)
-        print("Opened Sam's seed shop")
-        wait(1) -- Wait for shop to open
-    end
-    
-    -- Refresh the crop list to get current stock
-    getCropsListAndStock()
-    
-    -- Check if carrot seeds are available
-    local carrotStock = tonumber(CropsListAndStocks["Carrot"] or 0)
-    local boughtAny = false
-    
-    if carrotStock > 0 then
-        print("Buying " .. carrotStock .. " carrot seeds")
-        
-        -- Buy all carrot seeds
-        for i = 1, carrotStock do
-            local success = buyCropSeeds("Carrot")
-            if success then
-                boughtAny = true
-                print("Bought carrot seed " .. i .. "/" .. carrotStock)
-            else
-                print("Failed to buy carrot seed " .. i)
-            end
-            wait(0.2) -- Small delay between purchases
-        end
-    else
-        print("No carrot seeds available in stock")
-    end
-    
-    -- Return to original position
-    wait(0.5)
-    HRP.CFrame = originalPosition
-    
-    isBuying = false
-    return boughtAny
-end
-
 local function onShopRefresh()
     print("Shop Refreshed")
     getCropsListAndStock()
@@ -579,6 +517,40 @@ local function sellAll()
     
     HRP.CFrame = OrgPos
     isSelling = false
+end
+
+-- Function to teleport to Sam and open the shop
+local function teleportToSamAndOpenShop()
+    local originalPosition = HRP.CFrame
+    
+    -- Teleport to Sam
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
+    wait(1.5)
+    
+    -- Make sure we're facing Sam
+    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
+    wait(0.5)
+    
+    -- Activate the shop by firing proximity prompt
+    if Sam.Head:FindFirstChild("ProximityPrompt") then
+        fireproximityprompt(Sam.Head.ProximityPrompt)
+        print("Opened Sam's shop")
+    else
+        -- If no prompt found, try to find it in other parts
+        for _, part in pairs(Sam:GetChildren()) do
+            if part:IsA("BasePart") and part:FindFirstChild("ProximityPrompt") then
+                fireproximityprompt(part.ProximityPrompt)
+                print("Opened Sam's shop from " .. part.Name)
+                break
+            end
+        end
+    end
+    
+    -- Wait a moment for the shop to open
+    wait(1)
+    
+    -- Return to original position
+    HRP.CFrame = originalPosition
 end
 
 spawn(function() 
@@ -672,6 +644,14 @@ localPlayerTab:CreateButton({
     end,
 })
 
+-- Add teleport to Sam button
+localPlayerTab:CreateButton({
+    Name = "Teleport to Sam",
+    Callback = function()
+        HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
+    end,
+})
+
 local seedsTab = Window:CreateTab("Seeds")
 seedsTab:CreateDropdown({
    Name = "Fruits To Buy",
@@ -692,11 +672,11 @@ seedsTab:CreateDropdown({
    end,
 })
 
--- Add button to teleport to Sam and buy carrot seeds
+-- Add teleport to Sam and open shop button
 seedsTab:CreateButton({
-    Name = "Teleport to Sam & Buy Carrot Seeds",
+    Name = "Teleport to Sam & Open Shop",
     Callback = function()
-        teleportToSamAndBuyCarrotSeeds()
+        teleportToSamAndOpenShop()
     end,
 })
 

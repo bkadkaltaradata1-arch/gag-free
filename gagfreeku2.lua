@@ -1,4 +1,4 @@
--- v2
+-- v3
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -16,7 +16,7 @@ local SeedShopGUI = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.ScrollingFrame
 local shopTimer = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.Frame.Timer
 local shopTime = 0
 local Humanoid = Character:WaitForChild("Humanoid")
-wantedFruits = {carrot}
+wantedFruits = {}
 local plantAura = false
 local AutoSellItems = 70
 local shouldSell = false
@@ -519,6 +519,47 @@ local function sellAll()
     isSelling = false
 end
 
+-- Function to find and click on Blueberry seed in the shop
+local function selectBlueberrySeed()
+    -- Wait for the shop GUI to be fully loaded
+    wait(1)
+    
+    -- Find the Blueberry seed button in the shop
+    local seedShopFrame = Players.LocalPlayer.PlayerGui:FindFirstChild("Seed_Shop")
+    if seedShopFrame then
+        local scrollingFrame = seedShopFrame.Frame:FindFirstChild("ScrollingFrame")
+        if scrollingFrame then
+            -- Look for Blueberry in the shop items
+            for _, item in pairs(scrollingFrame:GetChildren()) do
+                if item:IsA("Frame") and item.Name == "Blueberry" then
+                    -- Find the buy button
+                    local buyButton = item:FindFirstChild("Buy_Button")
+                    if buyButton then
+                        -- Simulate clicking the buy button
+                        local clickDetector = buyButton:FindFirstChildWhichIsA("TextButton")
+                        if clickDetector then
+                            -- Fire the click event
+                            local success, err = pcall(function()
+                                clickDetector:FireServer("MouseButton1Click")
+                            end)
+                            
+                            if success then
+                                print("Selected Blueberry seed in shop")
+                            else
+                                print("Error clicking Blueberry:", err)
+                            end
+                            return true
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    print("Blueberry seed not found in shop")
+    return false
+end
+
 -- Function to teleport to Sam and open the shop
 local function teleportToSamAndOpenShop()
     local originalPosition = HRP.CFrame
@@ -532,24 +573,35 @@ local function teleportToSamAndOpenShop()
     wait(0.5)
     
     -- Activate the shop by firing proximity prompt
+    local foundPrompt = false
     if Sam.Head:FindFirstChild("ProximityPrompt") then
         fireproximityprompt(Sam.Head.ProximityPrompt)
+        foundPrompt = true
         print("Opened Sam's shop")
     else
         -- If no prompt found, try to find it in other parts
         for _, part in pairs(Sam:GetChildren()) do
             if part:IsA("BasePart") and part:FindFirstChild("ProximityPrompt") then
                 fireproximityprompt(part.ProximityPrompt)
+                foundPrompt = true
                 print("Opened Sam's shop from " .. part.Name)
                 break
             end
         end
     end
     
-    -- Wait a moment for the shop to open
-    wait(1)
+    if foundPrompt then
+        -- Wait for the shop to open
+        wait(1)
+        
+        -- Select Blueberry seed
+        selectBlueberrySeed()
+    else
+        print("Could not find ProximityPrompt on Sam")
+    end
     
     -- Return to original position
+    wait(1)
     HRP.CFrame = originalPosition
 end
 
@@ -601,7 +653,7 @@ localPlayerTab:CreateButton({
             Backpack:FindFirstChild("TP Wand"):Destroy()
         end
         if Character:FindFirstChild("TP Wand") then
-            Character:FindFirstChild("TP Wand"):Destroy()
+            Character:FindFirstChild("TP Wand":Destroy()
         end
     end,    
 })
@@ -674,7 +726,7 @@ seedsTab:CreateDropdown({
 
 -- Add teleport to Sam and open shop button
 seedsTab:CreateButton({
-    Name = "Teleport to Sam & Open Shop",
+    Name = "Teleport to Sam & Open Shop (Select Blueberry)",
     Callback = function()
         teleportToSamAndOpenShop()
     end,

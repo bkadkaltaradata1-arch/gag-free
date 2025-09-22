@@ -144,8 +144,8 @@ local function getPlantedFruitTypes()
     return list
 end
 
--- Fungsi untuk mencari dan mengklik tombol coin pada carrot seed
-local function buyCarrotSeedsWithCoins()
+-- Fungsi untuk mencari dan mengklik carrot seed terlebih dahulu
+local function clickCarrotSeed()
     -- Cari frame carrot seed di GUI toko
     local carrotFrame = SeedShopGUI:FindFirstChild("Carrot")
     if not carrotFrame then
@@ -153,39 +153,64 @@ local function buyCarrotSeedsWithCoins()
         return false
     end
     
-    -- Cari tombol coin (biasanya tombol pertama)
-    local coinButton = nil
-    for _, child in pairs(carrotFrame:GetDescendants()) do
-        if child:IsA("TextButton") and (child.Name:find("Coin") or child.Text:find("Coin") or child.Text:find("$")) then
-            coinButton = child
-            break
+    -- Cari tombol utama carrot seed (biasanya ImageButton atau TextButton)
+    local carrotButton = carrotFrame:FindFirstChildWhichIsA("ImageButton") or carrotFrame:FindFirstChildWhichIsA("TextButton")
+    
+    if carrotButton then
+        -- Simulasikan klik pada carrot seed untuk membuka menu pembelian
+        pcall(function()
+            carrotButton:FireEvent("MouseButton1Click")
+            carrotButton:FireEvent("Activated")
+        end)
+        print("Clicked Carrot seed to open purchase menu")
+        wait(0.5) -- Tunggu menu terbuka
+        return true
+    else
+        print("Carrot seed button not found")
+        return false
+    end
+end
+
+-- Fungsi untuk mencari dan mengklik tombol coin setelah carrot seed diklik
+local function clickCoinButton()
+    -- Cari semua tombol coin di GUI
+    local coinButtons = {}
+    
+    -- Cari di seluruh GUI toko
+    for _, guiObject in pairs(Players.LocalPlayer.PlayerGui:GetDescendants()) do
+        if guiObject:IsA("TextButton") and 
+           (guiObject.Name:lower():find("coin") or 
+            guiObject.Text:lower():find("coin") or 
+            guiObject.Text:find("$") or
+            guiObject.Text:find("%d")) then
+            table.insert(coinButtons, guiObject)
         end
     end
     
-    -- Alternatif: cari berdasarkan urutan tombol (biasanya tombol pertama adalah coin)
-    if not coinButton then
-        local buttons = {}
-        for _, child in pairs(carrotFrame:GetDescendants()) do
-            if child:IsA("TextButton") then
-                table.insert(buttons, child)
+    -- Jika tidak ditemukan, cari tombol berdasarkan urutan (biasanya tombol pertama)
+    if #coinButtons == 0 then
+        for _, guiObject in pairs(Players.LocalPlayer.PlayerGui:GetDescendants()) do
+            if guiObject:IsA("TextButton") and guiObject.Visible then
+                table.insert(coinButtons, guiObject)
             end
         end
         
-        if #buttons >= 1 then
-            coinButton = buttons[1] -- Tombol pertama biasanya coin
-        end
+        -- Urutkan berdasarkan posisi (tombol paling kiri biasanya coin)
+        table.sort(coinButtons, function(a, b)
+            return a.AbsolutePosition.X < b.AbsolutePosition.X
+        end)
     end
     
-    if coinButton then
-        -- Simulasikan klik pada tombol coin
+    if #coinButtons > 0 then
+        -- Klik tombol coin pertama yang ditemukan
         pcall(function()
-            coinButton:FireEvent("MouseButton1Click")
-            coinButton:FireEvent("Activated")
+            coinButtons[1]:FireEvent("MouseButton1Click")
+            coinButtons[1]:FireEvent("Activated")
         end)
-        print("Clicked coin button for Carrot seed")
+        print("Clicked coin button")
         return true
     else
-        print("Coin button not found for Carrot seed")
+        print("Coin button not found")
         return false
     end
 end
@@ -206,46 +231,16 @@ local function openSamShop()
     if Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
         fireproximityprompt(Sam.Head.ProximityPrompt)
         print("Opened Sam's seed shop")
-        
-        -- Tunggu sampai GUI toko terbuka
-        wait(2)
-        
-        -- Setelah toko terbuka, beli carrot seed dengan coin
-        local maxAttempts = 10
-        for attempt = 1, maxAttempts do
-            if buyCarrotSeedsWithCoins() then
-                break
-            end
-            wait(0.5)
-        end
-        
     else
         -- Cari ProximityPrompt di semua bagian NPC
         for _, part in pairs(Sam:GetDescendants()) do
             if part:IsA("ProximityPrompt") then
                 fireproximityprompt(part)
                 print("Opened Sam's seed shop via alternative method")
-                
-                -- Tunggu sampai GUI toko terbuka
-                wait(2)
-                
-                -- Setelah toko terbuka, beli carrot seed dengan coin
-                local maxAttempts = 10
-                for attempt = 1, maxAttempts do
-                    if buyCarrotSeedsWithCoins() then
-                        break
-                    end
-                    wait(0.5)
-                end
-                
                 break
             end
         end
     end
-    
-    -- Tunggu sebentar sebelum kembali
-    wait(1)
-    HRP.CFrame = beforePos
 end
 
 -- Fungsi untuk membeli carrot seed sampai habis
@@ -258,42 +253,34 @@ local function buyAllCarrotSeeds()
     isBuying = true
     local beforePos = HRP.CFrame
     
-    -- Pergi ke NPC Sam
-    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
-    wait(1.5)
-    
-    -- Pastikan kita menghadap ke NPC
-    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
-    wait(0.5)
-    
-    -- Buka toko
-    if Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
-        fireproximityprompt(Sam.Head.ProximityPrompt)
-        print("Opened Sam's seed shop")
-    else
-        for _, part in pairs(Sam:GetDescendants()) do
-            if part:IsA("ProximityPrompt") then
-                fireproximityprompt(part)
-                break
-            end
-        end
-    end
+    -- Pergi ke NPC Sam dan buka toko
+    openSamShop()
     
     -- Tunggu toko terbuka
-    wait(2)
+    wait(3)
     
     -- Dapatkan stok carrot seed
+    getCropsListAndStock()
     local carrotStock = tonumber(CropsListAndStocks["Carrot"] or 0)
     print("Carrot seed stock: " .. tostring(carrotStock))
     
     -- Beli semua carrot seed yang tersedia
     if carrotStock > 0 then
         for i = 1, carrotStock do
-            if buyCarrotSeedsWithCoins() then
-                print("Bought Carrot seed " .. i .. "/" .. carrotStock)
-                wait(0.3) -- Tunggu sebentar antara pembelian
+            -- Klik carrot seed terlebih dahulu
+            if clickCarrotSeed() then
+                wait(0.5) -- Tunggu menu terbuka
+                
+                -- Klik tombol coin
+                if clickCoinButton() then
+                    print("Bought Carrot seed " .. i .. "/" .. carrotStock)
+                    wait(0.5) -- Tunggu sebentar antara pembelian
+                else
+                    print("Failed to click coin button")
+                    break
+                end
             else
-                print("Failed to buy Carrot seed")
+                print("Failed to click Carrot seed")
                 break
             end
         end

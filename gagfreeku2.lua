@@ -1,3 +1,4 @@
+-- v1
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -180,7 +181,7 @@ local function clickCoinButton()
     for _, guiObject in pairs(Players.LocalPlayer.PlayerGui:GetDescendants()) do
         if guiObject:IsA("TextButton") and guiObject.Visible then
             -- Cari tombol dengan teks "100" (harga coin)
-            if guiObject.Text == "100" then
+            if guiObject.Text == "10" then
                 table.insert(coinButtons, guiObject)
             end
             

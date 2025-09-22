@@ -1,3 +1,4 @@
+-- V1
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -5,13 +6,13 @@ local Players = game:GetService("Players")
 local BuySeedStock = ReplicatedStorage.GameEvents.BuySeedStock
 local Plant = ReplicatedStorage.GameEvents.Plant_RE
 local Backpack = Players.LocalPlayer.Backpack
-local Character = Players.LocalPlayer.Character
+local Character = Players.LocalPlayer.Character or Players.LocalPlayer.CharacterAdded:Wait()
 local sellAllRemote = ReplicatedStorage.GameEvents.Sell_Inventory
 local Steven = Workspace.NPCS.Steven
 local Sam = Workspace.NPCS.Sam
-local HRP = Players.LocalPlayer.Character.HumanoidRootPart
+local HRP = Character:WaitForChild("HumanoidRootPart")
 local CropsListAndStocks = {}
-local SeedShopGUI = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.ScrollingFrame
+local SeedShopGUI = Players.LocalPlayer.PlayerGui:WaitForChild("Seed_Shop").Frame.ScrollingFrame
 local shopTimer = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.Frame.Timer
 local shopTime = 0
 local Humanoid = Character:WaitForChild("Humanoid")
@@ -28,22 +29,47 @@ local autoBuyEnabled = false
 local lastShopStock = {}
 local isBuying = false -- Flag untuk menandai sedang membeli
 
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local Window = Rayfield:CreateWindow({
-   Name = "Grow A Garden",
-   Icon = 0,
-   LoadingTitle = "Rayfield Interface Suite",
-   LoadingSubtitle = "by Sirius",
-   Theme = "Default",
-   ToggleUIKeybind = "K",
-   DisableRayfieldPrompts = false,
-   DisableBuildWarnings = false,
-   ConfigurationSaving = {
-      Enabled = true,
-      FolderName = nil,
-      FileName = "GAGscript"
-   },
-})
+-- Fix Rayfield loading with error handling
+local Rayfield = nil
+local Window = nil
+
+local function loadRayfield()
+    local success, err = pcall(function()
+        Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+        Window = Rayfield:CreateWindow({
+            Name = "Grow A Garden",
+            Icon = 0,
+            LoadingTitle = "Rayfield Interface Suite",
+            LoadingSubtitle = "by Sirius",
+            Theme = "Default",
+            ToggleUIKeybind = "K",
+            DisableRayfieldPrompts = false,
+            DisableBuildWarnings = false,
+            ConfigurationSaving = {
+                Enabled = true,
+                FolderName = nil,
+                FileName = "GAGscript"
+            },
+        })
+    end)
+    
+    if not success then
+        warn("Failed to load Rayfield: " .. tostring(err))
+        -- Fallback to simple GUI or notify user
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Grow A Garden Script",
+            Text = "Failed to load UI library. Please try again.",
+            Duration = 5
+        })
+        return false
+    end
+    return true
+end
+
+-- Load Rayfield
+if not loadRayfield() then
+    return -- Stop execution if Rayfield fails to load
+end
 
 local function findPlayerFarm()
     for i,v in pairs(FarmsFolder:GetChildren()) do
@@ -136,7 +162,14 @@ local function openSamShop()
         fireproximityprompt(Sam.Head.ProximityPrompt)
         print("Opened Sam's seed shop")
     else
-        print("Could not find ProximityPrompt on Sam")
+        -- Cari ProximityPrompt di semua bagian NPC
+        for _, part in pairs(Sam:GetDescendants()) do
+            if part:IsA("ProximityPrompt") then
+                fireproximityprompt(part)
+                print("Opened Sam's seed shop via alternative method")
+                break
+            end
+        end
     end
     
     -- Tunggu sebentar sebelum kembali
@@ -187,8 +220,14 @@ end
 function getCropsListAndStock()
     local oldStock = CropsListAndStocks
     CropsListAndStocks = {} -- Reset the table
+    
+    -- Wait for GUI to load if needed
+    if not SeedShopGUI:FindFirstChildWhichIsA("Frame") then
+        wait(2)
+    end
+    
     for _,Plant in pairs(SeedShopGUI:GetChildren()) do
-        if Plant:FindFirstChild("Main_Frame") and Plant.Main_Frame:FindFirstChild("Stock_Text") then
+        if Plant:IsA("Frame") and Plant:FindFirstChild("Main_Frame") and Plant.Main_Frame:FindFirstChild("Stock_Text") then
             local PlantName = Plant.Name
             local PlantStock = StripPlantStock(Plant.Main_Frame.Stock_Text.Text)
             CropsListAndStocks[PlantName] = PlantStock
@@ -240,6 +279,10 @@ end
 
 local function GetAllPlants()
     local plantsTable = {}
+    if not playerFarm or not playerFarm.Important or not playerFarm.Important.Plants_Physical then
+        return plantsTable
+    end
+    
     for _, Plant in pairs(playerFarm.Important.Plants_Physical:GetChildren()) do
         if Plant:FindFirstChild("Fruits") then
             for _, miniPlant in pairs(Plant.Fruits:GetChildren()) do
@@ -588,10 +631,10 @@ localPlayerTab:CreateButton({
     Name = "Destroy TP Wand",
     Callback = function()
         if Backpack:FindFirstChild("TP Wand") then
-            Backpack:FindFirstChild("TP Wand":Destroy()
+            Backpack:FindFirstChild("TP Wand"):Destroy()
         end
         if Character:FindFirstChild("TP Wand") then
-            Character:FindFirstChild("TP Wand":Destroy()
+            Character:FindFirstChild("TP Wand"):Destroy()
         end
     end,    
 })

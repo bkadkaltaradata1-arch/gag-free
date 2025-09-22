@@ -1,4 +1,3 @@
--- v1
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -172,34 +171,45 @@ local function clickCarrotSeed()
     end
 end
 
--- Fungsi untuk mencari dan mengklik tombol coin setelah carrot seed diklik
+-- Fungsi untuk mencari dan mengklik tombol coin berdasarkan gambar yang diberikan
 local function clickCoinButton()
-    -- Cari semua tombol coin di GUI
+    -- Berdasarkan gambar, tombol coin memiliki harga "100" dan kemungkinan berada di posisi tertentu
     local coinButtons = {}
     
-    -- Cari di seluruh GUI toko
+    -- Cari semua tombol di GUI yang mungkin merupakan tombol coin
     for _, guiObject in pairs(Players.LocalPlayer.PlayerGui:GetDescendants()) do
-        if guiObject:IsA("TextButton") and 
-           (guiObject.Name:lower():find("coin") or 
-            guiObject.Text:lower():find("coin") or 
-            guiObject.Text:find("$") or
-            guiObject.Text:find("%d")) then
-            table.insert(coinButtons, guiObject)
-        end
-    end
-    
-    -- Jika tidak ditemukan, cari tombol berdasarkan urutan (biasanya tombol pertama)
-    if #coinButtons == 0 then
-        for _, guiObject in pairs(Players.LocalPlayer.PlayerGui:GetDescendants()) do
-            if guiObject:IsA("TextButton") and guiObject.Visible then
+        if guiObject:IsA("TextButton") and guiObject.Visible then
+            -- Cari tombol dengan teks "100" (harga coin)
+            if guiObject.Text == "100" then
+                table.insert(coinButtons, guiObject)
+            end
+            
+            -- Juga cari tombol yang mengandung angka (kemungkinan harga)
+            if tonumber(guiObject.Text) then
                 table.insert(coinButtons, guiObject)
             end
         end
+    end
+    
+    -- Jika tidak ditemukan tombol dengan teks "100", cari berdasarkan urutan
+    if #coinButtons == 0 then
+        -- Cari semua tombol yang terlihat
+        local allButtons = {}
+        for _, guiObject in pairs(Players.LocalPlayer.PlayerGui:GetDescendants()) do
+            if guiObject:IsA("TextButton") and guiObject.Visible then
+                table.insert(allButtons, guiObject)
+            end
+        end
         
-        -- Urutkan berdasarkan posisi (tombol paling kiri biasanya coin)
-        table.sort(coinButtons, function(a, b)
+        -- Urutkan berdasarkan posisi X (tombol paling kiri biasanya coin)
+        table.sort(allButtons, function(a, b)
             return a.AbsolutePosition.X < b.AbsolutePosition.X
         end)
+        
+        -- Ambil tombol pertama sebagai coin button
+        if #allButtons >= 1 then
+            coinButtons = {allButtons[1]}
+        end
     end
     
     if #coinButtons > 0 then
@@ -207,11 +217,31 @@ local function clickCoinButton()
         pcall(function()
             coinButtons[1]:FireEvent("MouseButton1Click")
             coinButtons[1]:FireEvent("Activated")
+            
+            -- Juga coba panggil fungsi onclick jika ada
+            if coinButtons[1]:FindFirstChild("OnClick") then
+                coinButtons[1].OnClick:Invoke()
+            end
         end)
-        print("Clicked coin button")
+        print("Clicked coin button with price: " .. coinButtons[1].Text)
         return true
     else
         print("Coin button not found")
+        return false
+    end
+end
+
+-- Fungsi alternatif menggunakan remote event langsung
+local function buyCarrotDirectly()
+    local success, errorMsg = pcall(function()
+        BuySeedStock:FireServer("Carrot")
+    end)
+    
+    if success then
+        print("Successfully bought Carrot seed via remote")
+        return true
+    else
+        print("Error buying Carrot seed:", errorMsg)
         return false
     end
 end
@@ -268,21 +298,28 @@ local function buyAllCarrotSeeds()
     -- Beli semua carrot seed yang tersedia
     if carrotStock > 0 then
         for i = 1, carrotStock do
-            -- Klik carrot seed terlebih dahulu
-            if clickCarrotSeed() then
-                wait(0.5) -- Tunggu menu terbuka
-                
-                -- Klik tombol coin
-                if clickCoinButton() then
-                    print("Bought Carrot seed " .. i .. "/" .. carrotStock)
-                    wait(0.5) -- Tunggu sebentar antara pembelian
+            -- Coba metode langsung terlebih dahulu
+            if buyCarrotDirectly() then
+                print("Bought Carrot seed " .. i .. "/" .. carrotStock .. " (direct method)")
+                wait(0.3)
+            else
+                -- Jika metode langsung gagal, coba metode GUI
+                -- Klik carrot seed terlebih dahulu
+                if clickCarrotSeed() then
+                    wait(0.5) -- Tunggu menu terbuka
+                    
+                    -- Klik tombol coin
+                    if clickCoinButton() then
+                        print("Bought Carrot seed " .. i .. "/" .. carrotStock .. " (GUI method)")
+                        wait(0.3) -- Tunggu sebentar antara pembelian
+                    else
+                        print("Failed to click coin button")
+                        break
+                    end
                 else
-                    print("Failed to click coin button")
+                    print("Failed to click Carrot seed")
                     break
                 end
-            else
-                print("Failed to click Carrot seed")
-                break
             end
         end
     else

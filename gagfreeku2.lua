@@ -1,4 +1,3 @@
--- v2
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -118,6 +117,31 @@ local function getPlantedFruitTypes()
         end
     end
     return list
+end
+
+-- Tambahkan fungsi untuk teleport ke NPC Sam dan membuka toko
+local function openSamShop()
+    local beforePos = HRP.CFrame
+    
+    -- Teleport ke NPC Sam
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
+    wait(1.5) -- Tunggu sampai sampai di lokasi
+    
+    -- Pastikan kita menghadap ke NPC
+    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
+    wait(0.5)
+    
+    -- Aktifkan ProximityPrompt untuk membuka toko
+    if Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
+        fireproximityprompt(Sam.Head.ProximityPrompt)
+        print("Opened Sam's seed shop")
+    else
+        print("Could not find ProximityPrompt on Sam")
+    end
+    
+    -- Tunggu sebentar sebelum kembali
+    wait(1)
+    HRP.CFrame = beforePos
 end
 
 local Tab = Window:CreateTab("Plants", "rewind")
@@ -564,10 +588,10 @@ localPlayerTab:CreateButton({
     Name = "Destroy TP Wand",
     Callback = function()
         if Backpack:FindFirstChild("TP Wand") then
-            Backpack:FindFirstChild("TP Wand"):Destroy()
+            Backpack:FindFirstChild("TP Wand":Destroy()
         end
         if Character:FindFirstChild("TP Wand") then
-            Character:FindFirstChild("TP Wand"):Destroy()
+            Character:FindFirstChild("TP Wand":Destroy()
         end
     end,    
 })
@@ -611,6 +635,13 @@ localPlayerTab:CreateButton({
 })
 
 local seedsTab = Window:CreateTab("Seeds")
+seedsTab:CreateButton({
+    Name = "Teleport to Sam & Open Shop",
+    Callback = function()
+        openSamShop()
+    end,
+})
+
 seedsTab:CreateDropdown({
    Name = "Fruits To Buy",
    Options = getAllIFromDict(CropsListAndStocks),
@@ -684,152 +715,6 @@ sellTab:CreateButton({
     Name = "Sell All Now",
     Callback = function()
         sellAll()
-    end,
-})
-
--- TAB BARU: NPC Interaction
-local npcTab = Window:CreateTab("NPC Interaction", "user") -- Tab baru untuk interaksi NPC
-
-npcTab:CreateSection("NPC Sam Interaction")
-
--- Fungsi untuk membuka toko seed Sam
-local function openSamShop()
-    local humanoid = Character:FindFirstChildOfClass("Humanoid")
-    
-    -- Pastikan karakter bisa bergerak
-    if humanoid then
-        humanoid:ChangeState(Enum.HumanoidStateType.Running)
-    end
-    
-    -- Pergi ke NPC Sam
-    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
-    wait(1.5) -- Tunggu sampai sampai di lokasi
-    
-    -- Pastikan kita menghadap ke NPC
-    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
-    wait(0.5)
-    
-    -- Aktifkan proximity prompt untuk membuka toko
-    if Sam:FindFirstChildOfClass("ProximityPrompt") then
-        fireproximityprompt(Sam:FindFirstChildOfClass("ProximityPrompt"))
-        print("Opened Sam's seed shop")
-    else
-        -- Coba cari prompt di children lainnya
-        for _, child in pairs(Sam:GetDescendants()) do
-            if child:IsA("ProximityPrompt") and child.Name == "Shop" then
-                fireproximityprompt(child)
-                print("Opened Sam's seed shop")
-                break
-            end
-        end
-    end
-end
-
--- Fungsi untuk membeli seed dari Sam dan kembali
-local function buyFromSamAndReturn()
-    local beforePos = HRP.CFrame
-    openSamShop()
-    
-    -- Tunggu sebentar untuk GUI terbuka
-    wait(2)
-    
-    -- Sekarang beli seed yang diinginkan
-    if #wantedFruits > 0 then
-        buyWantedCropSeeds()
-    else
-        print("No fruits selected to buy")
-    end
-    
-    -- Tunggu sebentar sebelum kembali
-    wait(1)
-    
-    -- Kembali ke posisi semula
-    HRP.CFrame = beforePos
-end
-
--- Button untuk teleport ke Sam
-npcTab:CreateButton({
-    Name = "Teleport to Sam",
-    Callback = function()
-        HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
-    end,
-})
-
--- Button untuk membuka toko Sam
-npcTab:CreateButton({
-    Name = "Open Sam's Shop",
-    Callback = function()
-        openSamShop()
-    end,
-})
-
--- Button untuk membeli dari Sam dan kembali
-npcTab:CreateButton({
-    Name = "Buy from Sam & Return",
-    Callback = function()
-        buyFromSamAndReturn()
-    end,
-})
-
--- Auto-buy improvement dengan termasuk pergi ke Sam
-local function autoBuyWithSam()
-    if #wantedFruits == 0 then
-        print("No fruits selected to buy")
-        return false
-    end
-    
-    if isBuying then
-        print("Already buying seeds, please wait...")
-        return false
-    end
-    
-    isBuying = true
-    
-    -- Pergi ke Sam, buka toko, beli seed, dan kembali
-    buyFromSamAndReturn()
-    
-    isBuying = false
-    return true
-end
-
--- Perbarui fungsi onShopRefresh untuk menggunakan metode baru
-local function onShopRefresh()
-    print("Shop Refreshed")
-    getCropsListAndStock()
-    if wantedFruits and #wantedFruits > 0 and autoBuyEnabled then
-        print("Auto-buying selected fruits...")
-        
-        -- Tunggu sebentar sebelum membeli untuk memastikan UI sudah update
-        wait(2)
-        autoBuyWithSam()
-    end
-end
-
--- Perbarui toggle auto-buy untuk menggunakan metode baru
-seedsTab:CreateToggle({
-    Name = "Enable Auto-Buy (with Sam)",
-    CurrentValue = false,
-    Flag = "AutoBuyToggle",
-    Callback = function(Value)
-        autoBuyEnabled = Value
-        print("Auto-Buy set to: "..tostring(Value))
-        
-        -- Jika diaktifkan, langsung coba beli
-        if Value and #wantedFruits > 0 then
-            spawn(function()
-                wait(1)
-                autoBuyWithSam()
-            end)
-        end
-    end,
-})
-
--- Tambahkan juga button untuk refresh shop stock
-npcTab:CreateButton({
-    Name = "Refresh Shop Stock",
-    Callback = function()
-        getCropsListAndStock()
-        print("Shop stock refreshed")
     end,
 })
 

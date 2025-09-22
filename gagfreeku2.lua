@@ -1,4 +1,3 @@
--- V1
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -145,6 +144,52 @@ local function getPlantedFruitTypes()
     return list
 end
 
+-- Fungsi untuk mencari dan mengklik tombol coin pada carrot seed
+local function buyCarrotSeedsWithCoins()
+    -- Cari frame carrot seed di GUI toko
+    local carrotFrame = SeedShopGUI:FindFirstChild("Carrot")
+    if not carrotFrame then
+        print("Carrot seed not found in shop!")
+        return false
+    end
+    
+    -- Cari tombol coin (biasanya tombol pertama)
+    local coinButton = nil
+    for _, child in pairs(carrotFrame:GetDescendants()) do
+        if child:IsA("TextButton") and (child.Name:find("Coin") or child.Text:find("Coin") or child.Text:find("$")) then
+            coinButton = child
+            break
+        end
+    end
+    
+    -- Alternatif: cari berdasarkan urutan tombol (biasanya tombol pertama adalah coin)
+    if not coinButton then
+        local buttons = {}
+        for _, child in pairs(carrotFrame:GetDescendants()) do
+            if child:IsA("TextButton") then
+                table.insert(buttons, child)
+            end
+        end
+        
+        if #buttons >= 1 then
+            coinButton = buttons[1] -- Tombol pertama biasanya coin
+        end
+    end
+    
+    if coinButton then
+        -- Simulasikan klik pada tombol coin
+        pcall(function()
+            coinButton:FireEvent("MouseButton1Click")
+            coinButton:FireEvent("Activated")
+        end)
+        print("Clicked coin button for Carrot seed")
+        return true
+    else
+        print("Coin button not found for Carrot seed")
+        return false
+    end
+end
+
 -- Tambahkan fungsi untuk teleport ke NPC Sam dan membuka toko
 local function openSamShop()
     local beforePos = HRP.CFrame
@@ -161,12 +206,38 @@ local function openSamShop()
     if Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
         fireproximityprompt(Sam.Head.ProximityPrompt)
         print("Opened Sam's seed shop")
+        
+        -- Tunggu sampai GUI toko terbuka
+        wait(2)
+        
+        -- Setelah toko terbuka, beli carrot seed dengan coin
+        local maxAttempts = 10
+        for attempt = 1, maxAttempts do
+            if buyCarrotSeedsWithCoins() then
+                break
+            end
+            wait(0.5)
+        end
+        
     else
         -- Cari ProximityPrompt di semua bagian NPC
         for _, part in pairs(Sam:GetDescendants()) do
             if part:IsA("ProximityPrompt") then
                 fireproximityprompt(part)
                 print("Opened Sam's seed shop via alternative method")
+                
+                -- Tunggu sampai GUI toko terbuka
+                wait(2)
+                
+                -- Setelah toko terbuka, beli carrot seed dengan coin
+                local maxAttempts = 10
+                for attempt = 1, maxAttempts do
+                    if buyCarrotSeedsWithCoins() then
+                        break
+                    end
+                    wait(0.5)
+                end
+                
                 break
             end
         end
@@ -175,6 +246,67 @@ local function openSamShop()
     -- Tunggu sebentar sebelum kembali
     wait(1)
     HRP.CFrame = beforePos
+end
+
+-- Fungsi untuk membeli carrot seed sampai habis
+local function buyAllCarrotSeeds()
+    if isBuying then
+        print("Already buying seeds, please wait...")
+        return false
+    end
+    
+    isBuying = true
+    local beforePos = HRP.CFrame
+    
+    -- Pergi ke NPC Sam
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
+    wait(1.5)
+    
+    -- Pastikan kita menghadap ke NPC
+    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
+    wait(0.5)
+    
+    -- Buka toko
+    if Sam:FindFirstChild("Head") and Sam.Head:FindFirstChild("ProximityPrompt") then
+        fireproximityprompt(Sam.Head.ProximityPrompt)
+        print("Opened Sam's seed shop")
+    else
+        for _, part in pairs(Sam:GetDescendants()) do
+            if part:IsA("ProximityPrompt") then
+                fireproximityprompt(part)
+                break
+            end
+        end
+    end
+    
+    -- Tunggu toko terbuka
+    wait(2)
+    
+    -- Dapatkan stok carrot seed
+    local carrotStock = tonumber(CropsListAndStocks["Carrot"] or 0)
+    print("Carrot seed stock: " .. tostring(carrotStock))
+    
+    -- Beli semua carrot seed yang tersedia
+    if carrotStock > 0 then
+        for i = 1, carrotStock do
+            if buyCarrotSeedsWithCoins() then
+                print("Bought Carrot seed " .. i .. "/" .. carrotStock)
+                wait(0.3) -- Tunggu sebentar antara pembelian
+            else
+                print("Failed to buy Carrot seed")
+                break
+            end
+        end
+    else
+        print("No Carrot seeds available in stock")
+    end
+    
+    -- Kembali ke posisi semula
+    wait(0.5)
+    HRP.CFrame = beforePos
+    
+    isBuying = false
+    return true
 end
 
 local Tab = Window:CreateTab("Plants", "rewind")
@@ -682,6 +814,13 @@ seedsTab:CreateButton({
     Name = "Teleport to Sam & Open Shop",
     Callback = function()
         openSamShop()
+    end,
+})
+
+seedsTab:CreateButton({
+    Name = "Buy All Carrot Seeds",
+    Callback = function()
+        buyAllCarrotSeeds()
     end,
 })
 

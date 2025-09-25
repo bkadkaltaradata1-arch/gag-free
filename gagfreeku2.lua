@@ -1,7 +1,10 @@
+--v1
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
 local Players = game:GetService("Players")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local TweenService = game:GetService("TweenService")
 local BuySeedStock = ReplicatedStorage.GameEvents.BuySeedStock
 local Plant = ReplicatedStorage.GameEvents.Plant_RE
 local Backpack = Players.LocalPlayer.Backpack
@@ -27,6 +30,12 @@ local byteNetReliable = ReplicatedStorage:FindFirstChild("ByteNetReliable")
 local autoBuyEnabled = false
 local lastShopStock = {}
 local isBuying = false -- Flag untuk menandai sedang membeli
+
+-- Variabel untuk anti-AFK
+local antiAFKEnabled = false
+local lastPosition = HRP.Position
+local afkCheckInterval = 30 -- detik
+local lastMovementCheck = tick()
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
@@ -117,6 +126,142 @@ local function getPlantedFruitTypes()
         end
     end
     return list
+end
+
+-- Fungsi untuk membuka toko NPC SAM
+local function openSamShop()
+    if not Sam or not Sam:FindFirstChild("HumanoidRootPart") then
+        print("NPC Sam tidak ditemukan!")
+        return false
+    end
+    
+    -- Simpan posisi awal
+    local originalPosition = HRP.CFrame
+    local humanoid = Character:FindFirstChildOfClass("Humanoid")
+    
+    -- Pastikan karakter bisa bergerak
+    if humanoid then
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end
+    
+    -- Pergi ke NPC Sam dengan pathfinding yang lebih baik
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
+    wait(2) -- Tunggu sampai karakter sampai
+    
+    -- Pastikan menghadap ke NPC
+    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
+    wait(0.5)
+    
+    -- Coba buka toko dengan berbagai metode
+    local shopOpened = false
+    
+    -- Method 1: Gunakan ProximityPrompt jika ada
+    if Sam:FindFirstChild("ProximityPrompt") then
+        fireproximityprompt(Sam.ProximityPrompt)
+        shopOpened = true
+        print("Membuka toko Sam dengan ProximityPrompt")
+    end
+    
+    -- Method 2: Coba klik NPC jika Method 1 gagal
+    if not shopOpened then
+        -- Simulasikan klik mouse pada NPC
+        local distance = (HRP.Position - Sam.HumanoidRootPart.Position).Magnitude
+        if distance < 10 then
+            -- Coba trigger event klik jika ada
+            for _, child in pairs(Sam:GetChildren()) do
+                if child:IsA("ClickDetector") then
+                    fireclickdetector(child)
+                    shopOpened = true
+                    print("Membuka toko Sam dengan ClickDetector")
+                    break
+                end
+            end
+        end
+    end
+    
+    -- Method 3: Jika masih gagal, coba gunakan RemoteEvent
+    if not shopOpened and ReplicatedStorage:FindFirstChild("GameEvents") then
+        local gameEvents = ReplicatedStorage.GameEvents
+        local openShopEvent = gameEvents:FindFirstChild("OpenShop") or gameEvents:FindFirstChild("OpenSeedShop")
+        
+        if openShopEvent then
+            openShopEvent:FireServer("Sam")
+            shopOpened = true
+            print("Membuka toko Sam dengan RemoteEvent")
+        end
+    end
+    
+    wait(1) -- Tunggu toko terbuka
+    
+    -- Kembali ke posisi semula
+    HRP.CFrame = originalPosition
+    
+    return shopOpened
+end
+
+-- Fungsi anti-AFK yang lebih advanced
+local function antiAFKAction()
+    if not antiAFKEnabled or not Character or not HRP then return end
+    
+    local currentTime = tick()
+    local currentPosition = HRP.Position
+    
+    -- Cek jika karakter tidak bergerak dalam interval tertentu
+    if (currentPosition - lastPosition).Magnitude < 1 then
+        if currentTime - lastMovementCheck > afkCheckInterval then
+            print("Anti-AFK: Melakukan tindakan pencegahan...")
+            
+            -- Lakukan berbagai aksi acak untuk menghindari AFK
+            local randomAction = math.random(1, 5)
+            
+            if randomAction == 1 then
+                -- Lompat
+                Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                print("Anti-AFK: Melompat")
+                
+            elseif randomAction == 2 then
+                -- Gerakkan mouse sedikit
+                VirtualInputManager:SendMouseMoveEvent(10, 10, game)
+                wait(0.1)
+                VirtualInputManager:SendMouseMoveEvent(-10, -10, game)
+                print("Anti-AFK: Menggerakkan mouse")
+                
+            elseif randomAction == 3 then
+                -- Tekan tombol keyboard acak
+                local keys = {Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D, Enum.KeyCode.Space}
+                local randomKey = keys[math.random(1, #keys)]
+                VirtualInputManager:SendKeyEvent(true, randomKey, false, game)
+                wait(0.1)
+                VirtualInputManager:SendKeyEvent(false, randomKey, false, game)
+                print("Anti-AFK: Menekan tombol " .. tostring(randomKey))
+                
+            elseif randomAction == 4 then
+                -- Putar kamera sedikit
+                local camera = Workspace.CurrentCamera
+                if camera then
+                    local originalCF = camera.CFrame
+                    camera.CFrame = originalCF * CFrame.Angles(0, math.rad(10), 0)
+                    wait(0.2)
+                    camera.CFrame = originalCF * CFrame.Angles(0, math.rad(-10), 0)
+                    print("Anti-AFK: Memutar kamera")
+                end
+                
+            elseif randomAction == 5 then
+                -- Gerakkan karakter sedikit
+                local originalPosition = HRP.CFrame
+                HRP.CFrame = originalPosition * CFrame.new(2, 0, 0)
+                wait(0.5)
+                HRP.CFrame = originalPosition
+                print("Anti-AFK: Menggerakkan karakter")
+            end
+            
+            lastMovementCheck = currentTime
+        end
+    else
+        -- Update posisi terakhir dan reset timer
+        lastPosition = currentPosition
+        lastMovementCheck = currentTime
+    end
 end
 
 local Tab = Window:CreateTab("Plants", "rewind")
@@ -543,6 +688,16 @@ spawn(function()
     end
 end)
 
+-- Anti-AFK System
+spawn(function()
+    while true do
+        if antiAFKEnabled then
+            antiAFKAction()
+        end
+        wait(10) -- Cek setiap 10 detik
+    end
+end)
+
 localPlayerTab = Window:CreateTab("LocalPlayer")
 localPlayerTab:CreateButton({
     Name = "TP Wand",
@@ -685,6 +840,155 @@ sellTab:CreateButton({
         sellAll()
     end,
 })
+
+-- Tab untuk Anti-AFK dan Toko SAM
+local utilityTab = Window:CreateTab("Utility", "settings")
+
+utilityTab:CreateSection("NPC Sam Shop")
+
+utilityTab:CreateButton({
+    Name = "Buka Toko Sam",
+    Callback = function()
+        openSamShop()
+    end,
+})
+
+utilityTab:CreateToggle({
+    Name = "Auto Buka Toko Sam Setiap Refresh",
+    CurrentValue = false,
+    Flag = "AutoOpenSamShop",
+    Callback = function(Value)
+        if Value then
+            spawn(function()
+                while wait(5) do
+                    if antiAFKEnabled then
+                        -- Cek jika toko sudah refresh (berdasarkan timer)
+                        if shopTime and shopTime <= 5 then -- Buka toko 5 detik sebelum refresh
+                            print("Membuka toko Sam karena hampir refresh...")
+                            openSamShop()
+                            wait(10) -- Tunggu 10 detik setelah membuka toko
+                        end
+                    else
+                        break
+                    end
+                end
+            end)
+        end
+    end,
+})
+
+utilityTab:CreateSection("Anti-AFK System")
+
+utilityTab:CreateToggle({
+    Name = "Enable Anti-AFK",
+    CurrentValue = false,
+    Flag = "AntiAFKToggle",
+    Callback = function(Value)
+        antiAFKEnabled = Value
+        print("Anti-AFK: " .. tostring(Value))
+    end,
+})
+
+utilityTab:CreateSlider({
+    Name = "Anti-AFK Check Interval",
+    Range = {10, 120},
+    Increment = 5,
+    Suffix = "detik",
+    CurrentValue = 30,
+    Flag = "AntiAFKInterval",
+    Callback = function(Value)
+        afkCheckInterval = Value
+        print("Anti-AFK interval: " .. Value .. " detik")
+    end,
+})
+
+utilityTab:CreateSection("Character Safety")
+
+utilityTab:CreateToggle({
+    Name = "Auto Respawn Jika Terjebak",
+    CurrentValue = false,
+    Flag = "AutoRespawnToggle",
+    Callback = function(Value)
+        if Value then
+            spawn(function()
+                while wait(5) do
+                    if antiAFKEnabled and Character and HRP then
+                        -- Cek jika karakter terjebak (tidak bisa bergerak)
+                        local currentPosition = HRP.Position
+                        wait(3)
+                        local newPosition = HRP.Position
+                        
+                        if (newPosition - currentPosition).Magnitude < 0.1 then
+                            print("Karakter mungkin terjebak, mencoba respawn...")
+                            
+                            -- Coba teleport dulu ke tempat aman
+                            HRP.CFrame = CFrame.new(0, 10, 0)
+                            wait(2)
+                            
+                            -- Jika masih terjebak, force respawn
+                            if (HRP.Position - currentPosition).Magnitude < 1 then
+                                Humanoid.Health = 0
+                                print("Force respawn dilakukan")
+                            end
+                        end
+                    else
+                        break
+                    end
+                end
+            end)
+        end
+    end,
+})
+
+-- Function untuk refresh dropdown fruits
+local function refreshFruitsDropdown()
+    getCropsListAndStock()
+    -- Refresh dropdown di seeds tab
+    local fruitsDropdown = seedsTab:FindFirstChild("Fruits To Buy")
+    if fruitsDropdown then
+        fruitsDropdown:Refresh(getAllIFromDict(CropsListAndStocks))
+    end
+end
+
+-- Tambahkan button refresh di utility tab
+utilityTab:CreateButton({
+    Name = "Refresh Fruits List",
+    Callback = function()
+        refreshFruitsDropdown()
+        print("Fruits list refreshed!")
+    end,
+})
+
+-- Auto-refresh fruits list ketika shop timer reset
+spawn(function()
+    while true do
+        if shopTime and shopTime <= 1 then
+            wait(2) -- Tunggu shop benar-benar reset
+            refreshFruitsDropdown()
+            print("Auto-refreshed fruits list setelah shop reset")
+        end
+        wait(1)
+    end
+end)
+
+-- Tambahkan juga ke dalam loop utama untuk monitoring
+spawn(function()
+    while true do
+        if antiAFKEnabled then
+            -- Update posisi karakter untuk deteksi AFK
+            if Character and HRP then
+                local currentPos = HRP.Position
+                
+                -- Deteksi jika karakter jatuh dari map
+                if currentPos.Y < -100 then
+                    print("Karakter jatuh dari map, teleport ke tempat aman...")
+                    HRP.CFrame = CFrame.new(0, 50, 0)
+                end
+            end
+        end
+        wait(5)
+    end
+end)
 
 -- Initialize the player farm reference
 playerFarm = findPlayerFarm()

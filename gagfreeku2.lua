@@ -1,3 +1,4 @@
+-- v155
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -28,13 +29,24 @@ local isSelling = false
 local byteNetReliable = ReplicatedStorage:FindFirstChild("ByteNetReliable")
 local autoBuyEnabled = false
 local lastShopStock = {}
-local isBuying = false -- Flag untuk menandai sedang membeli
+local isBuying = false
 
 -- Variabel untuk anti-AFK
 local antiAFKEnabled = false
 local lastPosition = HRP.Position
-local afkCheckInterval = 30 -- detik
+local afkCheckInterval = 30
 local lastMovementCheck = tick()
+
+-- Variabel untuk pilihan method buka toko Sam
+local selectedSamMethod = 1
+local samMethods = {
+    "1 - ProximityPrompt",
+    "2 - ClickDetector", 
+    "3 - Remote Events",
+    "4 - Shop Parts",
+    "5 - Humanoid Interaction",
+    "6 - GUI Detection"
+}
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
@@ -77,7 +89,7 @@ local function removePlantsOfKind(kind)
     end
     
     Shovel.Parent = Character
-    wait(0.5) -- Wait for shovel to equip
+    wait(0.5)
     
     for _,plant in pairs(findPlayerFarm().Important.Plants_Physical:GetChildren()) do
         if plant.Name == kind[1] then
@@ -91,7 +103,6 @@ local function removePlantsOfKind(kind)
         end
     end 
     
-    -- Return shovel to backpack
     if Shovel and Shovel.Parent == Character then
         Shovel.Parent = Backpack
     end
@@ -131,278 +142,266 @@ end
 local function isShopOpen()
     local playerGui = Players.LocalPlayer.PlayerGui
     local possibleShopGUIs = {
-        "SeedShop",
-        "Seed_Shop", 
-        "ShopGUI",
-        "SamShop",
-        "PlantShop",
-        "SeedStore",
-        "ShopFrame",
-        "MainShop"
+        "SeedShop", "Seed_Shop", "ShopGUI", "SamShop", "PlantShop", "SeedStore",
+        "ShopFrame", "MainShop", "ShopMenu", "SeedMenu", "PlantMenu"
     }
     
     for _, guiName in pairs(possibleShopGUIs) do
         local gui = playerGui:FindFirstChild(guiName)
-        if gui and gui.Enabled then
-            return true, guiName
-        end
-        
-        -- Cek juga di children yang lebih dalam
-        for _, child in pairs(playerGui:GetDescendants()) do
-            if child:IsA("GuiObject") and child.Visible and child.Name:lower():find("shop") then
-                return true, child.Name
+        if gui then
+            if gui:IsA("ScreenGui") and gui.Enabled then
+                return true, guiName
+            elseif (gui:IsA("Frame") or gui:IsA("ScrollingFrame")) and gui.Visible then
+                return true, guiName
             end
         end
     end
+    
+    for _, guiObject in pairs(playerGui:GetDescendants()) do
+        if guiObject:IsA("GuiObject") and guiObject.Visible then
+            local text = ""
+            if guiObject:IsA("TextLabel") or guiObject:IsA("TextButton") then
+                text = guiObject.Text or ""
+            end
+            
+            if string.lower(text):find("shop") or string.lower(text):find("seed") or 
+               string.lower(text):find("plant") or string.lower(guiObject.Name):find("shop") then
+                return true, guiObject.Name
+            end
+        end
+    end
+    
     return false, nil
 end
 
--- Fungsi untuk membuka toko NPC SAM yang lebih efektif dengan debug info
-local function openSamShop()
+-- Fungsi untuk membuka toko NPC SAM dengan method yang dipilih
+local function openSamShopWithMethod(methodNumber)
     if not Sam or not Sam:FindFirstChild("HumanoidRootPart") then
         print("❌ NPC Sam tidak ditemukan!")
         return false, "NPC not found"
     end
     
-    print("🚀 Memulai proses membuka toko Sam...")
+    print("🚀 Memulai proses membuka toko Sam dengan Method " .. methodNumber .. "...")
     
-    -- Simpan posisi awal
     local originalPosition = HRP.CFrame
     local humanoid = Character:FindFirstChildOfClass("Humanoid")
     
-    -- Pastikan karakter bisa bergerak
     if humanoid then
         humanoid:ChangeState(Enum.HumanoidStateType.Running)
     end
     
     print("📍 Menuju ke NPC Sam...")
     
-    -- Pergi ke NPC Sam dengan jarak yang tepat
     local targetCFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 5)
     HRP.CFrame = targetCFrame
-    wait(2) -- Tunggu sampai karakter sampai
+    wait(2)
     
-    -- Pastikan menghadap ke NPC
     HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
     wait(0.5)
     
-    local successfulMethod = nil
+    local success = false
     local methodDetails = ""
     
-    -- Method 1: Cari dan trigger ProximityPrompt
-    print("🔍 Mencoba Method 1: ProximityPrompt...")
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj:IsA("ProximityPrompt") and (obj.Parent.Position - Sam.HumanoidRootPart.Position).Magnitude < 10 then
-            print("   ✅ Found ProximityPrompt: " .. obj.Parent.Name)
-            fireproximityprompt(obj)
-            successfulMethod = 1
-            methodDetails = "ProximityPrompt pada " .. obj.Parent.Name
-            wait(1)
-            break
-        end
-    end
-    
-    -- Cek jika Method 1 berhasil
-    if successfulMethod then
-        local isOpen, guiName = isShopOpen()
-        if isOpen then
-            print("🎉 METHOD 1 BERHASIL! Toko terbuka dengan: " .. methodDetails)
-            wait(3)
-            -- Tutup toko
-            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Escape, false, game)
-            wait(0.1)
-            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Escape, false, game)
-            HRP.CFrame = originalPosition
-            return true, successfulMethod
-        else
-            print("❌ Method 1 gagal, mencoba method berikutnya...")
-            successfulMethod = nil
-        end
-    end
-    
-    -- Method 2: Coba ClickDetector
-    print("🔍 Mencoba Method 2: ClickDetector...")
-    for _, child in pairs(Sam:GetDescendants()) do
-        if child:IsA("ClickDetector") then
-            print("   ✅ Found ClickDetector")
-            fireclickdetector(child)
-            successfulMethod = 2
-            methodDetails = "ClickDetector pada NPC Sam"
-            wait(1)
-            break
-        end
-    end
-    
-    -- Cek jika Method 2 berhasil
-    if successfulMethod then
-        local isOpen, guiName = isShopOpen()
-        if isOpen then
-            print("🎉 METHOD 2 BERHASIL! Toko terbuka dengan: " .. methodDetails)
-            wait(3)
-            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Escape, false, game)
-            wait(0.1)
-            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Escape, false, game)
-            HRP.CFrame = originalPosition
-            return true, successfulMethod
-        else
-            print("❌ Method 2 gagal, mencoba method berikutnya...")
-            successfulMethod = nil
-        end
-    end
-    
-    -- Method 3: Coba Remote Events khusus
-    print("🔍 Mencoba Method 3: Remote Events...")
-    local remoteEvents = {
-        "OpenShop",
-        "OpenSeedShop", 
-        "OpenSamShop",
-        "ToggleShop",
-        "PromptTriggered",
-        "InteractNPC"
-    }
-    
-    for i, eventName in pairs(remoteEvents) do
-        local remote = ReplicatedStorage:FindFirstChild(eventName) or 
-                      ReplicatedStorage.GameEvents:FindFirstChild(eventName) or
-                      ReplicatedStorage.Remotes:FindFirstChild(eventName)
-        if remote then
-            print("   ✅ Trying remote event: " .. eventName)
-            pcall(function()
-                remote:FireServer("Sam")
-                successfulMethod = 3
-                methodDetails = "RemoteEvent: " .. eventName
-            end)
-            wait(1)
-            
-            -- Cek jika berhasil
-            local isOpen, guiName = isShopOpen()
-            if isOpen then
-                print("🎉 METHOD 3 BERHASIL! Toko terbuka dengan: " .. methodDetails)
-                wait(3)
-                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Escape, false, game)
-                wait(0.1)
-                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Escape, false, game)
-                HRP.CFrame = originalPosition
-                return true, successfulMethod
-            else
-                print("❌ Remote event " .. eventName .. " gagal")
+    if methodNumber == 1 then
+        -- Method 1: ProximityPrompt
+        print("🔍 Mencoba Method 1: ProximityPrompt...")
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("ProximityPrompt") then
+                local parent = obj.Parent
+                if parent then
+                    local parentPosition
+                    local positionSuccess = pcall(function()
+                        if parent:IsA("BasePart") then
+                            parentPosition = parent.Position
+                        elseif parent:IsA("Model") and parent.PrimaryPart then
+                            parentPosition = parent.PrimaryPart.Position
+                        end
+                    end)
+                    
+                    if positionSuccess and parentPosition and (parentPosition - Sam.HumanoidRootPart.Position).Magnitude < 10 then
+                        print("   ✅ Found ProximityPrompt: " .. parent.Name)
+                        fireproximityprompt(obj)
+                        methodDetails = "ProximityPrompt pada " .. parent.Name
+                        wait(1)
+                        success = true
+                        break
+                    end
+                end
             end
         end
-    end
-    
-    -- Method 4: Coba interact dengan part khusus
-    print("🔍 Mencoba Method 4: Shop Parts...")
-    for _, part in pairs(Workspace:GetDescendants()) do
-        if part:IsA("Part") and (part.Name:lower():find("shop") or part.Name:lower():find("npc")) and 
-           (part.Position - Sam.HumanoidRootPart.Position).Magnitude < 15 then
-            print("   ✅ Found shop part: " .. part.Name)
-            HRP.CFrame = part.CFrame * CFrame.new(0, 0, 3)
-            wait(1)
-            
-            -- Coba klik part tersebut
-            if part:FindFirstChildOfClass("ClickDetector") then
-                fireclickdetector(part:FindFirstChildOfClass("ClickDetector"))
-                successfulMethod = 4
-                methodDetails = "Shop Part: " .. part.Name
+        
+    elseif methodNumber == 2 then
+        -- Method 2: ClickDetector
+        print("🔍 Mencoba Method 2: ClickDetector...")
+        for _, child in pairs(Sam:GetDescendants()) do
+            if child:IsA("ClickDetector") then
+                print("   ✅ Found ClickDetector")
+                fireclickdetector(child)
+                methodDetails = "ClickDetector pada NPC Sam"
                 wait(1)
-            end
-            
-            -- Cek jika berhasil
-            local isOpen, guiName = isShopOpen()
-            if isOpen then
-                print("🎉 METHOD 4 BERHASIL! Toko terbuka dengan: " .. methodDetails)
-                wait(3)
-                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Escape, false, game)
-                wait(0.1)
-                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Escape, false, game)
-                HRP.CFrame = originalPosition
-                return true, successfulMethod
-            else
-                print("❌ Method 4 gagal, mencoba method berikutnya...")
-                successfulMethod = nil
-            end
-            break
-        end
-    end
-    
-    -- Method 5: Gunakan TouchInterest sebagai last resort
-    print("🔍 Mencoba Method 5: Touch Interest...")
-    local partsToTouch = {}
-    for _, part in pairs(Sam:GetDescendants()) do
-        if part:IsA("BasePart") then
-            table.insert(partsToTouch, part)
-        end
-    end
-    
-    -- Juga cari part di sekitar Sam
-    for _, part in pairs(Workspace:GetDescendants()) do
-        if part:IsA("BasePart") and (part.Position - Sam.HumanoidRootPart.Position).Magnitude < 10 then
-            if not table.find(partsToTouch, part) then
-                table.insert(partsToTouch, part)
+                success = true
+                break
             end
         end
-    end
-    
-    for i, part in pairs(partsToTouch) do
-        print("   ✅ Touching part " .. i .. ": " .. part.Name)
-        HRP.CFrame = part.CFrame * CFrame.new(0, 0, 2)
+        
+    elseif methodNumber == 3 then
+        -- Method 3: Remote Events
+        print("🔍 Mencoba Method 3: Remote Events...")
+        local remoteEvents = {
+            "OpenShop", "OpenSeedShop", "OpenSamShop", "ToggleShop", 
+            "PromptTriggered", "InteractNPC", "Interact", "OpenNPC"
+        }
+        
+        for _, eventName in pairs(remoteEvents) do
+            local remote = ReplicatedStorage:FindFirstChild(eventName) or 
+                          ReplicatedStorage.GameEvents:FindFirstChild(eventName) or
+                          ReplicatedStorage.Remotes:FindFirstChild(eventName)
+            if remote then
+                print("   ✅ Trying remote event: " .. eventName)
+                local remoteSuccess = pcall(function()
+                    remote:FireServer("Sam")
+                    methodDetails = "RemoteEvent: " .. eventName
+                    success = true
+                end)
+                if remoteSuccess then break end
+            end
+        end
+        wait(1)
+        
+    elseif methodNumber == 4 then
+        -- Method 4: Shop Parts
+        print("🔍 Mencoba Method 4: Shop Parts...")
+        for _, part in pairs(Workspace:GetDescendants()) do
+            if part:IsA("BasePart") and (part.Name:lower():find("shop") or part.Name:lower():find("npc")) then
+                local distanceSuccess, distance = pcall(function()
+                    return (part.Position - Sam.HumanoidRootPart.Position).Magnitude
+                end)
+                
+                if distanceSuccess and distance < 15 then
+                    print("   ✅ Found shop part: " .. part.Name)
+                    HRP.CFrame = part.CFrame * CFrame.new(0, 0, 3)
+                    wait(1)
+                    
+                    local clickDetector = part:FindFirstChildOfClass("ClickDetector")
+                    if clickDetector then
+                        fireclickdetector(clickDetector)
+                        methodDetails = "Shop Part: " .. part.Name
+                        success = true
+                    end
+                    break
+                end
+            end
+        end
+        wait(1)
+        
+    elseif methodNumber == 5 then
+        -- Method 5: Humanoid Interaction
+        print("🔍 Mencoba Method 5: Humanoid Interaction...")
+        HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
         wait(0.5)
+        
+        if humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            wait(0.5)
+            humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        end
+        
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+        wait(0.1)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+        
+        methodDetails = "Humanoid Interaction + E Key"
+        wait(2)
+        success = true
+        
+    elseif methodNumber == 6 then
+        -- Method 6: GUI Detection
+        print("🔍 Mencoba Method 6: GUI Detection...")
+        for _, gui in pairs(Workspace:GetDescendants()) do
+            if (gui:IsA("BillboardGui") or gui:IsA("SurfaceGui")) and gui.Enabled then
+                for _, textLabel in pairs(gui:GetDescendants()) do
+                    if textLabel:IsA("TextLabel") or textLabel:IsA("TextButton") then
+                        if textLabel.Text and string.lower(textLabel.Text):find("shop") then
+                            print("   ✅ Found shop GUI: " .. textLabel.Text)
+                            if textLabel:IsA("TextButton") then
+                                local clickPos = textLabel.AbsolutePosition + Vector2.new(textLabel.AbsoluteSize.X/2, textLabel.AbsoluteSize.Y/2)
+                                VirtualInputManager:SendMouseButtonEvent(clickPos.X, clickPos.Y, 0, true, game, 0)
+                                wait(0.1)
+                                VirtualInputManager:SendMouseButtonEvent(clickPos.X, clickPos.Y, 0, false, game, 0)
+                                
+                                methodDetails = "GUI Click: " .. textLabel.Text
+                                wait(2)
+                                success = true
+                                break
+                            end
+                        end
+                    end
+                end
+                if success then break end
+            end
+        end
     end
     
-    successfulMethod = 5
-    methodDetails = "Touch Interest pada " .. #partsToTouch .. " parts"
-    wait(2)
-    
-    -- Cek jika Method 5 berhasil
+    -- Cek hasil
+    wait(1)
     local isOpen, guiName = isShopOpen()
+    
     if isOpen then
-        print("🎉 METHOD 5 BERHASIL! Toko terbuka dengan: " .. methodDetails)
+        print("🎉 METHOD " .. methodNumber .. " BERHASIL! Toko terbuka dengan: " .. methodDetails)
         wait(3)
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Escape, false, game)
         wait(0.1)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Escape, false, game)
         HRP.CFrame = originalPosition
-        return true, successfulMethod
+        return true, methodNumber
     else
-        print("❌ Method 5 juga gagal")
-        successfulMethod = nil
+        print("❌ Method " .. methodNumber .. " gagal: " .. methodDetails)
+        HRP.CFrame = originalPosition
+        return false, methodNumber
     end
-    
-    -- Jika semua method gagal
-    print("💥 SEMUA METHOD GAGAL! Tidak bisa membuka toko Sam")
-    HRP.CFrame = originalPosition
-    return false, "All methods failed"
 end
 
--- Fungsi anti-AFK yang lebih advanced
+-- Fungsi untuk mencoba semua method secara berurutan
+local function openSamShopAuto()
+    print("🔧 Mencoba semua method secara otomatis...")
+    
+    for i = 1, 6 do
+        local success, methodUsed = openSamShopWithMethod(i)
+        if success then
+            print("✅ Ditemukan method yang berhasil: Method " .. methodUsed)
+            return true, methodUsed
+        end
+        wait(1)
+    end
+    
+    print("💥 Semua method gagal!")
+    return false, 0
+end
+
+-- Fungsi anti-AFK
 local function antiAFKAction()
     if not antiAFKEnabled or not Character or not HRP then return end
     
     local currentTime = tick()
     local currentPosition = HRP.Position
     
-    -- Cek jika karakter tidak bergerak dalam interval tertentu
     if (currentPosition - lastPosition).Magnitude < 1 then
         if currentTime - lastMovementCheck > afkCheckInterval then
             print("Anti-AFK: Melakukan tindakan pencegahan...")
             
-            -- Lakukan berbagai aksi acak untuk menghindari AFK
             local randomAction = math.random(1, 5)
             
             if randomAction == 1 then
-                -- Lompat
                 Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
                 print("Anti-AFK: Melompat")
                 
             elseif randomAction == 2 then
-                -- Gerakkan mouse sedikit
                 VirtualInputManager:SendMouseMoveEvent(10, 10, game)
                 wait(0.1)
                 VirtualInputManager:SendMouseMoveEvent(-10, -10, game)
                 print("Anti-AFK: Menggerakkan mouse")
                 
             elseif randomAction == 3 then
-                -- Tekan tombol keyboard acak
                 local keys = {Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D, Enum.KeyCode.Space}
                 local randomKey = keys[math.random(1, #keys)]
                 VirtualInputManager:SendKeyEvent(true, randomKey, false, game)
@@ -411,7 +410,6 @@ local function antiAFKAction()
                 print("Anti-AFK: Menekan tombol " .. tostring(randomKey))
                 
             elseif randomAction == 4 then
-                -- Putar kamera sedikit
                 local camera = Workspace.CurrentCamera
                 if camera then
                     local originalCF = camera.CFrame
@@ -422,7 +420,6 @@ local function antiAFKAction()
                 end
                 
             elseif randomAction == 5 then
-                -- Gerakkan karakter sedikit
                 local originalPosition = HRP.CFrame
                 HRP.CFrame = originalPosition * CFrame.new(2, 0, 0)
                 wait(0.5)
@@ -433,7 +430,6 @@ local function antiAFKAction()
             lastMovementCheck = currentTime
         end
     else
-        -- Update posisi terakhir dan reset timer
         lastPosition = currentPosition
         lastMovementCheck = currentTime
     end
@@ -481,7 +477,7 @@ end
 
 function getCropsListAndStock()
     local oldStock = CropsListAndStocks
-    CropsListAndStocks = {} -- Reset the table
+    CropsListAndStocks = {}
     for _,Plant in pairs(SeedShopGUI:GetChildren()) do
         if Plant:FindFirstChild("Main_Frame") and Plant.Main_Frame:FindFirstChild("Stock_Text") then
             local PlantName = Plant.Name
@@ -490,7 +486,6 @@ function getCropsListAndStock()
         end
     end
     
-    -- Cek jika stok berubah (toko di-refresh)
     local isRefreshed = false
     for cropName, stock in pairs(CropsListAndStocks) do
         if oldStock[cropName] ~= stock then
@@ -1005,21 +1000,56 @@ local utilityTab = Window:CreateTab("Utility", "settings")
 
 utilityTab:CreateSection("NPC Sam Shop")
 
+-- Dropdown untuk memilih method
+utilityTab:CreateDropdown({
+    Name = "Pilih Method Buka Toko Sam",
+    Options = samMethods,
+    CurrentOption = {samMethods[1]},
+    MultipleOptions = false,
+    Flag = "SamMethodDropdown",
+    Callback = function(Options)
+        selectedSamMethod = tonumber(string.sub(Options[1], 1, 1))
+        print("Method yang dipilih: " .. selectedSamMethod)
+    end,
+})
+
 utilityTab:CreateButton({
-    Name = "Buka Toko Sam",
+    Name = "Buka Toko Sam (Method Terpilih)",
     Callback = function()
-        local success, method = openSamShop()
+        local success, methodUsed = openSamShopWithMethod(selectedSamMethod)
         if success then
             Rayfield:Notify({
                 Title = "Berhasil!",
-                Content = "Toko Sam berhasil dibuka dengan Method " .. method,
+                Content = "Toko Sam berhasil dibuka dengan Method " .. methodUsed,
                 Duration = 5,
                 Image = 0
             })
         else
             Rayfield:Notify({
                 Title = "Gagal",
-                Content = "Tidak bisa membuka toko Sam",
+                Content = "Method " .. methodUsed .. " gagal membuka toko Sam",
+                Duration = 5,
+                Image = 0
+            })
+        end
+    end,
+})
+
+utilityTab:CreateButton({
+    Name = "Buka Toko Sam (Auto All Methods)",
+    Callback = function()
+        local success, methodUsed = openSamShopAuto()
+        if success then
+            Rayfield:Notify({
+                Title = "Berhasil!",
+                Content = "Toko Sam berhasil dibuka dengan Method " .. methodUsed,
+                Duration = 5,
+                Image = 0
+            })
+        else
+            Rayfield:Notify({
+                Title = "Gagal",
+                Content = "Semua method gagal membuka toko Sam",
                 Duration = 5,
                 Image = 0
             })
@@ -1038,11 +1068,12 @@ utilityTab:CreateToggle({
                     if antiAFKEnabled then
                         if shopTime and shopTime <= 5 then
                             print("🕒 Membuka toko Sam karena hampir refresh...")
-                            local success, method = openSamShop()
+                            local success, methodUsed = openSamShopWithMethod(selectedSamMethod)
                             if success then
-                                print("✅ Auto-buka berhasil dengan Method " .. method)
+                                print("✅ Auto-buka berhasil dengan Method " .. methodUsed)
                             else
-                                print("❌ Auto-buka gagal")
+                                print("❌ Auto-buka gagal, mencoba semua method...")
+                                openSamShopAuto()
                             end
                             wait(10)
                         end

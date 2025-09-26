@@ -1,5 +1,5 @@
 -- =============================================
--- ROBLOX CHARAC
+-- ROBLOX CHARACTER DEBUG MONITOR - ALL IN ONE
 -- Script untuk memantau semua aspek karakter
 -- =============================================
 
@@ -60,10 +60,10 @@ function debugLog(level, message)
     end
 end
 
--- PERBAIKAN: Fungsi safeConnect yang benar
+-- FUNGSI SAFECONNECT YANG DIPERBAIKI
 function safeConnect(signal, callback, description)
     if not signal or typeof(signal) ~= "RBXScriptSignal" then
-        debugLog(1, "Invalid signal provided for: " .. tostring(description))
+        debugLog(2, "Invalid signal for: " .. tostring(description))
         return nil
     end
     
@@ -80,7 +80,7 @@ function safeConnect(signal, callback, description)
         table.insert(monitors, connection)
         return connection
     else
-        debugLog(1, string.format("Failed to connect to %s: %s", description, tostring(connection)))
+        debugLog(1, string.format("Failed to connect to %s", description))
         return nil
     end
 end
@@ -149,6 +149,7 @@ function setupMovementMonitor()
     table.insert(monitors, movementConnection)
 end
 
+-- PERBAIKAN: Fungsi setupToolMonitor yang benar
 function setupToolMonitor()
     if not CONFIG.FEATURES.TOOL_MONITOR then return end
     
@@ -156,12 +157,17 @@ function setupToolMonitor()
         if child:IsA("Tool") then
             debugLog(3, "🔧 Tool equipped: " .. child.Name)
             
-            -- Monitor tool activation
+            -- PERBAIKAN: Handle tool activation dengan benar
+            wait(0.1) -- Tunggu tool fully loaded
+            
+            -- Cari event Activate yang benar (biasanya di dalam Tool)
             local activateEvent = child:FindFirstChild("Activate")
-            if activateEvent and typeof(activateEvent) == "Instance" then
-                safeConnect(activateEvent, function()
-                    debugLog(4, "Tool activated: " .. child.Name)
-                end, "Tool Activation: " .. child.Name)
+            if activateEvent and activateEvent:IsA("RemoteEvent") then
+                -- Untuk RemoteEvent, kita monitor dengan cara berbeda
+                debugLog(4, "Tool has RemoteEvent Activate: " .. child.Name)
+            else
+                -- Untuk tools biasa, monitor dengan Heartbeat
+                monitorToolUsage(child)
             end
         end
     end, "Tool Added Monitor")
@@ -171,6 +177,27 @@ function setupToolMonitor()
             debugLog(3, "🔧 Tool unequipped: " .. child.Name)
         end
     end, "Tool Removed Monitor")
+end
+
+-- Fungsi baru untuk monitor tool usage
+function monitorToolUsage(tool)
+    local lastActivation = 0
+    local activationCooldown = 1 -- detik
+    
+    local toolConnection = RunService.Heartbeat:Connect(function()
+        if not tool or not tool.Parent then
+            toolConnection:Disconnect()
+            return
+        end
+        
+        -- Check jika tool sedang digunakan (contoh: berdasarkan animation atau state)
+        if tool:FindFirstChild("Handle") then
+            local handle = tool.Handle
+            -- Anda bisa menambahkan logika deteksi penggunaan tool di sini
+        end
+    end)
+    
+    table.insert(monitors, toolConnection)
 end
 
 function setupAnimationMonitor(humanoid)
@@ -276,7 +303,11 @@ function initializeMonitors()
         setupStateMonitor(humanoid)
         setupAnimationMonitor(humanoid)
     else
-        debugLog(2, "❌ Humanoid not found in character!")
+        debugLog(2, "❌ Humanoid not found in character! Waiting...")
+        -- Tunggu humanoid kalau belum ada
+        humanoid = character:WaitForChild("Humanoid")
+        setupHealthMonitor(humanoid)
+        setupStateMonitor(humanoid)
     end
     
     setupMovementMonitor()
@@ -311,7 +342,7 @@ safeConnect(player.CharacterAdded, function(newCharacter)
     local humanoid = newCharacter:WaitForChild("Humanoid")
     
     -- Initialize monitors baru
-    wait(0.5) -- Tunggu sedikit untuk stabil
+    wait(1) -- Tunggu karakter fully loaded
     initializeMonitors()
 end, "Respawn Monitor")
 

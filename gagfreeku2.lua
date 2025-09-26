@@ -15,7 +15,7 @@ local SeedShopGUI = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.ScrollingFrame
 local shopTimer = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.Frame.Timer
 local shopTime = 0
 local Humanoid = Character:WaitForChild("Humanoid")
-wantedFruits = {}
+local wantedFruits = {}
 local plantAura = false
 local AutoSellItems = 70
 local shouldSell = false
@@ -23,30 +23,28 @@ local removeItem = ReplicatedStorage.GameEvents.Remove_Item
 local plantToRemove
 local shouldAutoPlant = false
 local isSelling = false
-local byteNetReliable = ReplicatedStorage:FindFirstChild("ByteNetReliable")
 local autoBuyEnabled = false
-local lastShopStock = {}
-local isBuying = false -- Flag untuk menandai sedang membeli
+local isBuying = false
 
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Rayfield = loadstring(game:HttpGet('[https://sirius.menu/rayfield](https://sirius.menu/rayfield)'))()
 local Window = Rayfield:CreateWindow({
-   Name = "Grow A Garden",
-   Icon = 0,
-   LoadingTitle = "Rayfield Interface Suite",
-   LoadingSubtitle = "by Sirius",
-   Theme = "Default",
-   ToggleUIKeybind = "K",
-   DisableRayfieldPrompts = false,
-   DisableBuildWarnings = false,
-   ConfigurationSaving = {
-      Enabled = true,
-      FolderName = nil,
-      FileName = "GAGscript"
-   },
+    Name = "Grow A Garden",
+    Icon = 0,
+    LoadingTitle = "Rayfield Interface Suite",
+    LoadingSubtitle = "by Sirius",
+    Theme = "Default",
+    ToggleUIKeybind = "K",
+    DisableRayfieldPrompts = false,
+    DisableBuildWarnings = false,
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = nil,
+        FileName = "GAGscript"
+    },
 })
 
 local function findPlayerFarm()
-    for i,v in pairs(FarmsFolder:GetChildren()) do
+    for _, v in pairs(FarmsFolder:GetChildren()) do
         if v.Important.Data.Owner.Value == Players.LocalPlayer.Name then
             return v
         end
@@ -71,7 +69,7 @@ local function removePlantsOfKind(kind)
     Shovel.Parent = Character
     wait(0.5)
     
-    for _,plant in pairs(findPlayerFarm().Important.Plants_Physical:GetChildren()) do
+    for _, plant in pairs(findPlayerFarm().Important.Plants_Physical:GetChildren()) do
         if plant.Name == kind[1] then
             if plant:FindFirstChild("Fruit_Spawn") then
                 local spawnPoint = plant.Fruit_Spawn
@@ -90,15 +88,15 @@ end
 
 local function getAllIFromDict(Dict)
     local newList = {}
-    for i,_ in pairs(Dict) do
+    for i, _ in pairs(Dict) do
         table.insert(newList, i)
     end
     return newList
 end
 
-local function isInTable(table,value)
-    for _,i in pairs(table) do
-        if i==value then
+local function isInTable(table, value)
+    for _, i in pairs(table) do
+        if i == value then
             return true
         end
     end
@@ -110,8 +108,8 @@ local function getPlantedFruitTypes()
     local farm = findPlayerFarm()
     if not farm then return list end
     
-    for _,plant in pairs(farm.Important.Plants_Physical:GetChildren()) do
-        if not(isInTable(list, plant.Name)) then
+    for _, plant in pairs(farm.Important.Plants_Physical:GetChildren()) do
+        if not (isInTable(list, plant.Name)) then
             table.insert(list, plant.Name)
         end
     end
@@ -121,14 +119,14 @@ end
 local Tab = Window:CreateTab("Plants", "rewind")
 Tab:CreateSection("Remove Plants")
 local PlantToRemoveDropdown = Tab:CreateDropdown({
-   Name = "Choose A Plant To Remove",
-   Options = getPlantedFruitTypes(),
-   CurrentOption = {"None Selected"},
-   MultipleOptions = false,
-   Flag = "Dropdown1", 
-   Callback = function(Options)
-    plantToRemove = Options
-   end,
+    Name = "Choose A Plant To Remove",
+    Options = getPlantedFruitTypes(),
+    CurrentOption = {"None Selected"},
+    MultipleOptions = false,
+    Flag = "Dropdown1",
+    Callback = function(Options)
+        plantToRemove = Options
+    end,
 })
 
 Tab:CreateButton({
@@ -148,8 +146,8 @@ Tab:CreateButton({
 Tab:CreateSection("Harvesting Plants")
 
 local function printCropStocks()
-    for i,v in pairs(CropsListAndStocks) do
-        print(i.."'s Stock Is:", v)
+    for i, v in pairs(CropsListAndStocks) do
+        print(i .. "'s Stock Is:", v)
     end
 end
 
@@ -160,8 +158,8 @@ end
 
 function getCropsListAndStock()
     local oldStock = CropsListAndStocks
-    CropsListAndStocks = {} -- Reset the table
-    for _,Plant in pairs(SeedShopGUI:GetChildren()) do
+    CropsListAndStocks = {}
+    for _, Plant in pairs(SeedShopGUI:GetChildren()) do
         if Plant:FindFirstChild("Main_Frame") and Plant.Main_Frame:FindFirstChild("Stock_Text") then
             local PlantName = Plant.Name
             local PlantStock = StripPlantStock(Plant.Main_Frame.Stock_Text.Text)
@@ -184,7 +182,7 @@ local playerFarm = findPlayerFarm()
 getCropsListAndStock()
 
 local function getPlantingBoundaries(farm)
-    local offset = Vector3.new(15.2844,0,28.356)
+    local offset = Vector3.new(15.2844, 0, 28.356)
     local edges = {}
     local PlantingLocations = farm.Important.Plant_Locations:GetChildren()
     local rect1Center = PlantingLocations[1].Position
@@ -232,7 +230,7 @@ local function CollectAllPlants()
         plants[i], plants[j] = plants[j], plants[i]
     end
     
-    for _,plant in pairs(plants) do
+    for _, plant in pairs(plants) do
         collectPlant(plant)
         task.wait(0.05)
     end
@@ -251,30 +249,42 @@ spawn(function()
         if plantAura then
             local plants = GetAllPlants()
             
+            if #plants == 0 then
+                task.wait(0.5)
+                continue
+            end
+            
             for i = #plants, 2, -1 do
                 local j = math.random(i)
                 plants[i], plants[j] = plants[j], plants[i]
             end
             
             for _, plant in pairs(plants) do
-                if plant:FindFirstChild("Fruits") then
-                    for _, miniPlant in pairs(plant.Fruits:GetChildren()) do
-                        for _, child in pairs(miniPlant:GetChildren()) do
-                            if child:FindFirstChild("ProximityPrompt") then
-                                fireproximityprompt(child.ProximityPrompt)
+                task.spawn(function()
+                    if plant:FindFirstChild("Fruits") then
+                        for _, miniPlant in pairs(plant.Fruits:GetChildren()) do
+                            local prompt = miniPlant:FindFirstChild("ProximityPrompt")
+                            if prompt then
+                                fireproximityprompt(prompt)
                             end
                         end
-                        task.wait(0.01)
-                    end
-                else
-                    for _, child in pairs(plant:GetChildren()) do
-                        if child:FindFirstChild("ProximityPrompt") then
-                            fireproximityprompt(child.ProximityPrompt)
+                    else
+                        local prompt = plant:FindFirstChild("ProximityPrompt")
+                        if prompt then
+                            fireproximityprompt(prompt)
+                        else
+                            for _, child in pairs(plant:GetChildren()) do
+                                local childPrompt = child:FindFirstChild("ProximityPrompt")
+                                if childPrompt then
+                                    fireproximityprompt(childPrompt)
+                                end
+                            end
                         end
-                        task.wait(0.01)
                     end
-                end
+                end)
             end
+            
+            task.wait(0.1)
         end
         task.wait(0.1)
     end
@@ -302,7 +312,7 @@ local function getRandomPlantingLocation(edges)
 end
 
 local function areThereSeeds()
-    for _,Item in pairs(Backpack:GetChildren()) do
+    for _, Item in pairs(Backpack:GetChildren()) do
         if Item:FindFirstChild("Seed Local Script") then
             return true
         end
@@ -319,7 +329,7 @@ local function plantAllSeeds()
     
     while areThereSeeds() do
         print("There Are Seeds!")
-        for _,Item in pairs(Backpack:GetChildren()) do
+        for _, Item in pairs(Backpack:GetChildren()) do
             if Item:FindFirstChild("Seed Local Script") then
                 Item.Parent = Character
                 wait(0.1)
@@ -342,16 +352,16 @@ local function plantAllSeeds()
 end
 
 Tab:CreateToggle({
-   Name = "Harvest Plants Aura",
-   CurrentValue = false,
-   Flag = "Toggle1",
-   Callback = function(Value)
-    plantAura = Value
-    print("Plant Aura Set To: ".. tostring(Value))
-   end,
+    Name = "Harvest Plants Aura",
+    CurrentValue = false,
+    Flag = "Toggle1",
+    Callback = function(Value)
+        plantAura = Value
+        print("Plant Aura Set To: "..tostring(Value))
+    end,
 })
 
-local testingTab = Window:CreateTab("Testing","rewind")
+local testingTab = Window:CreateTab("Testing", "rewind")
 testingTab:CreateSection("List Crops Names And Prices")
 testingTab:CreateButton({
     Name = "Print Out All Crops Names And Stocks",
@@ -386,7 +396,7 @@ testingTab:CreateButton({
     Name = "Teleport edges",
     Callback = function()
         local edges = getPlantingBoundaries(playerFarm)
-        for i,v in pairs(edges) do
+        for i, v in pairs(edges) do
             HRP.CFrame = CFrame.new(v)
             wait(2)
         end
@@ -401,7 +411,7 @@ testingTab:CreateButton({
 })
 
 local function buyCropSeeds(cropName)
-    local args = {[1] = cropName}
+    local args = { [1] = cropName }
     local success, errorMsg = pcall(function()
         BuySeedStock:FireServer(unpack(args))
     end)
@@ -500,7 +510,7 @@ local function sellAll()
     isSelling = false
 end
 
-spawn(function() 
+spawn(function()
     while true do
         if shopTimer and shopTimer.Text then
             shopTime = getTimeInSeconds(shopTimer.Text)
@@ -537,8 +547,7 @@ localPlayerTab:CreateButton({
                 HRP.CFrame = mouse.Hit + Vector3.new(0, 3, 0)
             end
         end)
-    end, 
-    
+    end,
 })
 
 localPlayerTab:CreateButton({
@@ -550,20 +559,19 @@ localPlayerTab:CreateButton({
         if Character:FindFirstChild("TP Wand") then
             Character:FindFirstChild("TP Wand"):Destroy()
         end
-    end, 
-    
+    end,
 })
 
 local speedSlider = localPlayerTab:CreateSlider({
-   Name = "Speed",
-   Range = {1, 500},
-   Increment = 5,
-   Suffix = "Speed",
-   CurrentValue = 20,
-   Flag = "Slider1",
-   Callback = function(Value)
+    Name = "Speed",
+    Range = {1, 500},
+    Increment = 5,
+    Suffix = "Speed",
+    CurrentValue = 20,
+    Flag = "Slider1",
+    Callback = function(Value)
         Humanoid.WalkSpeed = Value
-   end,
+    end,
 })
 
 localPlayerTab:CreateButton({
@@ -574,15 +582,15 @@ localPlayerTab:CreateButton({
 })
 
 local jumpSlider = localPlayerTab:CreateSlider({
-   Name = "Jump Power",
-   Range = {1, 500},
-   Increment = 5,
-   Suffix = "Jump Power",
-   CurrentValue = 50,
-   Flag = "Slider2",
-   Callback = function(Value)
+    Name = "Jump Power",
+    Range = {1, 500},
+    Increment = 5,
+    Suffix = "Jump Power",
+    CurrentValue = 50,
+    Flag = "Slider2",
+    Callback = function(Value)
         Humanoid.JumpPower = Value
-   end,
+    end,
 })
 
 localPlayerTab:CreateButton({
@@ -594,12 +602,12 @@ localPlayerTab:CreateButton({
 
 local seedsTab = Window:CreateTab("Seeds")
 seedsTab:CreateDropdown({
-   Name = "Fruits To Buy",
-   Options = getAllIFromDict(CropsListAndStocks),
-   CurrentOption = {"None Selected"},
-   MultipleOptions = true,
-   Flag = "Dropdown1", 
-   Callback = function(Options)
+    Name = "Fruits To Buy",
+    Options = getAllIFromDict(CropsListAndStocks),
+    CurrentOption = {"None Selected"},
+    MultipleOptions = true,
+    Flag = "Dropdown1",
+    Callback = function(Options)
         local filtered = {}
         for _, fruit in ipairs(Options) do
             if fruit ~= "None Selected" then
@@ -609,7 +617,7 @@ seedsTab:CreateDropdown({
         print("Selected:", table.concat(filtered, ", "))
         wantedFruits = filtered
         print("Updated!")
-   end,
+    end,
 })
 
 seedsTab:CreateToggle({
@@ -648,16 +656,15 @@ sellTab:CreateToggle({
 })
 
 sellTab:CreateSlider({
-   Name = "Minimum Items to auto sell",
-   Range = {1, 200},
-   Increment = 1,
-   Suffix = "Items",
-   CurrentValue = 70,
-   Flag = "Slider2",
-   Callback = function(Value)
+    Name = "Minimum Items to auto sell",
+    Range = {1, 200},
+    Increment = 1,
+    Suffix = "Items",
+    CurrentValue = 70,
+    Flag = "Slider2",
+    Callback = function(Value)
         print("AutoSellItems updated to: "..Value)
-        AutoSellItems = Value
-   end,
+    end,
 })
 
 sellTab:CreateButton({
@@ -673,3 +680,5 @@ if not playerFarm then
 end
 
 print("Grow A Garden script loaded successfully!")
+
+Rayfield:LoadDefault() -- BARIS PENTING YANG DITAMBAHKAN

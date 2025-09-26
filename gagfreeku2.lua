@@ -1,5 +1,5 @@
 -- =============================================
--- ROBLOX CHARACTER DEBUG MONITOR - ALL IN ONE
+-- ROBLOX CHARAC
 -- Script untuk memantau semua aspek karakter
 -- =============================================
 

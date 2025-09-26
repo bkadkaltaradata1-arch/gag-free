@@ -21,7 +21,7 @@ local CONFIG = {
         HEALTH_MONITOR = true,
         STATE_MONITOR = true,
         TOOL_MONITOR = true,
-        ANIMATION_MONITOR = false, -- Hati-hati bisa spam
+        ANIMATION_MONITOR = false,
         PERFORMANCE_MONITOR = true,
         POSITION_LOGGING = true,
         ERROR_HANDLING = true
@@ -53,14 +53,20 @@ function debugLog(level, message)
         local output = string.format("[%s][%s] %s", timestamp, levelName, message)
         
         if level <= 2 then
-            warn(output)  -- ERROR dan WARN pakai warn()
+            warn(output)
         else
-            print(output) -- INFO dan DEBUG pakai print()
+            print(output)
         end
     end
 end
 
+-- PERBAIKAN: Fungsi safeConnect yang benar
 function safeConnect(signal, callback, description)
+    if not signal or typeof(signal) ~= "RBXScriptSignal" then
+        debugLog(1, "Invalid signal provided for: " .. tostring(description))
+        return nil
+    end
+    
     local success, connection = pcall(function()
         return signal:Connect(function(...)
             local success2, result = pcall(callback, ...)
@@ -74,14 +80,14 @@ function safeConnect(signal, callback, description)
         table.insert(monitors, connection)
         return connection
     else
-        debugLog(1, string.format("Failed to connect to %s", description))
+        debugLog(1, string.format("Failed to connect to %s: %s", description, tostring(connection)))
         return nil
     end
 end
 
 -- ================= MONITORING FUNCTIONS =================
 function setupHealthMonitor(humanoid)
-    if not CONFIG.FEATURES.HEALTH_MONITOR then return end
+    if not CONFIG.FEATURES.HEALTH_MONITOR or not humanoid then return end
     
     safeConnect(humanoid.HealthChanged, function(health)
         debugLog(3, string.format("Health: %.1f/%.1f (%.1f%%)", 
@@ -94,7 +100,7 @@ function setupHealthMonitor(humanoid)
 end
 
 function setupStateMonitor(humanoid)
-    if not CONFIG.FEATURES.STATE_MONITOR then return end
+    if not CONFIG.FEATURES.STATE_MONITOR or not humanoid then return end
     
     safeConnect(humanoid.StateChanged, function(oldState, newState)
         if oldState ~= newState then
@@ -117,7 +123,7 @@ function setupMovementMonitor()
                 local currentPosition = rootPart.Position
                 local distance = (currentPosition - lastPosition).Magnitude
                 
-                if distance > 0.5 then -- Hanya log jika bergerak signifikan
+                if distance > 0.5 then
                     debugLog(4, string.format("Movement: %.2f studs | Position: (%.1f, %.1f, %.1f)", 
                         distance, currentPosition.X, currentPosition.Y, currentPosition.Z))
                     lastPosition = currentPosition
@@ -152,7 +158,7 @@ function setupToolMonitor()
             
             -- Monitor tool activation
             local activateEvent = child:FindFirstChild("Activate")
-            if activateEvent then
+            if activateEvent and typeof(activateEvent) == "Instance" then
                 safeConnect(activateEvent, function()
                     debugLog(4, "Tool activated: " .. child.Name)
                 end, "Tool Activation: " .. child.Name)
@@ -173,15 +179,13 @@ function setupAnimationMonitor(humanoid)
     local animateScript = character:FindFirstChild("Animate")
     if animateScript then
         debugLog(3, "Animation system found: Animate script")
-        -- Bisa ditambahkan monitor animasi spesifik di sini
     end
 end
 
 function setupInputMonitor()
-    -- Monitor input keyboard/mouse (optional)
     safeConnect(UserInputService.InputBegan, function(input, gameProcessed)
         if not gameProcessed then
-            debugLog(4, string.format("Input: %s (Type: %s)", input.KeyCode.Name, input.UserInputType.Name))
+            debugLog(4, string.format("Input: %s (Type: %s)", tostring(input.KeyCode), tostring(input.UserInputType)))
         end
     end, "Input Monitor")
 end
@@ -266,13 +270,17 @@ function initializeMonitors()
     end
     
     -- Setup semua monitors
-    local humanoid = character:WaitForChild("Humanoid")
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        setupHealthMonitor(humanoid)
+        setupStateMonitor(humanoid)
+        setupAnimationMonitor(humanoid)
+    else
+        debugLog(2, "❌ Humanoid not found in character!")
+    end
     
-    setupHealthMonitor(humanoid)
-    setupStateMonitor(humanoid)
     setupMovementMonitor()
     setupToolMonitor()
-    setupAnimationMonitor(humanoid)
     setupInputMonitor()
     
     debugLog(3, "✅ All monitors initialized successfully!")
@@ -296,34 +304,36 @@ safeConnect(player.CharacterAdded, function(newCharacter)
     -- Cleanup monitors lama
     cleanupMonitors()
     
-    -- Tunggu karakter fully loaded
-    wait(1)
-    
     -- Update reference karakter
     character = newCharacter
     
+    -- Tunggu humanoid ready
+    local humanoid = newCharacter:WaitForChild("Humanoid")
+    
     -- Initialize monitors baru
+    wait(0.5) -- Tunggu sedikit untuk stabil
     initializeMonitors()
 end, "Respawn Monitor")
 
 -- ================= COMMAND HANDLER =================
 function handleCommand(command)
+    if type(command) ~= "string" then return end
+    
     command = string.lower(command)
     
     if command == "status" then
         printCharacterStatus()
     elseif command == "config" then
         debugLog(3, "=== CONFIGURATION ===")
-        for key, value in pairs(CONFIG) do
-            if type(value) ~= "table" then
-                debugLog(3, string.format("%s: %s", key, tostring(value)))
-            end
+        debugLog(3, "LOG_LEVEL: " .. tostring(CONFIG.LOG_LEVEL))
+        for feature, enabled in pairs(CONFIG.FEATURES) do
+            debugLog(3, string.format("FEATURES.%s: %s", feature, tostring(enabled)))
         end
     elseif command == "help" then
         debugLog(3, "=== COMMANDS ===")
-        debugLog(3, "status - Show character status")
-        debugLog(3, "config - Show current configuration")
-        debugLog(3, "help - Show this help message")
+        debugLog(3, "handleCommand('status') - Show character status")
+        debugLog(3, "handleCommand('config') - Show current configuration")
+        debugLog(3, "handleCommand('help') - Show this help message")
     else
         debugLog(2, "Unknown command: " .. command)
         debugLog(3, "Type 'help' for available commands")
@@ -337,22 +347,11 @@ debugLog(3, "Script loaded successfully!")
 -- Initialize pertama kali
 initializeMonitors()
 
--- Setup command handler (untuk executor yang support)
-if typeof(syn) == "table" or typeof(fluxus) == "table" or getexecutorname then
-    debugLog(3, "💬 Command system available! Type 'help' for commands.")
-    
-    -- Simulate command system (adapt sesuai executor Anda)
-    local function setupCommandListener()
-        -- Ini contoh, sesuaikan dengan executor yang digunakan
-        debugLog(3, "Use: handleCommand('status') to check character")
-    end
-    setupCommandListener()
-end
-
 -- Final message
 debugLog(3, "🎯 Debug monitor is running! Check console for updates.")
-debugLog(3, "Character changes will be logged automatically.")
+debugLog(3, "Use handleCommand('status') to check character manually.")
 
+-- Return functions untuk external access
 return {
     getStatus = printCharacterStatus,
     getConfig = function() return CONFIG end,

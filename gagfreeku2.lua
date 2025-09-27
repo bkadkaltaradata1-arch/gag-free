@@ -1,4 +1,3 @@
-perbaikan autobuy seed dengan masuk ke main_frame kemudian button sheckles_buy
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm

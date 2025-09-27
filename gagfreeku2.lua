@@ -1,4 +1,4 @@
--- LocalScript di StarterPlayerScripts
+-- LocalScript di StarterPlayerScript88
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")

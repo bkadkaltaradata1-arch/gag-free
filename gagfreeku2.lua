@@ -25,20 +25,22 @@ local carrotSeedTracking = {
     currentCount = 0,
     buyAttempts = 0,
     successfulBuys = 0,
-    buttonClicks = 0
+    buttonClicks = 0,
+    remoteEventsAttempted = 0,
+    lastBuyMethod = "None"
 }
 
--- Buat UI debug yang lebih besar dengan kontrol khusus carrot seed
+-- Buat UI debug
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AdvancedDebugGUI"
+screenGui.Name = "CarrotSeedDebugger"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player.PlayerGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 500, 0, 350)
+mainFrame.Size = UDim2.new(0, 550, 0, 400)
 mainFrame.Position = UDim2.new(0, 10, 0, 10)
 mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-mainFrame.BackgroundTransparency = 0.15
+mainFrame.BackgroundTransparency = 0.1
 mainFrame.BorderSizePixel = 2
 mainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
 mainFrame.Parent = screenGui
@@ -47,30 +49,26 @@ local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 8)
 corner.Parent = mainFrame
 
+-- [Kode UI sebelumnya tetap sama...]
 -- Header dengan kontrol
 local header = Instance.new("Frame")
-header.Size = UDim2.new(1, 0, 0.15, 0)
+header.Size = UDim2.new(1, 0, 0.12, 0)
 header.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-header.BackgroundTransparency = 0.1
 header.Parent = mainFrame
-
-local cornerHeader = Instance.new("UICorner")
-cornerHeader.CornerRadius = UDim.new(0, 8)
-cornerHeader.Parent = header
 
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(0.6, 0, 1, 0)
 title.BackgroundTransparency = 1
 title.TextColor3 = Color3.fromRGB(255, 255, 0)
-title.Text = "🥕 CARROT SEED DEBUGGER 🥕"
+title.Text = "🥕 ADVANCED CARROT BUY DEBUGGER 🥕"
 title.Font = Enum.Font.Code
 title.TextSize = 16
 title.Parent = header
 
 -- Tombol Start/Stop
 local startStopButton = Instance.new("TextButton")
-startStopButton.Size = UDim2.new(0.35, 0, 0.6, 0)
-startStopButton.Position = UDim2.new(0.63, 0, 0.2, 0)
+startStopButton.Size = UDim2.new(0.3, 0, 0.6, 0)
+startStopButton.Position = UDim2.new(0.65, 0, 0.2, 0)
 startStopButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
 startStopButton.Text = "STOP"
 startStopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -78,145 +76,77 @@ startStopButton.Font = Enum.Font.Code
 startStopButton.TextSize = 14
 startStopButton.Parent = header
 
-local buttonCorner = Instance.new("UICorner")
-buttonCorner.CornerRadius = UDim.new(0, 6)
-buttonCorner.Parent = startStopButton
-
--- Status indicator
-local statusIndicator = Instance.new("Frame")
-statusIndicator.Size = UDim2.new(0.02, 0, 0.4, 0)
-statusIndicator.Position = UDim2.new(0.59, 0, 0.3, 0)
-statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-statusIndicator.Parent = header
-
-local statusCorner = Instance.new("UICorner")
-statusCorner.CornerRadius = UDim.new(0, 4)
-statusCorner.Parent = statusIndicator
-
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(0.1, 0, 0.4, 0)
-statusLabel.Position = UDim2.new(0.5, 0, 0.3, 0)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "ON"
-statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-statusLabel.Font = Enum.Font.Code
-statusLabel.TextSize = 12
-statusLabel.Parent = header
-
--- Kontrol panel utama
-local controlFrame = Instance.new("Frame")
-controlFrame.Size = UDim2.new(1, 0, 0.2, 0)
-controlFrame.Position = UDim2.new(0, 0, 0.15, 0)
-controlFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-controlFrame.BackgroundTransparency = 0.3
-controlFrame.Parent = mainFrame
-
-local controlCorner = Instance.new("UICorner")
-controlCorner.CornerRadius = UDim.new(0, 6)
-controlCorner.Parent = controlFrame
-
--- Tombol kontrol utama
-local buttonScanBtn = Instance.new("TextButton")
-buttonScanBtn.Size = UDim2.new(0.23, 0, 0.7, 0)
-buttonScanBtn.Position = UDim2.new(0.01, 0, 0.15, 0)
-buttonScanBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 200)
-buttonScanBtn.Text = "🔍 Scan Buttons"
-buttonScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-buttonScanBtn.Font = Enum.Font.Code
-buttonScanBtn.TextSize = 12
-buttonScanBtn.Parent = controlFrame
-
-local eventScanBtn = Instance.new("TextButton")
-eventScanBtn.Size = UDim2.new(0.23, 0, 0.7, 0)
-eventScanBtn.Position = UDim2.new(0.25, 0, 0.15, 0)
-eventScanBtn.BackgroundColor3 = Color3.fromRGB(200, 70, 70)
-eventScanBtn.Text = "📡 Scan Events"
-eventScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-eventScanBtn.Font = Enum.Font.Code
-eventScanBtn.TextSize = 12
-eventScanBtn.Parent = controlFrame
-
-local clearLogsBtn = Instance.new("TextButton")
-clearLogsBtn.Size = UDim2.new(0.23, 0, 0.7, 0)
-clearLogsBtn.Position = UDim2.new(0.49, 0, 0.15, 0)
-clearLogsBtn.BackgroundColor3 = Color3.fromRGB(200, 200, 70)
-clearLogsBtn.Text = "🧹 Clear Logs"
-clearLogsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-clearLogsBtn.Font = Enum.Font.Code
-clearLogsBtn.TextSize = 12
-clearLogsBtn.Parent = controlFrame
-
--- Panel khusus carrot seed
+-- Panel kontrol carrot seed yang diperluas
 local carrotControlFrame = Instance.new("Frame")
-carrotControlFrame.Size = UDim2.new(1, 0, 0.2, 0)
-carrotControlFrame.Position = UDim2.new(0, 0, 0.35, 0)
+carrotControlFrame.Size = UDim2.new(1, 0, 0.25, 0)
+carrotControlFrame.Position = UDim2.new(0, 0, 0.12, 0)
 carrotControlFrame.BackgroundColor3 = Color3.fromRGB(40, 20, 0)
 carrotControlFrame.BackgroundTransparency = 0.2
 carrotControlFrame.Parent = mainFrame
-
-local carrotCorner = Instance.new("UICorner")
-carrotCorner.CornerRadius = UDim.new(0, 6)
-carrotCorner.Parent = carrotControlFrame
 
 local carrotTitle = Instance.new("TextLabel")
 carrotTitle.Size = UDim2.new(1, 0, 0.3, 0)
 carrotTitle.BackgroundTransparency = 1
 carrotTitle.TextColor3 = Color3.fromRGB(255, 165, 0)
-carrotTitle.Text = "🥕 CARROT SEED TRACKER 🥕"
+carrotTitle.Text = "🛒 AUTO BUY CARROT SEEDS SYSTEM"
 carrotTitle.Font = Enum.Font.Code
 carrotTitle.TextSize = 14
 carrotTitle.Parent = carrotControlFrame
 
--- Tombol khusus carrot seed
+-- Tombol-tombol kontrol carrot seed
 local checkCarrotBtn = Instance.new("TextButton")
-checkCarrotBtn.Size = UDim2.new(0.3, 0, 0.6, 0)
+checkCarrotBtn.Size = UDim2.new(0.23, 0, 0.6, 0)
 checkCarrotBtn.Position = UDim2.new(0.02, 0, 0.4, 0)
 checkCarrotBtn.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
-checkCarrotBtn.Text = "🔍 Check Seed Count"
+checkCarrotBtn.Text = "🔍 Check Seeds"
 checkCarrotBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
 checkCarrotBtn.Font = Enum.Font.Code
-checkCarrotBtn.TextSize = 12
+checkCarrotBtn.TextSize = 11
 checkCarrotBtn.Parent = carrotControlFrame
 
-local autoBuyCarrotBtn = Instance.new("TextButton")
-autoBuyCarrotBtn.Size = UDim2.new(0.3, 0, 0.6, 0)
-autoBuyCarrotBtn.Position = UDim2.new(0.34, 0, 0.4, 0)
-autoBuyCarrotBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-autoBuyCarrotBtn.Text = "🔄 Auto Buy Seeds"
-autoBuyCarrotBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-autoBuyCarrotBtn.Font = Enum.Font.Code
-autoBuyCarrotBtn.TextSize = 12
-autoBuyCarrotBtn.Parent = carrotControlFrame
+local autoBuyBasicBtn = Instance.new("TextButton")
+autoBuyBasicBtn.Size = UDim2.new(0.23, 0, 0.6, 0)
+autoBuyBasicBtn.Position = UDim2.new(0.27, 0, 0.4, 0)
+autoBuyBasicBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+autoBuyBasicBtn.Text = "🔄 Basic Auto Buy"
+autoBuyBasicBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoBuyBasicBtn.Font = Enum.Font.Code
+autoBuyBasicBtn.TextSize = 11
+autoBuyBasicBtn.Parent = carrotControlFrame
+
+local autoBuyAdvancedBtn = Instance.new("TextButton")
+autoBuyAdvancedBtn.Size = UDim2.new(0.23, 0, 0.6, 0)
+autoBuyAdvancedBtn.Position = UDim2.new(0.52, 0, 0.4, 0)
+autoBuyAdvancedBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+autoBuyAdvancedBtn.Text = "⚡ Advanced Buy"
+autoBuyAdvancedBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoBuyAdvancedBtn.Font = Enum.Font.Code
+autoBuyAdvancedBtn.TextSize = 11
+autoBuyAdvancedBtn.Parent = carrotControlFrame
 
 local trackCarrotBtn = Instance.new("TextButton")
-trackCarrotBtn.Size = UDim2.new(0.3, 0, 0.6, 0)
-trackCarrotBtn.Position = UDim2.new(0.66, 0, 0.4, 0)
-trackCarrotBtn.BackgroundColor3 = Color3.fromRGB(70, 130, 200)
-trackCarrotBtn.Text = "📊 Track Carrot Data"
+trackCarrotBtn.Size = UDim2.new(0.23, 0, 0.6, 0)
+trackCarrotBtn.Position = UDim2.new(0.77, 0, 0.4, 0)
+trackCarrotBtn.BackgroundColor3 = Color3.fromRGB(150, 75, 0)
+trackCarrotBtn.Text = "📊 Tracking Data"
 trackCarrotBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 trackCarrotBtn.Font = Enum.Font.Code
-trackCarrotBtn.TextSize = 12
+trackCarrotBtn.TextSize = 11
 trackCarrotBtn.Parent = carrotControlFrame
 
 -- Area display
-local displayFrame = Instance.new("Frame")
-displayFrame.Size = UDim2.new(1, 0, 0.45, 0)
-displayFrame.Position = UDim2.new(0, 0, 0.55, 0)
-displayFrame.BackgroundTransparency = 1
-displayFrame.Parent = mainFrame
-
 local scrollFrame = Instance.new("ScrollingFrame")
-scrollFrame.Size = UDim2.new(0.95, 0, 1, 0)
-scrollFrame.Position = UDim2.new(0.025, 0, 0, 0)
+scrollFrame.Size = UDim2.new(0.96, 0, 0.6, 0)
+scrollFrame.Position = UDim2.new(0.02, 0, 0.38, 0)
 scrollFrame.BackgroundTransparency = 1
 scrollFrame.ScrollBarThickness = 8
-scrollFrame.Parent = displayFrame
+scrollFrame.Parent = mainFrame
 
 local scrollLabel = Instance.new("TextLabel")
 scrollLabel.Size = UDim2.new(1, 0, 2, 0)
 scrollLabel.BackgroundTransparency = 1
 scrollLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-scrollLabel.Text = "System ready. Click START to begin monitoring..."
+scrollLabel.Text = "Carrot Seed Debugger Ready..."
 scrollLabel.TextWrapped = true
 scrollLabel.Font = Enum.Font.Code
 scrollLabel.TextSize = 12
@@ -224,7 +154,22 @@ scrollLabel.TextXAlignment = Enum.TextXAlignment.Left
 scrollLabel.TextYAlignment = Enum.TextYAlignment.Top
 scrollLabel.Parent = scrollFrame
 
-print("Advanced Carrot Seed Debug GUI berhasil dibuat!")
+print("Advanced Carrot Seed Auto Buy Debugger Loaded!")
+
+-- Fungsi untuk mendapatkan full path dari instance
+local function getFullPath(instance)
+    local path = instance.Name
+    local current = instance.Parent
+    local depth = 0
+    
+    while current and current ~= game and depth < 10 do
+        path = current.Name .. " > " .. path
+        current = current.Parent
+        depth = depth + 1
+    end
+    
+    return path
+end
 
 -- Fungsi untuk mencari backpack player dan menghitung seed carrot
 local function getCarrotSeedCount()
@@ -232,33 +177,39 @@ local function getCarrotSeedCount()
         -- Cari backpack player
         local backpack = player:FindFirstChild("Backpack")
         if not backpack then
-            return "Backpack tidak ditemukan"
+            return {count = 0, items = {}, error = "Backpack not found"}
         end
         
-        -- Cari tools/items di backpack
         local carrotSeeds = 0
         local seedItems = {}
         
+        -- Cari tools/items di backpack dengan berbagai pattern
         for _, item in ipairs(backpack:GetChildren()) do
-            if item:IsA("Tool") or item:IsA("Folder") or item:IsA("Model") then
-                local itemName = string.lower(item.Name)
-                
-                -- Cek berbagai kemungkinan nama untuk seed carrot
-                if string.find(itemName, "carrot") and string.find(itemName, "seed") then
+            local itemName = string.lower(item.Name)
+            
+            -- Pattern matching untuk carrot seed
+            local patterns = {
+                "carrot.seed", "seed.carrot", "carrotseed", "seedcarrot",
+                "carrot", "seed"
+            }
+            
+            for _, pattern in ipairs(patterns) do
+                if string.find(itemName, pattern) then
                     carrotSeeds = carrotSeeds + 1
-                    table.insert(seedItems, item.Name)
-                elseif string.find(itemName, "seed") and string.find(itemName, "carrot") then
-                    carrotSeeds = carrotSeeds + 1
-                    table.insert(seedItems, item.Name)
-                elseif itemName == "carrot seed" or itemName == "seed carrot" then
-                    carrotSeeds = carrotSeeds + 1
-                    table.insert(seedItems, item.Name)
+                    table.insert(seedItems, {
+                        name = item.Name,
+                        className = item.ClassName,
+                        fullPath = getFullPath(item)
+                    })
+                    break
                 end
             end
         end
         
         -- Update tracking data
+        local oldCount = carrotSeedTracking.currentCount
         carrotSeedTracking.currentCount = carrotSeeds
+        
         if carrotSeedTracking.initialCount == 0 then
             carrotSeedTracking.initialCount = carrotSeeds
         end
@@ -267,7 +218,9 @@ local function getCarrotSeedCount()
             count = carrotSeeds,
             items = seedItems,
             initialCount = carrotSeedTracking.initialCount,
-            difference = carrotSeeds - carrotSeedTracking.initialCount
+            difference = carrotSeeds - carrotSeedTracking.initialCount,
+            oldCount = oldCount,
+            newCount = carrotSeeds
         }
     end)
     
@@ -278,377 +231,641 @@ local function getCarrotSeedCount()
     return result
 end
 
--- Fungsi untuk mencari semua button buy seed carrot
-local function findCarrotSeedButtons()
+-- Fungsi untuk mencari RemoteEvents yang terkait dengan pembelian
+local function findBuyRemoteEvents()
+    local buyEvents = {}
+    local allEvents = {}
+    
+    -- Scan ReplicatedStorage untuk RemoteEvents
+    for _, event in ipairs(ReplicatedStorage:GetDescendants()) do
+        if event:IsA("RemoteEvent") then
+            local eventName = string.lower(event.Name)
+            
+            -- Pattern matching untuk event pembelian
+            local buyPatterns = {
+                "buy", "purchase", "shop", "store", "seed", "carrot",
+                "sheckles", "currency", "item", "add", "get"
+            }
+            
+            local score = 0
+            for _, pattern in ipairs(buyPatterns) do
+                if string.find(eventName, pattern) then
+                    score = score + 1
+                end
+            end
+            
+            if score > 0 then
+                table.insert(buyEvents, {
+                    event = event,
+                    name = event.Name,
+                    path = getFullPath(event),
+                    score = score,
+                    type = "RemoteEvent"
+                })
+            end
+            
+            table.insert(allEvents, {
+                event = event,
+                name = event.Name,
+                path = getFullPath(event),
+                type = "RemoteEvent"
+            })
+        end
+    end
+    
+    -- Scan RemoteFunctions juga
+    for _, func in ipairs(ReplicatedStorage:GetDescendants()) do
+        if func:IsA("RemoteFunction") then
+            local funcName = string.lower(func.Name)
+            
+            local buyPatterns = {
+                "buy", "purchase", "shop", "store", "seed", "carrot"
+            }
+            
+            local score = 0
+            for _, pattern in ipairs(buyPatterns) do
+                if string.find(funcName, pattern) then
+                    score = score + 1
+                end
+            end
+            
+            if score > 0 then
+                table.insert(buyEvents, {
+                    event = func,
+                    name = func.Name,
+                    path = getFullPath(func),
+                    score = score,
+                    type = "RemoteFunction"
+                })
+            end
+        end
+    end
+    
+    -- Urutkan berdasarkan score (kecocokan tertinggi)
+    table.sort(buyEvents, function(a, b)
+        return a.score > b.score
+    end)
+    
+    return {
+        buyEvents = buyEvents,
+        allEvents = allEvents,
+        totalBuyEvents = #buyEvents,
+        totalEvents = #allEvents
+    }
+end
+
+-- Fungsi untuk mencari button pembelian di GUI
+local function findBuyButtons()
+    local buyButtons = {}
     local carrotButtons = {}
+    local shecklesButtons = {}
     local allButtons = {}
     
-    -- Scan seluruh GUI
     local guis = player.PlayerGui:GetDescendants()
     
     for _, guiElement in ipairs(guis) do
         if guiElement:IsA("TextButton") or guiElement:IsA("ImageButton") then
             local buttonName = string.lower(guiElement.Name)
-            local buttonText = ""
+            local buttonText = guiElement:IsA("TextButton") and string.lower(guiElement.Text or "") or ""
             
-            if guiElement:IsA("TextButton") then
-                buttonText = string.lower(guiElement.Text or "")
+            -- Kategorikan button berdasarkan pattern
+            local patterns = {
+                {pattern = "sheckles", category = "sheckles"},
+                {pattern = "carrot", category = "carrot"},
+                {pattern = "seed", category = "carrot"},
+                {pattern = "buy", category = "buy"},
+                {pattern = "purchase", category = "buy"}
+            }
+            
+            local categories = {}
+            for _, patternData in ipairs(patterns) do
+                if string.find(buttonName, patternData.pattern) or string.find(buttonText, patternData.pattern) then
+                    table.insert(categories, patternData.category)
+                end
             end
             
-            -- Cek berbagai kemungkinan nama button untuk buy carrot seed
-            local isCarrotButton = false
-            local matchType = ""
-            
-            if string.find(buttonName, "carrot") and string.find(buttonName, "buy") then
-                isCarrotButton = true
-                matchType = "Name contains 'carrot' and 'buy'"
-            elseif string.find(buttonName, "carrot") and string.find(buttonName, "seed") then
-                isCarrotButton = true
-                matchType = "Name contains 'carrot' and 'seed'"
-            elseif string.find(buttonText, "carrot") and string.find(buttonText, "buy") then
-                isCarrotButton = true
-                matchType = "Text contains 'carrot' and 'buy'"
-            elseif string.find(buttonText, "carrot") and string.find(buttonText, "seed") then
-                isCarrotButton = true
-                matchType = "Text contains 'carrot' and 'seed'"
-            elseif string.find(buttonName, "buy") and (string.find(buttonName, "seed") or string.find(buttonText, "seed")) then
-                isCarrotButton = true
-                matchType = "Generic seed buy button"
-            end
-            
-            if isCarrotButton then
-                local buttonInfo = {
-                    button = guiElement,
-                    name = guiElement.Name,
-                    text = guiElement:IsA("TextButton") and guiElement.Text or "N/A",
-                    path = getFullPath(guiElement),
-                    matchType = matchType,
-                    visible = guiElement.Visible,
-                    enabled = guiElement.Enabled
-                }
-                table.insert(carrotButtons, buttonInfo)
-            end
-            
-            table.insert(allButtons, {
+            local buttonInfo = {
                 button = guiElement,
                 name = guiElement.Name,
-                text = guiElement:IsA("TextButton") and guiElement.Text or "N/A"
-            })
+                text = guiElement:IsA("TextButton") and guiElement.Text or "N/A",
+                path = getFullPath(guiElement),
+                categories = categories,
+                visible = guiElement.Visible,
+                enabled = guiElement.Enabled
+            }
+            
+            table.insert(allButtons, buttonInfo)
+            
+            -- Kategorikan button
+            if #categories > 0 then
+                table.insert(buyButtons, buttonInfo)
+                
+                if table.find(categories, "carrot") then
+                    table.insert(carrotButtons, buttonInfo)
+                end
+                
+                if table.find(categories, "sheckles") then
+                    table.insert(shecklesButtons, buttonInfo)
+                end
+            end
         end
     end
     
     return {
-        carrotButtons = carrotButtons,
         allButtons = allButtons,
+        buyButtons = buyButtons,
+        carrotButtons = carrotButtons,
+        shecklesButtons = shecklesButtons,
+        totalAllButtons = #allButtons,
+        totalBuyButtons = #buyButtons,
         totalCarrotButtons = #carrotButtons,
-        totalButtons = #allButtons
+        totalShecklesButtons = #shecklesButtons
     }
 end
 
--- Fungsi untuk mendapatkan full path dari instance
-local function getFullPath(instance)
-    local path = instance.Name
-    local current = instance.Parent
+-- Fungsi untuk mencoba FireServer pada RemoteEvents
+local function tryRemoteEventBuy()
+    local eventsInfo = findBuyRemoteEvents()
+    local buyEvents = eventsInfo.buyEvents
     
-    while current and current ~= game do
-        path = current.Name .. " > " .. path
-        current = current.Parent
-    end
-    
-    return path
-end
-
--- Fungsi untuk mencoba semua button buy seed carrot
-local function tryAllCarrotSeedButtons()
-    local buttonsInfo = findCarrotSeedButtons()
-    local carrotButtons = buttonsInfo.carrotButtons
-    
-    if #carrotButtons == 0 then
+    if #buyEvents == 0 then
         return {
             success = false,
-            message = "Tidak ditemukan button buy seed carrot",
-            buttonsFound = 0
+            message = "No buy-related RemoteEvents found",
+            attempted = 0,
+            successful = 0
         }
     end
     
-    local attemptedButtons = 0
-    local successfulClicks = 0
-    local originalCount = carrotSeedTracking.currentCount
+    local attempted = 0
+    local successful = 0
+    local results = {}
     
-    -- Catat state sebelum mencoba
-    local beforeState = getCarrotSeedCount()
+    -- Ambil seed count sebelum mencoba
+    local beforeSeedData = getCarrotSeedCount()
+    local initialCount = beforeSeedData.count
     
-    for i, buttonInfo in ipairs(carrotButtons) do
-        if buttonInfo.button.Visible and buttonInfo.button.Enabled then
-            attemptedButtons = attemptedButtons + 1
-            
-            -- Simpan original color untuk efek visual
-            local originalColor = buttonInfo.button.BackgroundColor3
-            
-            -- Coba click button
+    for i, eventInfo in ipairs(buyEvents) do
+        if attempted >= 5 then break end -- Batasi attempt
+        
+        local event = eventInfo.event
+        attempted = attempted + 1
+        
+        local result = {
+            eventName = eventInfo.name,
+            eventType = eventInfo.type,
+            path = eventInfo.path,
+            success = false,
+            error = nil
+        }
+        
+        -- Coba FireServer dengan berbagai parameter
+        local parametersList = {
+            {"carrot", "seed"},
+            {"CarrotSeed", 1},
+            {"carrot_seed", 1},
+            {1, "carrot"},
+            {"seed", "carrot"},
+            {"buy", "carrot", "seed"},
+            {player, "carrot", "seed"}
+        }
+        
+        for _, params in ipairs(parametersList) do
             local success, errorMsg = pcall(function()
-                -- Trigger click event
-                buttonInfo.button:FireEvent("MouseButton1Click")
-                
-                -- Visual feedback
-                buttonInfo.button.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-                wait(0.2)
-                buttonInfo.button.BackgroundColor3 = originalColor
+                if eventInfo.type == "RemoteEvent" then
+                    event:FireServer(unpack(params))
+                else
+                    event:InvokeServer(unpack(params))
+                end
             end)
             
             if success then
-                successfulClicks = successfulClicks + 1
-                carrotSeedTracking.buttonClicks = carrotSeedTracking.buttonClicks + 1
+                result.success = true
+                successful = successful + 1
+                carrotSeedTracking.remoteEventsAttempted = carrotSeedTracking.remoteEventsAttempted + 1
+                break
+            else
+                result.error = errorMsg
             end
             
-            wait(0.5) -- Delay antara clicks
+            wait(0.1) -- Delay antara attempts
         end
+        
+        table.insert(results, result)
+        wait(0.2) -- Delay antara events
     end
     
-    -- Tunggu sebentar untuk update state
+    -- Tunggu dan cek hasil
     wait(1)
-    local afterState = getCarrotSeedCount()
+    local afterSeedData = getCarrotSeedCount()
+    local finalCount = afterSeedData.count
     
-    -- Cek jika seed count bertambah
-    local seedIncreased = afterState.count > beforeState.count
+    local seedIncreased = finalCount > initialCount
     if seedIncreased then
         carrotSeedTracking.successfulBuys = carrotSeedTracking.successfulBuys + 1
-        carrotSeedTracking.buyAttempts = carrotSeedTracking.buyAttempts + attemptedButtons
+        carrotSeedTracking.lastBuyMethod = "RemoteEvent"
     end
     
     return {
-        success = true,
-        attemptedButtons = attemptedButtons,
-        successfulClicks = successfulClicks,
+        success = seedIncreased,
+        attemptedEvents = attempted,
+        successfulEvents = successful,
         seedIncreased = seedIncreased,
-        beforeCount = beforeState.count,
-        afterCount = afterState.count,
-        difference = afterState.count - beforeState.count,
-        totalCarrotButtons = #carrotButtons
+        beforeCount = initialCount,
+        afterCount = finalCount,
+        difference = finalCount - initialCount,
+        results = results,
+        totalBuyEvents = #buyEvents
     }
 end
 
--- Fungsi untuk update debug info
-local function updateDebugInfo(debugType, details, data)
-    if not isMonitoring then return end
+-- Fungsi untuk mencoba click button pembelian
+local function tryButtonBuy()
+    local buttonsInfo = findBuyButtons()
+    local relevantButtons = {}
     
-    local character = player.Character
-    local charName = "No Character"
-    local position = "Unknown"
-    local health = "N/A"
-    
-    if character then
-        charName = character.Name
-        if character:FindFirstChild("HumanoidRootPart") then
-            local pos = character.HumanoidRootPart.Position
-            position = string.format("X:%.1f, Y:%.1f, Z:%.1f", pos.X, pos.Y, pos.Z)
-        end
-        if character:FindFirstChild("Humanoid") then
-            health = string.format("%.0f/%.0f", character.Humanoid.Health, character.Humanoid.MaxHealth)
+    -- Prioritaskan button yang mengandung "sheckles" dan "buy"
+    for _, button in ipairs(buttonsInfo.buyButtons) do
+        if table.find(button.categories, "sheckles") or table.find(button.categories, "carrot") then
+            table.insert(relevantButtons, button)
         end
     end
     
-    local fps = math.floor(1/RunService.Heartbeat:Wait())
+    if #relevantButtons == 0 then
+        relevantButtons = buttonsInfo.buyButtons
+    end
+    
+    if #relevantButtons == 0 then
+        return {
+            success = false,
+            message = "No buy buttons found",
+            attempted = 0,
+            successful = 0
+        }
+    end
+    
+    local attempted = 0
+    local successfulClicks = 0
+    local results = {}
+    
+    local beforeSeedData = getCarrotSeedCount()
+    local initialCount = beforeSeedData.count
+    
+    for i, buttonInfo in ipairs(relevantButtons) do
+        if attempted >= 8 then break end -- Batasi attempt
+        
+        if buttonInfo.visible and buttonInfo.enabled then
+            attempted = attempted + 1
+            
+            local result = {
+                buttonName = buttonInfo.name,
+                buttonText = buttonInfo.text,
+                path = buttonInfo.path,
+                categories = table.concat(buttonInfo.categories, ", "),
+                success = false,
+                error = nil
+            }
+            
+            -- Coba berbagai metode click
+            local clickMethods = {
+                {"MouseButton1Click", "Standard Click"},
+                {"Activate", "Activate Method"},
+                {"MouseButton1Down", "Mouse Down"}
+            }
+            
+            for _, method in ipairs(clickMethods) do
+                local success, errorMsg = pcall(function()
+                    -- Simpan original color
+                    local originalColor = buttonInfo.button.BackgroundColor3
+                    
+                    -- Visual feedback
+                    buttonInfo.button.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+                    
+                    -- Coba trigger event
+                    if buttonInfo.button:FindFirstChild(method[1]) then
+                        buttonInfo.button[method[1]]:Fire()
+                    else
+                        -- Fallback: gunakan MouseButton1Click
+                        buttonInfo.button:FireEvent("MouseButton1Click")
+                    end
+                    
+                    wait(0.1)
+                    buttonInfo.button.BackgroundColor3 = originalColor
+                end)
+                
+                if success then
+                    result.success = true
+                    successfulClicks = successfulClicks + 1
+                    carrotSeedTracking.buttonClicks = carrotSeedTracking.buttonClicks + 1
+                    break
+                else
+                    result.error = errorMsg
+                end
+            end
+            
+            table.insert(results, result)
+            wait(0.3) -- Delay antara button attempts
+        end
+    end
+    
+    -- Tunggu dan cek hasil
+    wait(1.5)
+    local afterSeedData = getCarrotSeedCount()
+    local finalCount = afterSeedData.count
+    
+    local seedIncreased = finalCount > initialCount
+    if seedIncreased then
+        carrotSeedTracking.successfulBuys = carrotSeedTracking.successfulBuys + 1
+        carrotSeedTracking.lastBuyMethod = "Button Click"
+    end
+    
+    return {
+        success = seedIncreased,
+        attemptedButtons = attempted,
+        successfulClicks = successfulClicks,
+        seedIncreased = seedIncreased,
+        beforeCount = initialCount,
+        afterCount = finalCount,
+        difference = finalCount - initialCount,
+        results = results,
+        totalRelevantButtons = #relevantButtons
+    }
+end
+
+-- Fungsi auto buy advanced (mencoba semua metode)
+local function advancedAutoBuy()
+    updateDebugInfo("ADVANCED AUTO BUY", "Starting comprehensive buy attempt", "Trying all available methods...")
+    
+    local results = {}
+    local totalAttempted = 0
+    local totalSuccessful = 0
+    
+    -- Method 1: Coba RemoteEvents pertama
+    updateDebugInfo("REMOTE EVENT BUY", "Attempting RemoteEvent purchase", "Scanning for buy events...")
+    local eventResult = tryRemoteEventBuy()
+    table.insert(results, {method = "RemoteEvent", result = eventResult})
+    totalAttempted = totalAttempted + eventResult.attemptedEvents
+    totalSuccessful = totalSuccessful + (eventResult.success and 1 or 0)
+    
+    wait(1)
+    
+    -- Method 2: Coba Button clicks
+    updateDebugInfo("BUTTON BUY", "Attempting Button purchase", "Scanning for buy buttons...")
+    local buttonResult = tryButtonBuy()
+    table.insert(results, {method = "Button", result = buttonResult})
+    totalAttempted = totalAttempted + buttonResult.attemptedButtons
+    totalSuccessful = totalSuccessful + (buttonResult.success and 1 or 0)
+    
+    -- Method 3: Coba kombinasi
+    if not eventResult.success and not buttonResult.success then
+        updateDebugInfo("COMBINATION BUY", "Attempting combination approach", "Trying sequential methods...")
+        wait(0.5)
+        
+        -- Coba event lalu button secara berurutan
+        local comboResults = {}
+        
+        for i = 1, 2 do
+            local tempEventResult = tryRemoteEventBuy()
+            wait(0.5)
+            local tempButtonResult = tryButtonBuy()
+            
+            table.insert(comboResults, {
+                attempt = i,
+                eventSuccess = tempEventResult.success,
+                buttonSuccess = tempButtonResult.success
+            })
+            
+            if tempEventResult.success or tempButtonResult.success then
+                break
+            end
+        end
+        
+        table.insert(results, {method = "Combination", result = comboResults})
+    end
+    
+    -- Final evaluation
+    local finalSeedData = getCarrotSeedCount()
+    local overallSuccess = eventResult.success or buttonResult.success
+    
+    if overallSuccess then
+        carrotSeedTracking.successfulBuys = carrotSeedTracking.successfulBuys + 1
+    end
+    
+    -- Generate comprehensive report
+    local report = "🎯 ADVANCED AUTO BUY COMPLETE REPORT:\n\n"
+    report = report .. string.format("OVERALL RESULT: %s\n", overallSuccess and "SUCCESS 🎉" or "FAILED ❌")
+    report = report .. string.format("Final Seed Count: %d (Started: %d)\n", finalSeedData.count, finalSeedData.oldCount)
+    report = report .. string.format("Total Methods Attempted: %d\n", #results)
+    report = report .. string.format("Total Operations: %d\n\n", totalAttempted)
+    
+    for i, methodResult in ipairs(results) do
+        report = report .. string.format("METHOD %d: %s\n", i, methodResult.method)
+        report = report .. string.format("  Success: %s\n", methodResult.result.success and "YES" or "NO")
+        
+        if methodResult.method == "RemoteEvent" then
+            report = report .. string.format("  Events Attempted: %d/%d\n", 
+                methodResult.result.attemptedEvents, methodResult.result.totalBuyEvents)
+            report = report .. string.format("  Seed Change: %d → %d (%+d)\n\n",
+                methodResult.result.beforeCount, methodResult.result.afterCount, methodResult.result.difference)
+        elseif methodResult.method == "Button" then
+            report = report .. string.format("  Buttons Attempted: %d/%d\n", 
+                methodResult.result.attemptedButtons, methodResult.result.totalRelevantButtons)
+            report = report .. string.format("  Successful Clicks: %d\n", methodResult.result.successfulClicks)
+            report = report .. string.format("  Seed Change: %d → %d (%+d)\n\n",
+                methodResult.result.beforeCount, methodResult.result.afterCount, methodResult.result.difference)
+        end
+    end
+    
+    report = report .. "📊 TRACKING SUMMARY:\n"
+    report = report .. string.format("Total Buy Attempts: %d\n", carrotSeedTracking.buyAttempts)
+    report = report .. string.format("Successful Buys: %d\n", carrotSeedTracking.successfulBuys)
+    report = report .. string.format("Button Clicks: %d\n", carrotSeedTracking.buttonClicks)
+    report = report .. string.format("Remote Events: %d\n", carrotSeedTracking.remoteEventsAttempted)
+    report = report .. string.format("Last Method: %s\n", carrotSeedTracking.lastBuyMethod)
+    
+    updateDebugInfo("ADVANCED AUTO BUY", "Comprehensive buy attempt completed", report)
+    
+    return {
+        success = overallSuccess,
+        results = results,
+        finalCount = finalSeedData.count,
+        totalAttempted = totalAttempted
+    }
+end
+
+-- Fungsi update debug info
+local function updateDebugInfo(debugType, details, data)
+    if not isMonitoring then return end
     
     local debugText = string.format([[
 🔍 DEBUG TYPE: %s
 📋 DETAILS: %s
 
-👤 CHARACTER INFO:
-- Name: %s
-- Health: %s
-- Position: %s
-
-🥕 CARROT SEED TRACKING:
-- Initial: %d
-- Current: %d
-- Difference: %d
-- Buy Attempts: %d
-- Successful Buys: %d
-- Button Clicks: %d
-
-⚡ PERFORMANCE:
-- FPS: %d
-- Time: %s
-- Status: %s
+🥕 CARROT SEED STATUS:
+- Initial: %d | Current: %d | Difference: %+d
+- Buy Attempts: %d | Successful: %d
+- Last Method: %s
 
 📊 DATA:
 %s
     ]], 
     debugType, 
     details,
-    charName,
-    health,
-    position,
     carrotSeedTracking.initialCount,
     carrotSeedTracking.currentCount,
     carrotSeedTracking.currentCount - carrotSeedTracking.initialCount,
     carrotSeedTracking.buyAttempts,
     carrotSeedTracking.successfulBuys,
-    carrotSeedTracking.buttonClicks,
-    fps,
-    os.date("%H:%M:%S"),
-    isMonitoring and "ACTIVE" or "PAUSED",
+    carrotSeedTracking.lastBuyMethod,
     data or "No additional data")
     
     scrollLabel.Text = debugText
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, scrollLabel.TextBounds.Y + 20)
     
-    -- Print ke console juga
-    print("=== CARROT SEED DEBUG ===")
-    print("Type: " .. debugType)
-    print("Details: " .. details)
-    print("Carrot Seeds: " .. carrotSeedTracking.currentCount)
-    print("Status: " .. (isMonitoring and "ACTIVE" or "PAUSED"))
-    print("=========================")
+    print("=== CARROT DEBUG: " .. debugType .. " ===")
+    print(details)
 end
 
--- Fungsi untuk memulai/menghentikan monitoring (sama seperti sebelumnya)
-local function startMonitoring()
-    if isMonitoring then return end
-    isMonitoring = true
-    startStopButton.Text = "STOP"
-    startStopButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-    statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    statusLabel.Text = "ON"
-    updateDebugInfo("SYSTEM", "Monitoring Started", "All monitoring functions are now ACTIVE")
-end
-
-local function stopMonitoring()
-    if not isMonitoring then return end
-    isMonitoring = false
-    startStopButton.Text = "START"
-    startStopButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-    statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    statusLabel.Text = "OFF"
-    updateDebugInfo("SYSTEM", "Monitoring Stopped", "All monitoring functions are now PAUSED")
-end
-
--- Handler untuk tombol carrot seed
+-- Handler untuk tombol-tombol
 checkCarrotBtn.MouseButton1Click:Connect(function()
     local seedData = getCarrotSeedCount()
     
     local dataText = string.format([[
-🥕 CARROT SEED COUNT RESULTS:
+SEED COUNT RESULTS:
+- Current Count: %d
+- Items Found: %d
+- Initial Count: %d
+- Difference: %+d
 
-Initial Count: %d
-Current Count: %d
-Difference: %d
-
-Items Found: %d
-Item Names: %s
+ITEMS IN BACKPACK:
+%s
 
 %s
     ]],
-    carrotSeedTracking.initialCount,
     seedData.count,
-    seedData.count - carrotSeedTracking.initialCount,
     #seedData.items,
-    table.concat(seedData.items, ", "),
-    seedData.error and "ERROR: " .. seedData.error or "Scan completed successfully")
+    seedData.initialCount,
+    seedData.difference,
+    #seedData.items > 0 and table.concat(seedData.items, "\n") or "No carrot seed items found",
+    seedData.error and "ERROR: " .. seedData.error or "Scan successful")
     
-    updateDebugInfo("CARROT SEED CHECK", "Backpack Scan Complete", dataText)
+    updateDebugInfo("SEED CHECK", "Backpack scan completed", dataText)
 end)
 
-autoBuyCarrotBtn.MouseButton1Click:Connect(function()
-    updateDebugInfo("CARROT SEED BUY", "Starting auto buy process", "Scanning for carrot seed buttons...")
+autoBuyBasicBtn.MouseButton1Click:Connect(function()
+    updateDebugInfo("BASIC AUTO BUY", "Starting basic buy attempt", "Trying button clicks only...")
     
-    local result = tryAllCarrotSeedButtons()
+    local result = tryButtonBuy()
     
     local resultText = string.format([[
-🔄 AUTO BUY CARROT SEEDS RESULTS:
-
-Total Carrot Buttons Found: %d
-Buttons Attempted: %d
-Successful Clicks: %d
-
-Seed Count Before: %d
-Seed Count After: %d
-Difference: %d
-Purchase Successful: %s
+BASIC AUTO BUY RESULTS:
+- Success: %s
+- Buttons Attempted: %d/%d
+- Successful Clicks: %d
+- Seed Change: %d → %d (%+d)
 
 %s
     ]],
-    result.totalCarrotButtons or 0,
-    result.attemptedButtons or 0,
-    result.successfulClicks or 0,
-    result.beforeCount or 0,
-    result.afterCount or 0,
-    result.difference or 0,
-    result.seedIncreased and "YES 🎉" or "NO ❌",
-    result.message or "Auto buy process completed")
+    result.success and "YES 🎉" or "NO ❌",
+    result.attemptedButtons,
+    result.totalRelevantButtons,
+    result.successfulClicks,
+    result.beforeCount,
+    result.afterCount,
+    result.difference,
+    result.message or "Basic buy attempt completed")
     
-    updateDebugInfo("CARROT SEED BUY", "Auto Buy Complete", resultText)
+    updateDebugInfo("BASIC AUTO BUY", "Basic buy attempt completed", resultText)
+end)
+
+autoBuyAdvancedBtn.MouseButton1Click:Connect(function()
+    carrotSeedTracking.buyAttempts = carrotSeedTracking.buyAttempts + 1
+    advancedAutoBuy()
 end)
 
 trackCarrotBtn.MouseButton1Click:Connect(function()
-    local buttonsInfo = findCarrotSeedButtons()
+    local eventsInfo = findBuyRemoteEvents()
+    local buttonsInfo = findBuyButtons()
     local seedData = getCarrotSeedCount()
     
     local trackingText = string.format([[
-📊 COMPREHENSIVE CARROT SEED TRACKING:
+COMPREHENSIVE TRACKING DATA:
 
-SEED INFORMATION:
-- Initial Count: %d
-- Current Count: %d
-- Difference: %d
-- Items in Backpack: %s
+REMOTE EVENTS:
+- Total Events: %d
+- Buy-Related Events: %d
 
-BUTTON INFORMATION:
-- Total Buttons in GUI: %d
-- Carrot Seed Buttons Found: %d
+BUTTONS:
+- Total Buttons: %d
+- Buy Buttons: %d
+- Carrot Buttons: %d
+- Sheckles Buttons: %d
 
-BUY ATTEMPTS:
-- Total Buy Attempts: %d
-- Successful Purchases: %d
-- Total Button Clicks: %d
-
-CARROT BUTTONS DETAILS:
+TOP BUY EVENTS:
     ]],
-    carrotSeedTracking.initialCount,
-    carrotSeedTracking.currentCount,
-    carrotSeedTracking.currentCount - carrotSeedTracking.initialCount,
-    table.concat(seedData.items, ", "),
-    buttonsInfo.totalButtons,
+    eventsInfo.totalEvents,
+    eventsInfo.totalBuyEvents,
+    buttonsInfo.totalAllButtons,
+    buttonsInfo.totalBuyButtons,
     buttonsInfo.totalCarrotButtons,
-    carrotSeedTracking.buyAttempts,
-    carrotSeedTracking.successfulBuys,
-    carrotSeedTracking.buttonClicks)
+    buttonsInfo.totalShecklesButtons)
     
-    -- Tambahkan info detail setiap carrot button
-    for i, button in ipairs(buttonsInfo.carrotButtons) do
-        trackingText = trackingText .. string.format("\n%d. %s", i, button.name)
-        trackingText = trackingText .. string.format("\n   Text: %s", button.text)
-        trackingText = trackingText .. string.format("\n   Path: %s", button.path)
-        trackingText = trackingText .. string.format("\n   Match: %s", button.matchType)
-        trackingText = trackingText .. string.format("\n   Visible: %s, Enabled: %s", 
-            tostring(button.visible), tostring(button.enabled))
+    for i = 1, math.min(5, #eventsInfo.buyEvents) do
+        trackingText = trackingText .. string.format("\n%d. %s (Score: %d)", i, 
+            eventsInfo.buyEvents[i].name, eventsInfo.buyEvents[i].score)
     end
     
-    updateDebugInfo("CARROT SEED TRACKING", "Comprehensive Data Report", trackingText)
+    trackingText = trackingText .. "\n\nTOP BUY BUTTONS:"
+    for i = 1, math.min(5, #buttonsInfo.buyButtons) do
+        trackingText = trackingText .. string.format("\n%d. %s (%s)", i, 
+            buttonsInfo.buyButtons[i].name, table.concat(buttonsInfo.buyButtons[i].categories, ", "))
+    end
+    
+    updateDebugInfo("TRACKING DATA", "Comprehensive system scan", trackingText)
 end)
 
--- Fungsi-fungsi lainnya (scanRemoteEvents, scanButtons, dll) tetap sama seperti sebelumnya
--- [Kode untuk scanRemoteEvents, scanButtons, clearLogs, dll...]
-
--- Initialize system dengan focus pada carrot seed
+-- Initialize system
 local function initializeSystem()
-    startMonitoring()
+    isMonitoring = true
+    startStopButton.Text = "STOP"
+    startStopButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
     
-    -- Initial carrot seed count
-    local initialSeedData = getCarrotSeedCount()
+    -- Initial scan
+    local seedData = getCarrotSeedCount()
     
-    updateDebugInfo("SYSTEM", "Carrot Seed Debugger Ready", 
-        string.format("Initial carrot seed count: %d\nUse the carrot seed buttons to track and test purchases!", 
-        initialSeedData.count))
-    
-    print("=== CARROT SEED DEBUG SYSTEM READY ===")
-    print("F1 - Show RemoteEvent Logs")
-    print("F5 - Toggle Monitoring")
-    print("Click carrot seed buttons to track and test!")
-    print("======================================")
+    updateDebugInfo("SYSTEM READY", "Carrot Seed Auto Buy Debugger Initialized",
+        string.format("Initial seed count: %d\nUse the buttons above to test buy methods!\n\nF1 - Quick Buy\nF2 - Advanced Buy\nF3 - Check Seeds", 
+        seedData.count))
 end
 
--- Tunggu sebentar sebelum initialize
+startStopButton.MouseButton1Click:Connect(function()
+    isMonitoring = not isMonitoring
+    if isMonitoring then
+        startStopButton.Text = "STOP"
+        startStopButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+        updateDebugInfo("SYSTEM", "Monitoring RESUMED", "All systems active")
+    else
+        startStopButton.Text = "START"
+        startStopButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+        updateDebugInfo("SYSTEM", "Monitoring PAUSED", "All systems paused")
+    end
+end)
+
+-- Hotkey system
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.F1 then
+        autoBuyBasicBtn:FireEvent("MouseButton1Click")
+    elseif input.KeyCode == Enum.KeyCode.F2 then
+        autoBuyAdvancedBtn:FireEvent("MouseButton1Click")
+    elseif input.KeyCode == Enum.KeyCode.F3 then
+        checkCarrotBtn:FireEvent("MouseButton1Click")
+    elseif input.KeyCode == Enum.KeyCode.F5 then
+        isMonitoring = not isMonitoring
+    end
+end)
+
+-- Initialize
 wait(2)
 initializeSystem()

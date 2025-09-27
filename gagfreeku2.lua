@@ -1,3 +1,4 @@
+-- v1
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -52,6 +53,108 @@ local function findPlayerFarm()
         end
     end
     return nil
+end
+
+-- Fungsi untuk mencari ProximityPrompt dengan berbagai metode
+local function findProximityPrompt(npc)
+    -- Cari langsung di NPC
+    if npc:FindFirstChildOfClass("ProximityPrompt") then
+        return npc:FindFirstChildOfClass("ProximityPrompt")
+    end
+    
+    -- Cari di semua descendants
+    for _, descendant in pairs(npc:GetDescendants()) do
+        if descendant:IsA("ProximityPrompt") then
+            return descendant
+        end
+    end
+    
+    -- Cari HumanoidRootPart dan cari di sekitar nya
+    if npc:FindFirstChild("HumanoidRootPart") then
+        local hrp = npc.HumanoidRootPart
+        -- Cari ProximityPrompt yang berada di dekat HRP
+        for _, part in pairs(Workspace:GetPartsInPart(hrp)) do
+            if part:IsA("Part") and part:FindFirstChildOfClass("ProximityPrompt") then
+                return part:FindFirstChildOfClass("ProximityPrompt")
+            end
+        end
+    end
+    
+    return nil
+end
+
+-- Fungsi untuk membuka toko dengan berbagai alternatif
+local function openShopWithNPC()
+    local humanoid = Character:FindFirstChildOfClass("Humanoid")
+    
+    -- Pergi ke NPC Sam dengan posisi yang lebih aman
+    local targetPosition = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 6) -- Jarak lebih jauh
+    HRP.CFrame = targetPosition
+    wait(2) -- Tunggu lebih lama
+    
+    -- Pastikan menghadap ke NPC
+    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
+    wait(1)
+    
+    -- Method 1: Coba gunakan RemoteEvent langsung
+    local shopRemote = ReplicatedStorage:FindFirstChild("OpenShop") or ReplicatedStorage:FindFirstChild("OpenSeedShop")
+    if shopRemote then
+        shopRemote:FireServer()
+        print("Used RemoteEvent to open shop")
+        wait(2)
+        return true
+    end
+    
+    -- Method 2: Coba proximity prompt dengan berbagai cara
+    local prompt = findProximityPrompt(Sam)
+    if prompt then
+        fireproximityprompt(prompt)
+        print("Found and used ProximityPrompt on NPC Sam")
+        wait(2)
+        return true
+    end
+    
+    -- Method 3: Coba klik NPC langsung (alternative approach)
+    local clickDetector = Sam:FindFirstChildOfClass("ClickDetector")
+    if clickDetector then
+        fireclickdetector(clickDetector)
+        print("Used ClickDetector on NPC Sam")
+        wait(2)
+        return true
+    end
+    
+    -- Method 4: Coba approach yang lebih dekat
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+    wait(1)
+    
+    -- Coba lagi dengan posisi lebih dekat
+    prompt = findProximityPrompt(Sam)
+    if prompt then
+        fireproximityprompt(prompt)
+        print("Found ProximityPrompt with closer approach")
+        wait(2)
+        return true
+    end
+    
+    -- Method 5: Coba gunakan event yang ada di GameEvents
+    local openShopEvent = ReplicatedStorage.GameEvents:FindFirstChild("OpenShop") 
+                        or ReplicatedStorage.GameEvents:FindFirstChild("OpenSeedShop")
+                        or ReplicatedStorage.GameEvents:FindFirstChild("TalkToNPC")
+    
+    if openShopEvent then
+        openShopEvent:FireServer(Sam.Name)
+        print("Used GameEvents to open shop with NPC: " .. Sam.Name)
+        wait(2)
+        return true
+    end
+    
+    print("Could not find any method to open shop with NPC Sam")
+    print("Available GameEvents:")
+    for _, event in pairs(ReplicatedStorage.GameEvents:GetChildren()) do
+        print("- " .. event.Name)
+    end
+    
+    return false
 end
 
 local function removePlantsOfKind(kind)
@@ -199,11 +302,9 @@ local function getPlantingBoundaries(farm)
 end
 
 local function collectPlant(plant)
-    -- Fixed collection method using proximity prompts instead of byteNetReliable
     if plant:FindFirstChild("ProximityPrompt") then
         fireproximityprompt(plant.ProximityPrompt)
     else
-        -- Check children for proximity prompts
         for _, child in pairs(plant:GetChildren()) do
             if child:FindFirstChild("ProximityPrompt") then
                 fireproximityprompt(child.ProximityPrompt)
@@ -231,7 +332,6 @@ local function CollectAllPlants()
     local plants = GetAllPlants()
     print("Got "..#plants.." Plants")
     
-    -- Shuffle the plants table to randomize collection order
     for i = #plants, 2, -1 do
         local j = math.random(i)
         plants[i], plants[j] = plants[j], plants[i]
@@ -256,7 +356,6 @@ spawn(function()
         if plantAura then
             local plants = GetAllPlants()
             
-            -- Shuffle the plants table to randomize collection order
             for i = #plants, 2, -1 do
                 local j = math.random(i)
                 plants[i], plants[j] = plants[j], plants[i]
@@ -300,9 +399,7 @@ local function getRandomPlantingLocation(edges)
     local minZ, maxZ = math.min(a.Z, b.Z), math.max(a.Z, b.Z)
     local Y = 0.13552704453468323
 
-    -- Add some randomness to the Y position as well
-    local randY = Y + (math.random() * 0.1 - 0.05) -- Small random variation
-    
+    local randY = Y + (math.random() * 0.1 - 0.05)
     local randX = math.random() * (maxX - minX) + minX
     local randZ = math.random() * (maxZ - minZ) + minZ
 
@@ -345,7 +442,7 @@ local function plantAllSeeds()
                 end
             end
         end
-        wait(0.5) -- Small delay to prevent infinite loop
+        wait(0.5)
     end
 end
 
@@ -408,76 +505,71 @@ testingTab:CreateButton({
     end,
 })
 
--- Fungsi untuk membuka toko dengan benar
-local function openShopWithNPC()
-    local humanoid = Character:FindFirstChildOfClass("Humanoid")
+-- Fungsi untuk mencari dan mengklik button Sheckles_Buy dengan berbagai metode
+local function clickShecklesBuy(seedName)
+    wait(1) -- Tunggu UI loading
     
-    -- Pergi ke NPC Sam
-    local targetPosition = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
-    HRP.CFrame = targetPosition
-    wait(1.5)
+    -- Method 1: Coba gunakan RemoteEvent langsung
+    local buyEvent = ReplicatedStorage.GameEvents:FindFirstChild("BuySeed") 
+                    or ReplicatedStorage.GameEvents:FindFirstChild("BuySeedStock")
+                    or ReplicatedStorage.GameEvents:FindFirstChild("PurchaseSeed")
     
-    -- Pastikan menghadap ke NPC
-    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
-    wait(0.5)
-    
-    -- Coba aktifkan ProximityPrompt untuk membuka toko
-    if Sam:FindFirstChild("ProximityPrompt") then
-        fireproximityprompt(Sam.ProximityPrompt)
-        print("Opened shop with NPC Sam")
-        wait(1)
-        return true
-    else
-        -- Cari ProximityPrompt di children NPC
-        for _, child in pairs(Sam:GetChildren()) do
-            if child:IsA("ProximityPrompt") then
-                fireproximityprompt(child)
-                print("Opened shop with NPC Sam (child prompt)")
-                wait(1)
-                return true
-            end
+    if buyEvent then
+        local success, result = pcall(function()
+            return buyEvent:FireServer(seedName)
+        end)
+        
+        if success then
+            print("Bought " .. seedName .. " using direct RemoteEvent")
+            return true
         end
     end
     
-    print("Could not find ProximityPrompt on NPC Sam")
-    return false
-end
-
--- Fungsi untuk mencari dan mengklik button Sheckles_Buy
-local function clickShecklesBuy(seedFrame)
-    -- Tunggu sebentar untuk memastikan UI sudah terbuka sepenuhnya
-    wait(0.5)
-    
-    -- Cari button Sheckles_Buy dalam seedFrame
-    local shecklesBuyButton = seedFrame:FindFirstChild("Sheckles_Buy")
-    
-    if shecklesBuyButton then
-        -- Simulasikan klik pada button
-        if shecklesBuyButton:IsA("TextButton") or shecklesBuyButton:IsA("ImageButton") then
-            -- Gunakan events yang tersedia pada button
-            if shecklesBuyButton:FindFirstChildOfClass("RemoteEvent") then
-                local remoteEvent = shecklesBuyButton:FindFirstChildOfClass("RemoteEvent")
-                remoteEvent:FireServer()
-                print("Clicked Sheckles_Buy for " .. seedFrame.Parent.Name)
-                return true
-            elseif shecklesBuyButton:FindFirstChildOfClass("BindableEvent") then
-                local bindableEvent = shecklesBuyButton:FindFirstChildOfClass("BindableEvent")
-                bindableEvent:Fire()
-                print("Clicked Sheckles_Buy for " .. seedFrame.Parent.Name)
-                return true
-            else
-                -- Coba fire mouse click event
+    -- Method 2: Coba melalui GUI interaction
+    local seedFrame = SeedShopGUI:FindFirstChild(seedName)
+    if seedFrame then
+        local mainFrame = seedFrame:FindFirstChild("Main_Frame")
+        if mainFrame then
+            -- Coba klik Main_Frame dulu
+            if mainFrame:IsA("TextButton") or mainFrame:IsA("ImageButton") then
                 pcall(function()
-                    shecklesBuyButton.MouseButton1Click:Fire()
+                    if mainFrame:FindFirstChildOfClass("RemoteEvent") then
+                        mainFrame:FindFirstChildOfClass("RemoteEvent"):FireServer()
+                    else
+                        mainFrame.MouseButton1Click:Fire()
+                    end
                 end)
-                print("Fired click event for " .. seedFrame.Parent.Name)
+                wait(0.5)
+            end
+            
+            -- Cari Sheckles_Buy button
+            local shecklesButton = mainFrame:FindFirstChild("Sheckles_Buy")
+            if shecklesButton and (shecklesButton:IsA("TextButton") or shecklesButton:IsA("ImageButton")) then
+                pcall(function()
+                    if shecklesButton:FindFirstChildOfClass("RemoteEvent") then
+                        shecklesButton:FindFirstChildOfClass("RemoteEvent"):FireServer()
+                    else
+                        shecklesButton.MouseButton1Click:Fire()
+                    end
+                end)
+                print("Clicked Sheckles_Buy for " .. seedName)
                 return true
             end
         end
-    else
-        print("Sheckles_Buy button not found for " .. seedFrame.Parent.Name)
     end
     
+    -- Method 3: Coba gunakan BuySeedStock yang sudah ada
+    local success, result = pcall(function()
+        BuySeedStock:FireServer(seedName)
+        return true
+    end)
+    
+    if success then
+        print("Bought " .. seedName .. " using BuySeedStock")
+        return true
+    end
+    
+    print("Failed to buy " .. seedName)
     return false
 end
 
@@ -489,64 +581,34 @@ local function buySeed(seedName)
     end
     
     isBuying = true
-    
-    -- Simpan posisi awal
     local originalPosition = HRP.CFrame
     
-    -- Buka toko dengan NPC Sam
-    if not openShopWithNPC() then
+    print("Attempting to buy: " .. seedName)
+    
+    -- Coba buka toko dulu
+    local shopOpened = openShopWithNPC()
+    
+    if shopOpened then
+        wait(2) -- Tunggu toko terbuka
+        
+        -- Coba berbagai metode pembelian
+        local success = clickShecklesBuy(seedName)
+        
+        -- Kembali ke posisi semula
+        wait(1)
+        HRP.CFrame = originalPosition
+        
         isBuying = false
-        return false
-    end
-    
-    -- Tunggu GUI toko terbuka
-    wait(2)
-    
-    -- Cari seed frame yang sesuai
-    local seedFrame = SeedShopGUI:FindFirstChild(seedName)
-    if not seedFrame then
-        print("Seed frame not found: " .. seedName)
+        return success
+    else
+        -- Jika tidak bisa buka toko, coba beli langsung tanpa buka toko
+        print("Trying direct purchase without opening shop...")
+        local success = clickShecklesBuy(seedName)
+        
         HRP.CFrame = originalPosition
         isBuying = false
-        return false
+        return success
     end
-    
-    -- Cari Main_Frame dalam seed frame
-    local mainFrame = seedFrame:FindFirstChild("Main_Frame")
-    if not mainFrame then
-        print("Main_Frame not found for: " .. seedName)
-        HRP.CFrame = originalPosition
-        isBuying = false
-        return false
-    end
-    
-    -- Klik Main_Frame untuk membuka detail
-    if mainFrame:IsA("TextButton") or mainFrame:IsA("ImageButton") then
-        if mainFrame:FindFirstChildOfClass("RemoteEvent") then
-            mainFrame:FindFirstChildOfClass("RemoteEvent"):FireServer()
-        else
-            pcall(function()
-                mainFrame.MouseButton1Click:Fire()
-            end)
-        end
-        print("Opened detail for: " .. seedName)
-    end
-    
-    -- Tunggu dialog detail terbuka
-    wait(1)
-    
-    -- Klik button Sheckles_Buy
-    local success = clickShecklesBuy(mainFrame)
-    
-    -- Tunggu proses pembelian selesai
-    wait(1)
-    
-    -- Tutup toko dengan kembali ke posisi semula
-    HRP.CFrame = originalPosition
-    wait(1)
-    
-    isBuying = false
-    return success
 end
 
 -- Fungsi untuk membeli multiple seeds
@@ -568,15 +630,15 @@ local function buyWantedCropSeeds()
         print("Trying to buy "..fruitName..", stock: "..tostring(stock))
         
         if stock > 0 then
-            for j = 1, stock do
+            for j = 1, math.min(stock, 10) do -- Batasi maksimal 10 pembelian per seed
                 local success = buySeed(fruitName)
                 if success then
                     boughtAny = true
                     print("Bought "..fruitName.." seed "..j.."/"..stock)
                 else
-                    print("Failed to buy "..fruitName)
+                    print("Failed to buy "..fruitName.." attempt "..j)
                 end
-                wait(1) -- Tunggu lebih lama antara pembelian
+                wait(1.5) -- Tunggu antara pembelian
             end
         else
             print("No stock for "..fruitName)
@@ -591,8 +653,6 @@ local function onShopRefresh()
     getCropsListAndStock()
     if wantedFruits and #wantedFruits > 0 and autoBuyEnabled then
         print("Auto-buying selected fruits...")
-        
-        -- Tunggu sebentar sebelum membeli untuk memastikan UI sudah update
         wait(3)
         buyWantedCropSeeds()
     end
@@ -607,13 +667,12 @@ end
 
 local function sellAll()
     local OrgPos = HRP.CFrame
-    HRP.CFrame = Steven.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
+    HRP.CFrame = Steven.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
     wait(1.5)
     
     isSelling = true
     sellAllRemote:FireServer()
     
-    -- Wait until items are sold
     local startTime = tick()
     while #Backpack:GetChildren() >= AutoSellItems and tick() - startTime < 10 do
         sellAllRemote:FireServer()
@@ -631,7 +690,6 @@ spawn(function()
             local shopTimeText = "Shop Resets in " .. shopTime .. "s"
             RayFieldShopTimer:Set({Title = "Shop Timer", Content = shopTimeText})
             
-            -- Cek jika toko di-refresh dengan membandingkan stok
             local isRefreshed = getCropsListAndStock()
             
             if isRefreshed and autoBuyEnabled and not isBuying then
@@ -648,6 +706,8 @@ spawn(function()
         wait(0.5)
     end
 end)
+
+-- ... (bagian localPlayerTab, seedsTab, sellTab tetap sama seperti sebelumnya)
 
 localPlayerTab = Window:CreateTab("LocalPlayer")
 localPlayerTab:CreateButton({
@@ -716,9 +776,16 @@ localPlayerTab:CreateButton({
 })
 
 local seedsTab = Window:CreateTab("Seeds")
+
+-- Refresh crop list untuk dropdown
+local function refreshCropList()
+    getCropsListAndStock()
+    return getAllIFromDict(CropsListAndStocks)
+end
+
 seedsTab:CreateDropdown({
    Name = "Fruits To Buy",
-   Options = getAllIFromDict(CropsListAndStocks),
+   Options = refreshCropList(),
    CurrentOption = {"None Selected"},
    MultipleOptions = true,
    Flag = "Dropdown1", 
@@ -731,11 +798,16 @@ seedsTab:CreateDropdown({
         end
         print("Selected:", table.concat(filtered, ", "))
         wantedFruits = filtered
-        print("Updated!")
    end,
 })
 
--- Tambahkan toggle untuk enable/disable auto-buy
+seedsTab:CreateButton({
+    Name = "Refresh Fruit List",
+    Callback = function()
+        seedsTab:RefreshDropdown("Dropdown1", refreshCropList())
+    end,
+})
+
 seedsTab:CreateToggle({
     Name = "Enable Auto-Buy",
     CurrentValue = false,
@@ -744,7 +816,6 @@ seedsTab:CreateToggle({
         autoBuyEnabled = Value
         print("Auto-Buy set to: "..tostring(Value))
         
-        -- Jika diaktifkan, langsung coba beli
         if Value and #wantedFruits > 0 then
             spawn(function()
                 wait(1)
@@ -767,7 +838,6 @@ sellTab:CreateToggle({
     CurrentValue = false,
     flag = "Toggle2",
     Callback = function(Value)
-        print("set shouldSell to: "..tostring(Value))
         shouldSell = Value
     end,
 })
@@ -780,7 +850,6 @@ sellTab:CreateSlider({
    CurrentValue = 70,
    Flag = "Slider2",
    Callback = function(Value)
-        print("AutoSellItems updated to: "..Value)
         AutoSellItems = Value
    end,
 })
@@ -792,10 +861,20 @@ sellTab:CreateButton({
     end,
 })
 
--- Initialize the player farm reference
+-- Initialize
 playerFarm = findPlayerFarm()
 if not playerFarm then
     warn("Player farm not found!")
 end
 
 print("Grow A Garden script loaded successfully!")
+print("Debug Info:")
+print("- NPC Sam exists:", Sam ~= nil)
+print("- SeedShopGUI exists:", SeedShopGUI ~= nil)
+print("- BuySeedStock exists:", BuySeedStock ~= nil)
+
+-- Print available GameEvents for debugging
+print("Available GameEvents:")
+for _, event in pairs(ReplicatedStorage.GameEvents:GetChildren()) do
+    print("- " .. event.Name)
+end

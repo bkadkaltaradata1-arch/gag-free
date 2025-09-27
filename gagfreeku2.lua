@@ -1,522 +1,557 @@
--- LocalScript di StarterPlayerScripts
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
+local FarmsFolder = Workspace.Farm
+local Players = game:GetService("Players")
+local BuySeedStock = ReplicatedStorage.GameEvents.BuySeedStock
+local Plant = ReplicatedStorage.GameEvents.Plant_RE
+local Backpack = Players.LocalPlayer.Backpack
+local Character = Players.LocalPlayer.Character
+local sellAllRemote = ReplicatedStorage.GameEvents.Sell_Inventory
+local Steven = Workspace.NPCS.Steven
+local Sam = Workspace.NPCS.Sam
+local HRP = Players.LocalPlayer.Character.HumanoidRootPart
+local CropsListAndStocks = {}
+local SeedShopGUI = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.ScrollingFrame
+local shopTimer = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.Frame.Timer
+local shopTime = 0
+local Humanoid = Character:WaitForChild("Humanoid")
+wantedFruits = {}
+local plantAura = false
+local AutoSellItems = 70
+local shouldSell = false
+local removeItem = ReplicatedStorage.GameEvents.Remove_Item
+local plantToRemove
+local shouldAutoPlant = false
+local isSelling = false
+local byteNetReliable = ReplicatedStorage:FindFirstChild("ByteNetReliable")
+local autoBuyEnabled = false
+local lastShopStock = {}
+local isBuying = false
 
--- Tunggu sampai player ready
-if not player then
-    player = Players.LocalPlayer
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Window = Rayfield:CreateWindow({
+   Name = "Grow A Garden",
+   Icon = 0,
+   LoadingTitle = "Rayfield Interface Suite",
+   LoadingSubtitle = "by Sirius",
+   Theme = "Default",
+   ToggleUIKeybind = "K",
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false,
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = nil,
+      FileName = "GAGscript"
+   },
+})
+
+local function findPlayerFarm()
+    for i,v in pairs(FarmsFolder:GetChildren()) do
+        if v.Important.Data.Owner.Value == Players.LocalPlayer.Name then
+            return v
+        end
+    end
+    return nil
 end
 
-player:WaitForChild("PlayerGui")
-
--- Variabel sistem
-local trackedRemoteEvents = {}
-local remoteEventLogs = {}
-local isMonitoring = true
-local buttonConnections = {}
-local remoteEventConnections = {}
-
--- Buat UI debug yang lebih besar dengan kontrol
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AdvancedDebugGUI"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = player.PlayerGui
-
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 450, 0, 250)
-mainFrame.Position = UDim2.new(0, 10, 0, 10)
-mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-mainFrame.BackgroundTransparency = 0.2
-mainFrame.BorderSizePixel = 2
-mainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
-mainFrame.Parent = screenGui
-
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 8)
-corner.Parent = mainFrame
-
--- Header dengan kontrol
-local header = Instance.new("Frame")
-header.Size = UDim2.new(1, 0, 0.18, 0)
-header.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-header.BackgroundTransparency = 0.1
-header.Parent = mainFrame
-
-local cornerHeader = Instance.new("UICorner")
-cornerHeader.CornerRadius = UDim.new(0, 8)
-cornerHeader.Parent = header
-
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(0.6, 0, 1, 0)
-title.BackgroundTransparency = 1
-title.TextColor3 = Color3.fromRGB(255, 255, 0)
-title.Text = "⚡ DEBUG SYSTEM ⚡"
-title.Font = Enum.Font.Code
-title.TextSize = 16
-title.Parent = header
-
--- Tombol Start/Stop
-local startStopButton = Instance.new("TextButton")
-startStopButton.Size = UDim2.new(0.35, 0, 0.6, 0)
-startStopButton.Position = UDim2.new(0.63, 0, 0.2, 0)
-startStopButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-startStopButton.Text = "STOP"
-startStopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-startStopButton.Font = Enum.Font.Code
-startStopButton.TextSize = 14
-startStopButton.Parent = header
-
-local buttonCorner = Instance.new("UICorner")
-buttonCorner.CornerRadius = UDim.new(0, 6)
-buttonCorner.Parent = startStopButton
-
--- Status indicator
-local statusIndicator = Instance.new("Frame")
-statusIndicator.Size = UDim2.new(0.02, 0, 0.4, 0)
-statusIndicator.Position = UDim2.new(0.59, 0, 0.3, 0)
-statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-statusIndicator.Parent = header
-
-local statusCorner = Instance.new("UICorner")
-statusCorner.CornerRadius = UDim.new(0, 4)
-statusCorner.Parent = statusIndicator
-
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(0.1, 0, 0.4, 0)
-statusLabel.Position = UDim2.new(0.5, 0, 0.3, 0)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "ON"
-statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-statusLabel.Font = Enum.Font.Code
-statusLabel.TextSize = 12
-statusLabel.Parent = header
-
--- Kontrol panel
-local controlFrame = Instance.new("Frame")
-controlFrame.Size = UDim2.new(1, 0, 0.15, 0)
-controlFrame.Position = UDim2.new(0, 0, 0.18, 0)
-controlFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-controlFrame.BackgroundTransparency = 0.3
-controlFrame.Parent = mainFrame
-
-local controlCorner = Instance.new("UICorner")
-controlCorner.CornerRadius = UDim.new(0, 6)
-controlCorner.Parent = controlFrame
-
--- Tombol kontrol
-local buttonScanBtn = Instance.new("TextButton")
-buttonScanBtn.Size = UDim2.new(0.3, 0, 0.7, 0)
-buttonScanBtn.Position = UDim2.new(0.02, 0, 0.15, 0)
-buttonScanBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 200)
-buttonScanBtn.Text = "🔍 Scan Buttons"
-buttonScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-buttonScanBtn.Font = Enum.Font.Code
-buttonScanBtn.TextSize = 12
-buttonScanBtn.Parent = controlFrame
-
-local eventScanBtn = Instance.new("TextButton")
-eventScanBtn.Size = UDim2.new(0.3, 0, 0.7, 0)
-eventScanBtn.Position = UDim2.new(0.34, 0, 0.15, 0)
-eventScanBtn.BackgroundColor3 = Color3.fromRGB(200, 70, 70)
-eventScanBtn.Text = "📡 Scan Events"
-eventScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-eventScanBtn.Font = Enum.Font.Code
-eventScanBtn.TextSize = 12
-eventScanBtn.Parent = controlFrame
-
-local clearLogsBtn = Instance.new("TextButton")
-clearLogsBtn.Size = UDim2.new(0.3, 0, 0.7, 0)
-clearLogsBtn.Position = UDim2.new(0.66, 0, 0.15, 0)
-clearLogsBtn.BackgroundColor3 = Color3.fromRGB(200, 200, 70)
-clearLogsBtn.Text = "🧹 Clear Logs"
-clearLogsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-clearLogsBtn.Font = Enum.Font.Code
-clearLogsBtn.TextSize = 12
-clearLogsBtn.Parent = controlFrame
-
--- Area display
-local displayFrame = Instance.new("Frame")
-displayFrame.Size = UDim2.new(1, 0, 0.67, 0)
-displayFrame.Position = UDim2.new(0, 0, 0.33, 0)
-displayFrame.BackgroundTransparency = 1
-displayFrame.Parent = mainFrame
-
-local label = Instance.new("TextLabel")
-label.Size = UDim2.new(0.95, 0, 1, 0)
-label.Position = UDim2.new(0.025, 0, 0, 0)
-label.BackgroundTransparency = 1
-label.TextColor3 = Color3.fromRGB(255, 255, 255)
-label.Text = "System ready. Click START to begin monitoring..."
-label.TextWrapped = true
-label.Font = Enum.Font.Code
-label.TextSize = 14
-label.TextXAlignment = Enum.TextXAlignment.Left
-label.TextYAlignment = Enum.TextYAlignment.Top
-label.Parent = displayFrame
-
-local scrollFrame = Instance.new("ScrollingFrame")
-scrollFrame.Size = UDim2.new(0.95, 0, 1, 0)
-scrollFrame.Position = UDim2.new(0.025, 0, 0, 0)
-scrollFrame.BackgroundTransparency = 1
-scrollFrame.ScrollBarThickness = 6
-scrollFrame.Visible = false
-scrollFrame.Parent = displayFrame
-
-local scrollLabel = Instance.new("TextLabel")
-scrollLabel.Size = UDim2.new(1, 0, 2, 0)
-scrollLabel.BackgroundTransparency = 1
-scrollLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-scrollLabel.Text = ""
-scrollLabel.TextWrapped = true
-scrollLabel.Font = Enum.Font.Code
-scrollLabel.TextSize = 12
-scrollLabel.TextXAlignment = Enum.TextXAlignment.Left
-scrollLabel.TextYAlignment = Enum.TextYAlignment.Top
-scrollLabel.Parent = scrollFrame
-
-print("Advanced Debug GUI dengan kontrol berhasil dibuat!")
-
--- Fungsi untuk update debug info
-local function updateDebugInfo(debugType, details, data)
-    if not isMonitoring then return end
+-- Fungsi untuk mencari ProximityPrompt dengan berbagai metode
+local function findProximityPrompt(npc)
+    -- Cari langsung di NPC
+    if npc:FindFirstChildOfClass("ProximityPrompt") then
+        return npc:FindFirstChildOfClass("ProximityPrompt")
+    end
     
-    local character = player.Character
-    local charName = "No Character"
-    local position = "Unknown"
-    local health = "N/A"
-    
-    if character then
-        charName = character.Name
-        if character:FindFirstChild("HumanoidRootPart") then
-            local pos = character.HumanoidRootPart.Position
-            position = string.format("X:%.1f, Y:%.1f, Z:%.1f", pos.X, pos.Y, pos.Z)
-        end
-        if character:FindFirstChild("Humanoid") then
-            health = string.format("%.0f/%.0f", character.Humanoid.Health, character.Humanoid.MaxHealth)
+    -- Cari di semua descendants
+    for _, descendant in pairs(npc:GetDescendants()) do
+        if descendant:IsA("ProximityPrompt") then
+            return descendant
         end
     end
     
-    local fps = math.floor(1/RunService.Heartbeat:Wait())
-    
-    local debugText = string.format([[
-🔍 DEBUG TYPE: %s
-📋 DETAILS: %s
+    return nil
+end
 
-👤 CHARACTER INFO:
-- Name: %s
-- Health: %s
-- Position: %s
-
-⚡ PERFORMANCE:
-- FPS: %d
-- Time: %s
-- Status: %s
-
-📊 DATA:
-%s
-    ]], 
-    debugType, 
-    details,
-    charName,
-    health,
-    position,
-    fps,
-    os.date("%H:%M:%S"),
-    isMonitoring and "ACTIVE" or "PAUSED",
-    data or "No additional data")
-    
-    -- Tampilkan di scrolling frame untuk data panjang
-    if #debugText > 500 then
-        label.Visible = false
-        scrollFrame.Visible = true
-        scrollLabel.Text = debugText
-        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, scrollLabel.TextBounds.Y + 20)
-    else
-        scrollFrame.Visible = false
-        label.Visible = true
-        label.Text = debugText
+-- Fungsi untuk mengklik GUI element dengan berbagai metode
+local function clickGUIElement(element, elementName)
+    if not element then
+        print("Element not found: " .. tostring(elementName))
+        return false
     end
     
-    -- Print ke console juga
-    print("=== DEBUG ===")
-    print("Type: " .. debugType)
-    print("Details: " .. details)
-    print("Status: " .. (isMonitoring and "ACTIVE" or "PAUSED"))
-    print("=============")
-end
-
--- Fungsi untuk memulai monitoring
-local function startMonitoring()
-    if isMonitoring then return end
-    
-    isMonitoring = true
-    startStopButton.Text = "STOP"
-    startStopButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-    statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    statusLabel.Text = "ON"
-    statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-    
-    updateDebugInfo("SYSTEM", "Monitoring Started", "All monitoring functions are now ACTIVE")
-    
-    -- Animasi
-    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    local tween = TweenService:Create(statusIndicator, tweenInfo, {BackgroundColor3 = Color3.fromRGB(0, 255, 0)})
-    tween:Play()
-end
-
--- Fungsi untuk menghentikan monitoring
-local function stopMonitoring()
-    if not isMonitoring then return end
-    
-    isMonitoring = false
-    startStopButton.Text = "START"
-    startStopButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-    statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    statusLabel.Text = "OFF"
-    statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
-    
-    updateDebugInfo("SYSTEM", "Monitoring Stopped", "All monitoring functions are now PAUSED")
-    
-    -- Animasi
-    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    local tween = TweenService:Create(statusIndicator, tweenInfo, {BackgroundColor3 = Color3.fromRGB(255, 0, 0)})
-    tween:Play()
-end
-
--- Toggle monitoring
-startStopButton.MouseButton1Click:Connect(function()
-    if isMonitoring then
-        stopMonitoring()
-    else
-        startMonitoring()
-    end
-end)
-
--- Fungsi untuk melacak RemoteEvent
-local function trackRemoteEvent(remoteEvent)
-    if trackedRemoteEvents[remoteEvent] then return end
-    
-    trackedRemoteEvents[remoteEvent] = true
-    local eventName = remoteEvent.Name
-    
-    local success, errorMsg = pcall(function()
-        local connection = remoteEvent.OnClientEvent:Connect(function(...)
-            if not isMonitoring then return end
-            
-            local args = {...}
-            local logEntry = {
-                type = "RECEIVED_FROM_SERVER",
-                event = eventName,
-                args = args,
-                timestamp = os.date("%H:%M:%S"),
-                player = player.Name
-            }
-            
-            table.insert(remoteEventLogs, logEntry)
-            
-            updateDebugInfo("REMOTEEVENT RECEIVED", 
-                "Server → Client: " .. eventName,
-                string.format("Arguments Count: %d\nEvent: %s", #args, eventName))
+    -- Method 1: Coba RemoteEvent
+    local remoteEvent = element:FindFirstChildOfClass("RemoteEvent")
+    if remoteEvent then
+        local success, result = pcall(function()
+            remoteEvent:FireServer()
+            return true
         end)
+        if success then
+            print("Clicked " .. elementName .. " using RemoteEvent")
+            return true
+        end
+    end
+    
+    -- Method 2: Coba BindableEvent
+    local bindableEvent = element:FindFirstChildOfClass("BindableEvent")
+    if bindableEvent then
+        local success, result = pcall(function()
+            bindableEvent:Fire()
+            return true
+        end)
+        if success then
+            print("Clicked " .. elementName .. " using BindableEvent")
+            return true
+        end
+    end
+    
+    -- Method 3: Coba fire mouse click event untuk Button
+    if element:IsA("TextButton") or element:IsA("ImageButton") then
+        local success, result = pcall(function()
+            element.MouseButton1Click:Fire()
+            return true
+        end)
+        if success then
+            print("Clicked " .. elementName .. " using MouseButton1Click")
+            return true
+        end
         
-        remoteEventConnections[remoteEvent] = connection
+        -- Method 4: Coba trigger events manual
+        local success, result = pcall(function()
+            -- Simulate mouse enter and click
+            if element.MouseEnter then element.MouseEnter:Fire() end
+            if element.MouseButton1Down then element.MouseButton1Down:Fire() end
+            if element.MouseButton1Up then element.MouseButton1Up:Fire() end
+            if element.Activated then element.Activated:Fire() end
+            return true
+        end)
+        if success then
+            print("Clicked " .. elementName .. " using manual events")
+            return true
+        end
+    end
+    
+    -- Method 5: Coba gunakan tween untuk simulate click visual
+    local success, result = pcall(function()
+        element.BackgroundColor3 = Color3.new(0.7, 0.7, 0.7) -- Change color to simulate press
+        wait(0.1)
+        element.BackgroundColor3 = Color3.new(1, 1, 1) -- Change back
+        return true
     end)
     
-    if success then
-        print("Now tracking RemoteEvent: " .. eventName)
-    else
-        warn("Gagal melacak RemoteEvent " .. eventName .. ": " .. errorMsg)
-    end
+    print("Failed to click " .. elementName)
+    return false
 end
 
--- Scan RemoteEvents
-local function scanRemoteEvents()
-    trackedRemoteEvents = {}
-    remoteEventConnections = {}
+-- Fungsi untuk membuka toko dengan berbagai alternatif
+local function openShopWithNPC()
+    local humanoid = Character:FindFirstChildOfClass("Humanoid")
     
-    -- Putuskan koneksi lama
-    for _, connection in pairs(remoteEventConnections) do
-        connection:Disconnect()
-    end
+    -- Pergi ke NPC Sam dengan posisi yang lebih aman
+    local targetPosition = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 5)
+    HRP.CFrame = targetPosition
+    wait(2)
     
-    -- Scan ReplicatedStorage
-    for _, remoteEvent in ipairs(ReplicatedStorage:GetDescendants()) do
-        if remoteEvent:IsA("RemoteEvent") then
-            trackRemoteEvent(remoteEvent)
-        end
-    end
-    
-    -- Scan workspace
-    for _, remoteEvent in ipairs(workspace:GetDescendants()) do
-        if remoteEvent:IsA("RemoteEvent") then
-            trackRemoteEvent(remoteEvent)
-        end
-    end
-    
-    updateDebugInfo("SYSTEM", "RemoteEvent Scan Complete", 
-        string.format("Total RemoteEvents tracked: %d", table.getn(trackedRemoteEvents)))
-end
-
-eventScanBtn.MouseButton1Click:Connect(function()
-    scanRemoteEvents()
-end)
-
--- Scan buttons
-local function scanButtons()
-    -- Putuskan koneksi lama
-    for _, connection in pairs(buttonConnections) do
-        connection:Disconnect()
-    end
-    
-    buttonConnections = {}
+    -- Pastikan menghadap ke NPC
+    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
     wait(1)
     
-    local guis = player.PlayerGui:GetDescendants()
-    local buttonCount = 0
-    
-    for _, guiElement in ipairs(guis) do
-        if guiElement:IsA("TextButton") or guiElement:IsA("ImageButton") then
-            local success, errorMsg = pcall(function()
-                local connection = guiElement.MouseButton1Click:Connect(function()
-                    if not isMonitoring then return end
-                    
-                    local additionalInfo = ""
-                    if guiElement:IsA("TextButton") then
-                        additionalInfo = "Teks: " .. (guiElement.Text or "N/A")
-                    end
-                    
-                    local buttonInfo = string.format([[
-Button Name: %s
-Parent: %s
-Visible: %s
-Size: %s
-Position: %s
-%s
-                    ]],
-                    guiElement.Name,
-                    guiElement.Parent and guiElement.Parent.Name or "N/A",
-                    tostring(guiElement.Visible),
-                    tostring(guiElement.AbsoluteSize),
-                    tostring(guiElement.AbsolutePosition),
-                    additionalInfo)
-                    
-                    updateDebugInfo("BUTTON CLICK", "Button: " .. guiElement.Name, buttonInfo)
-                    
-                    -- Highlight effect
-                    local originalBg = guiElement.BackgroundColor3
-                    guiElement.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-                    wait(0.1)
-                    guiElement.BackgroundColor3 = originalBg
-                end)
-                
-                buttonConnections[guiElement] = connection
-                buttonCount += 1
-            end)
+    -- Method 1: Coba proximity prompt
+    local prompt = findProximityPrompt(Sam)
+    if prompt then
+        for i = 1, 3 do -- Coba beberapa kali
+            fireproximityprompt(prompt)
+            print("Attempt " .. i .. ": Fired ProximityPrompt on NPC Sam")
+            wait(1)
             
-            if not success then
-                warn("Gagal connect ke button " .. guiElement.Name .. ": " .. errorMsg)
+            -- Cek jika toko terbuka dengan melihat GUI
+            if SeedShopGUI.Visible then
+                print("Shop opened successfully!")
+                return true
             end
         end
     end
     
-    updateDebugInfo("SYSTEM", "Button Scan Complete", 
-        string.format("Total buttons connected: %d\nGUI elements scanned: %d", buttonCount, #guis))
+    -- Method 2: Coba RemoteEvent langsung
+    local shopRemote = ReplicatedStorage:FindFirstChild("OpenShop") or ReplicatedStorage:FindFirstChild("OpenSeedShop")
+    if shopRemote then
+        shopRemote:FireServer()
+        print("Used RemoteEvent to open shop")
+        wait(2)
+        return true
+    end
+    
+    -- Method 3: Coba approach yang lebih dekat
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+    wait(1)
+    
+    -- Coba lagi proximity prompt dari jarak dekat
+    prompt = findProximityPrompt(Sam)
+    if prompt then
+        fireproximityprompt(prompt)
+        print("Fired ProximityPrompt from closer distance")
+        wait(2)
+        return true
+    end
+    
+    print("Could not open shop with NPC Sam")
+    return false
 end
 
-buttonScanBtn.MouseButton1Click:Connect(function()
-    scanButtons()
-end)
-
--- Clear logs
-clearLogsBtn.MouseButton1Click:Connect(function()
-    remoteEventLogs = {}
-    updateDebugInfo("SYSTEM", "Logs Cleared", "All event logs have been cleared")
-end)
-
--- Monitor untuk RemoteEvents baru
-ReplicatedStorage.DescendantAdded:Connect(function(descendant)
-    if descendant:IsA("RemoteEvent") then
-        wait(0.5)
-        trackRemoteEvent(descendant)
-    end
-end)
-
--- Input detection untuk backup
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed or not isMonitoring then return end
+-- Fungsi untuk mencari dan mengklik Main_Frame
+local function clickMainFrame(seedName)
+    print("Looking for seed frame: " .. seedName)
     
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        local mousePos = UserInputService:GetMouseLocation()
-        updateDebugInfo("MOUSE CLICK", "Left Mouse Button", 
-            string.format("Mouse Position: %s", tostring(mousePos)))
-    end
-end)
-
--- Hotkey system
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
+    -- Tunggu sebentar untuk memastikan GUI sudah loaded
+    wait(1)
     
-    if input.KeyCode == Enum.KeyCode.F1 then
-        if #remoteEventLogs == 0 then
-            updateDebugInfo("REMOTEEVENT LOGS", "No events tracked", "No RemoteEvent activity recorded")
-            return
-        end
-        
-        local logText = "📊 REMOTEEVENT ACTIVITY LOG:\n\n"
-        for i, log in ipairs(remoteEventLogs) do
-            logText = logText .. string.format("[%d] %s - %s: %s\nArgs Count: %d\n\n", 
-                i, log.timestamp, log.type, log.event, #log.args)
-        end
-        updateDebugInfo("REMOTEEVENT LOGS", "Recent Activity", logText)
-        
-    elseif input.KeyCode == Enum.KeyCode.F5 then
-        -- Toggle monitoring dengan F5
-        if isMonitoring then
-            stopMonitoring()
-        else
-            startMonitoring()
+    -- Cari seed frame di ScrollingFrame
+    local seedFrame = SeedShopGUI:FindFirstChild(seedName)
+    if not seedFrame then
+        print("Seed frame not found: " .. seedName)
+        -- Coba cari dengan pattern matching
+        for _, child in pairs(SeedShopGUI:GetChildren()) do
+            if string.find(child.Name:lower(), seedName:lower()) then
+                seedFrame = child
+                print("Found similar seed frame: " .. child.Name)
+                break
+            end
         end
     end
-end)
+    
+    if not seedFrame then
+        print("Could not find any matching seed frame")
+        return false
+    end
+    
+    -- Cari Main_Frame dalam seed frame
+    local mainFrame = seedFrame:FindFirstChild("Main_Frame")
+    if not mainFrame then
+        print("Main_Frame not found in " .. seedName)
+        -- Coba cari element button apapun yang mungkin menjadi Main_Frame
+        for _, child in pairs(seedFrame:GetChildren()) do
+            if child:IsA("TextButton") or child:IsA("ImageButton") or child:IsA("Frame") then
+                if child.Name:lower():find("main") or child.Name:lower():find("frame") then
+                    mainFrame = child
+                    print("Found alternative main frame: " .. child.Name)
+                    break
+                end
+            end
+        end
+    end
+    
+    if mainFrame then
+        print("Found Main_Frame, attempting to click...")
+        return clickGUIElement(mainFrame, "Main_Frame for " .. seedName)
+    else
+        print("Main_Frame not found, trying to click seed frame directly")
+        return clickGUIElement(seedFrame, "Seed frame " .. seedName)
+    end
+end
 
--- System info display
-local function updateSystemInfo()
-    while true do
-        wait(3)
-        local success, fps = pcall(function()
-            return math.floor(1/RunService.Heartbeat:Wait())
+-- Fungsi untuk mencari dan mengklik Sheckles_Buy
+local function clickShecklesBuy(seedName)
+    print("Looking for Sheckles_Buy button...")
+    wait(1) -- Tunggu dialog detail terbuka
+    
+    -- Cari Sheckles_Buy button di berbagai lokasi possible
+    local shecklesButton = nil
+    
+    -- Method 1: Cari di parent frames terlebih dahulu
+    local seedShopFrame = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame
+    if seedShopFrame then
+        -- Cari di berbagai kemungkinan lokasi
+        shecklesButton = seedShopFrame:FindFirstChild("Sheckles_Buy", true) -- recursive search
+        
+        -- Cari button dengan nama mengandung "sheckles" atau "buy"
+        if not shecklesButton then
+            for _, descendant in pairs(seedShopFrame:GetDescendants()) do
+                if (descendant:IsA("TextButton") or descendant:IsA("ImageButton")) then
+                    local nameLower = descendant.Name:lower()
+                    if nameLower:find("sheckles") or nameLower:find("buy") or nameLower:find("purchase") then
+                        shecklesButton = descendant
+                        print("Found potential buy button: " .. descendant.Name)
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    if shecklesButton then
+        print("Found Sheckles_Buy button, attempting to click...")
+        local success = clickGUIElement(shecklesButton, "Sheckles_Buy")
+        if success then
+            wait(0.5) -- Tunggu proses pembelian
+            return true
+        end
+    end
+    
+    -- Method 2: Coba gunakan RemoteEvent langsung jika button tidak ditemukan
+    local buyEvent = ReplicatedStorage.GameEvents:FindFirstChild("BuySeed") 
+                    or ReplicatedStorage.GameEvents:FindFirstChild("BuySeedStock")
+                    or ReplicatedStorage.GameEvents:FindFirstChild("PurchaseSeed")
+    
+    if buyEvent then
+        print("Using direct RemoteEvent for purchase")
+        local success, result = pcall(function()
+            buyEvent:FireServer(seedName)
+            return true
         end)
+        return success
+    end
+    
+    print("Sheckles_Buy button not found and no direct purchase method available")
+    return false
+end
+
+-- Fungsi utama untuk membeli seed
+local function buySeed(seedName)
+    if isBuying then
+        print("Already in buying process, please wait...")
+        return false
+    end
+    
+    isBuying = true
+    local originalPosition = HRP.CFrame
+    local success = false
+    
+    print("=== Starting purchase process for: " .. seedName .. " ===")
+    
+    -- Step 1: Buka toko dengan NPC Sam
+    print("Step 1: Opening shop with NPC Sam...")
+    local shopOpened = openShopWithNPC()
+    
+    if shopOpened then
+        -- Step 2: Klik Main_Frame untuk seed yang dipilih
+        print("Step 2: Clicking Main_Frame for " .. seedName .. "...")
+        local mainFrameClicked = clickMainFrame(seedName)
         
-        if not success then fps = 0 end
-        
-        -- Update title dengan info real-time
-        title.Text = string.format("⚡ DEBUG | FPS: %d | Events: %d | %s ⚡", 
-            fps, #remoteEventLogs, isMonitoring and "ACTIVE" or "PAUSED")
+        if mainFrameClicked then
+            -- Step 3: Klik Sheckles_Buy button
+            print("Step 3: Clicking Sheckles_Buy button...")
+            success = clickShecklesBuy(seedName)
+        else
+            print("Failed to click Main_Frame, attempting direct purchase...")
+            success = clickShecklesBuy(seedName) -- Coba langsung beli tanpa klik Main_Frame
+        end
+    else
+        print("Failed to open shop, attempting direct purchase...")
+        success = clickShecklesBuy(seedName) -- Coba beli tanpa buka toko
+    end
+    
+    -- Kembali ke posisi semula
+    wait(1)
+    HRP.CFrame = originalPosition
+    isBuying = false
+    
+    if success then
+        print("=== Successfully purchased: " .. seedName .. " ===")
+    else
+        print("=== Failed to purchase: " .. seedName .. " ===")
+    end
+    
+    return success
+end
+
+-- ... (fungsi-fungsi lain tetap sama)
+
+local function removePlantsOfKind(kind)
+    if not kind or kind[1] == "None Selected" then
+        print("No plant selected to remove")
+        return
+    end
+    
+    print("Kind: "..kind[1])
+    local Shovel = Backpack:FindFirstChild("Shovel [Destroy Plants]") or Backpack:FindFirstChild("Shovel")
+    
+    if not Shovel then
+        print("Shovel not found in backpack")
+        return
+    end
+    
+    Shovel.Parent = Character
+    wait(0.5)
+    
+    for _,plant in pairs(findPlayerFarm().Important.Plants_Physical:GetChildren()) do
+        if plant.Name == kind[1] then
+            if plant:FindFirstChild("Fruit_Spawn") then
+                local spawnPoint = plant.Fruit_Spawn
+                HRP.CFrame = plant.PrimaryPart.CFrame
+                wait(0.2)
+                removeItem:FireServer(spawnPoint)
+                wait(0.1)
+            end
+        end
+    end 
+    
+    if Shovel and Shovel.Parent == Character then
+        Shovel.Parent = Backpack
     end
 end
 
--- Initialize system
-local function initializeSystem()
-    -- Mulai dalam keadaan aktif
-    startMonitoring()
-    scanRemoteEvents()
-    scanButtons()
-    spawn(updateSystemInfo)
-    
-    updateDebugInfo("SYSTEM", "Initialization Complete", 
-        string.format("Debug system ready!\nUse F5 to toggle monitoring\nF1 to view logs"))
-    
-    print("=== ADVANCED DEBUG SYSTEM READY ===")
-    print("F1 - Show RemoteEvent Logs")
-    print("F5 - Toggle Monitoring")
-    print("Click STOP button to pause monitoring")
-    print("===================================")
+local function getAllIFromDict(Dict)
+    local newList = {}
+    for i,_ in pairs(Dict) do
+        table.insert(newList, i)
+    end
+    return newList
 end
 
--- Tunggu sebentar sebelum initialize
-wait(2)
-initializeSystem()
+local function isInTable(table,value)
+    for _,i in pairs(table) do
+        if i==value then
+            return true
+        end
+    end
+    return false
+end
+
+local function getPlantedFruitTypes()
+    local list = {}
+    local farm = findPlayerFarm()
+    if not farm then return list end
+    
+    for _,plant in pairs(farm.Important.Plants_Physical:GetChildren()) do
+        if not(isInTable(list, plant.Name)) then
+            table.insert(list, plant.Name)
+        end
+    end
+    return list
+end
+
+local Tab = Window:CreateTab("Plants", "rewind")
+Tab:CreateSection("Remove Plants")
+local PlantToRemoveDropdown = Tab:CreateDropdown({
+   Name = "Choose A Plant To Remove",
+   Options = getPlantedFruitTypes(),
+   CurrentOption = {"None Selected"},
+   MultipleOptions = false,
+   Flag = "Dropdown1", 
+   Callback = function(Options)
+    plantToRemove = Options
+   end,
+})
+
+Tab:CreateButton({
+    Name = "Refresh Selection",
+    Callback = function()
+        PlantToRemoveDropdown:Refresh(getPlantedFruitTypes())
+    end,
+})
+
+Tab:CreateButton({
+    Name = "Remove Selected Plant",
+    Callback = function()
+        removePlantsOfKind(plantToRemove)
+    end,
+})
+
+-- ... (bagian lainnya tetap sama)
+
+local function buyWantedCropSeeds()
+    if #wantedFruits == 0 then
+        print("No fruits selected to buy")
+        return false
+    end
+    
+    if isBuying then
+        print("Already buying seeds, please wait...")
+        return false
+    end
+    
+    local boughtAny = false
+    
+    for _, fruitName in ipairs(wantedFruits) do
+        local stock = tonumber(CropsListAndStocks[fruitName] or 0)
+        print("Trying to buy "..fruitName..", stock: "..tostring(stock))
+        
+        if stock > 0 then
+            for j = 1, math.min(stock, 5) do -- Batasi maksimal 5 pembelian per seed
+                local success = buySeed(fruitName)
+                if success then
+                    boughtAny = true
+                    print("✓ Successfully bought "..fruitName.." seed "..j.."/"..stock)
+                    -- Tunggu lebih lama setelah success
+                    wait(2)
+                else
+                    print("✗ Failed to buy "..fruitName.." attempt "..j)
+                    wait(1)
+                end
+            end
+        else
+            print("No stock for "..fruitName)
+        end
+    end
+    
+    return boughtAny
+end
+
+-- ... (bagian auto-buy dan UI lainnya tetap sama)
+
+local seedsTab = Window:CreateTab("Seeds")
+
+local function refreshCropList()
+    getCropsListAndStock()
+    return getAllIFromDict(CropsListAndStocks)
+end
+
+seedsTab:CreateDropdown({
+   Name = "Fruits To Buy",
+   Options = refreshCropList(),
+   CurrentOption = {"None Selected"},
+   MultipleOptions = true,
+   Flag = "Dropdown1", 
+   Callback = function(Options)
+        local filtered = {}
+        for _, fruit in ipairs(Options) do
+            if fruit ~= "None Selected" then
+                table.insert(filtered, fruit)
+            end
+        end
+        print("Selected fruits:", table.concat(filtered, ", "))
+        wantedFruits = filtered
+   end,
+})
+
+seedsTab:CreateButton({
+    Name = "Refresh Fruit List",
+    Callback = function()
+        seedsTab:RefreshDropdown("Dropdown1", refreshCropList())
+    end,
+})
+
+seedsTab:CreateToggle({
+    Name = "Enable Auto-Buy",
+    CurrentValue = false,
+    Flag = "AutoBuyToggle",
+    Callback = function(Value)
+        autoBuyEnabled = Value
+        print("Auto-Buy set to: "..tostring(Value))
+        
+        if Value and #wantedFruits > 0 then
+            spawn(function()
+                wait(2)
+                buyWantedCropSeeds()
+            end)
+        end
+    end,
+})
+
+seedsTab:CreateButton({
+    Name = "Buy Selected Fruits Now",
+    Callback = function()
+        buyWantedCropSeeds()
+    end,
+})
+
+-- ... (bagian sell tab dan lainnya)
+
+-- Initialize
+playerFarm = findPlayerFarm()
+if not playerFarm then
+    warn("Player farm not found!")
+end
+
+print("Grow A Garden script loaded successfully!")
+print("Auto-buy system ready!")
+print("Process: NPC Sam → ProximityPrompt → Main_Frame → Sheckles_Buy")

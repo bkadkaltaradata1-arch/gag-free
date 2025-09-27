@@ -1,5 +1,5 @@
 -- Advanced Remote Event Debug System
--- LocalScript di StarterPlayerScripts
+-- LocalScript di StarterPlayerScripts55
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer

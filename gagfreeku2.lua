@@ -1,4 +1,6 @@
--- LocalScript di 
+-- Advanced Remote Event Debug System
+-- LocalScript di StarterPlayerScripts
+
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
@@ -19,282 +21,286 @@ local remoteEventLogs = {}
 local isMonitoring = true
 local buttonConnections = {}
 local remoteEventConnections = {}
+local dataStreamLogs = {}
 
--- Buat UI debug yang lebih besar dengan kontrol
+-- Buat UI debug yang advanced
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AdvancedDebugGUI"
+screenGui.Name = "DataStreamDebugger"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player.PlayerGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 450, 0, 250)
+mainFrame.Size = UDim2.new(0, 500, 0, 350)
 mainFrame.Position = UDim2.new(0, 10, 0, 10)
-mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-mainFrame.BackgroundTransparency = 0.2
+mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+mainFrame.BackgroundTransparency = 0.1
 mainFrame.BorderSizePixel = 2
-mainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
+mainFrame.BorderColor3 = Color3.fromRGB(0, 150, 255)
 mainFrame.Parent = screenGui
 
 local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 8)
+corner.CornerRadius = UDim.new(0, 10)
 corner.Parent = mainFrame
 
--- Header dengan kontrol
+-- Header dengan tabs
 local header = Instance.new("Frame")
-header.Size = UDim2.new(1, 0, 0.18, 0)
-header.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+header.Size = UDim2.new(1, 0, 0.12, 0)
+header.BackgroundColor3 = Color3.fromRGB(20, 25, 40)
 header.BackgroundTransparency = 0.1
 header.Parent = mainFrame
 
 local cornerHeader = Instance.new("UICorner")
-cornerHeader.CornerRadius = UDim.new(0, 8)
+cornerHeader.CornerRadius = UDim.new(0, 10)
 cornerHeader.Parent = header
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(0.6, 0, 1, 0)
+title.Size = UDim2.new(0.5, 0, 1, 0)
 title.BackgroundTransparency = 1
-title.TextColor3 = Color3.fromRGB(255, 255, 0)
-title.Text = "⚡ DEBUG SYSTEM ⚡"
+title.TextColor3 = Color3.fromRGB(0, 255, 255)
+title.Text = "🌐 DATASTREAM DEBUGGER"
 title.Font = Enum.Font.Code
-title.TextSize = 16
+title.TextSize = 18
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Position = UDim2.new(0.02, 0, 0, 0)
 title.Parent = header
 
--- Tombol Start/Stop
-local startStopButton = Instance.new("TextButton")
-startStopButton.Size = UDim2.new(0.35, 0, 0.6, 0)
-startStopButton.Position = UDim2.new(0.63, 0, 0.2, 0)
-startStopButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-startStopButton.Text = "STOP"
-startStopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-startStopButton.Font = Enum.Font.Code
-startStopButton.TextSize = 14
-startStopButton.Parent = header
-
-local buttonCorner = Instance.new("UICorner")
-buttonCorner.CornerRadius = UDim.new(0, 6)
-buttonCorner.Parent = startStopButton
-
--- Status indicator
-local statusIndicator = Instance.new("Frame")
-statusIndicator.Size = UDim2.new(0.02, 0, 0.4, 0)
-statusIndicator.Position = UDim2.new(0.59, 0, 0.3, 0)
-statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-statusIndicator.Parent = header
+-- Status panel
+local statusPanel = Instance.new("Frame")
+statusPanel.Size = UDim2.new(0.45, 0, 0.7, 0)
+statusPanel.Position = UDim2.new(0.53, 0, 0.15, 0)
+statusPanel.BackgroundColor3 = Color3.fromRGB(30, 35, 50)
+statusPanel.Parent = header
 
 local statusCorner = Instance.new("UICorner")
-statusCorner.CornerRadius = UDim.new(0, 4)
-statusCorner.Parent = statusIndicator
+statusCorner.CornerRadius = UDim.new(0, 6)
+statusCorner.Parent = statusPanel
+
+local statusIndicator = Instance.new("Frame")
+statusIndicator.Size = UDim2.new(0.08, 0, 0.6, 0)
+statusIndicator.Position = UDim2.new(0.1, 0, 0.2, 0)
+statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+statusIndicator.Parent = statusPanel
 
 local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(0.1, 0, 0.4, 0)
-statusLabel.Position = UDim2.new(0.5, 0, 0.3, 0)
+statusLabel.Size = UDim2.new(0.7, 0, 1, 0)
+statusLabel.Position = UDim2.new(0.25, 0, 0, 0)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "ON"
+statusLabel.Text = "MONITORING ACTIVE"
 statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
 statusLabel.Font = Enum.Font.Code
 statusLabel.TextSize = 12
-statusLabel.Parent = header
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = statusPanel
 
 -- Kontrol panel
 local controlFrame = Instance.new("Frame")
 controlFrame.Size = UDim2.new(1, 0, 0.15, 0)
-controlFrame.Position = UDim2.new(0, 0, 0.18, 0)
-controlFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-controlFrame.BackgroundTransparency = 0.3
+controlFrame.Position = UDim2.new(0, 0, 0.12, 0)
+controlFrame.BackgroundColor3 = Color3.fromRGB(25, 30, 45)
 controlFrame.Parent = mainFrame
 
-local controlCorner = Instance.new("UICorner")
-controlCorner.CornerRadius = UDim.new(0, 6)
-controlCorner.Parent = controlFrame
-
 -- Tombol kontrol
-local buttonScanBtn = Instance.new("TextButton")
-buttonScanBtn.Size = UDim2.new(0.3, 0, 0.7, 0)
-buttonScanBtn.Position = UDim2.new(0.02, 0, 0.15, 0)
-buttonScanBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 200)
-buttonScanBtn.Text = "🔍 Scan Buttons"
-buttonScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-buttonScanBtn.Font = Enum.Font.Code
-buttonScanBtn.TextSize = 12
-buttonScanBtn.Parent = controlFrame
+local buttons = {
+    {name = "🔍 Scan Events", pos = 0.02, color = Color3.fromRGB(0, 150, 255)},
+    {name = "📊 View Logs", pos = 0.18, color = Color3.fromRGB(100, 200, 100)},
+    {name = "🧹 Clear Data", pos = 0.34, color = Color3.fromRGB(255, 100, 100)},
+    {name = "⏸️ Pause", pos = 0.50, color = Color3.fromRGB(255, 150, 50)},
+    {name = "📋 Export", pos = 0.66, color = Color3.fromRGB(200, 100, 255)},
+}
 
-local eventScanBtn = Instance.new("TextButton")
-eventScanBtn.Size = UDim2.new(0.3, 0, 0.7, 0)
-eventScanBtn.Position = UDim2.new(0.34, 0, 0.15, 0)
-eventScanBtn.BackgroundColor3 = Color3.fromRGB(200, 70, 70)
-eventScanBtn.Text = "📡 Scan Events"
-eventScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-eventScanBtn.Font = Enum.Font.Code
-eventScanBtn.TextSize = 12
-eventScanBtn.Parent = controlFrame
+local controlButtons = {}
 
-local clearLogsBtn = Instance.new("TextButton")
-clearLogsBtn.Size = UDim2.new(0.3, 0, 0.7, 0)
-clearLogsBtn.Position = UDim2.new(0.66, 0, 0.15, 0)
-clearLogsBtn.BackgroundColor3 = Color3.fromRGB(200, 200, 70)
-clearLogsBtn.Text = "🧹 Clear Logs"
-clearLogsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-clearLogsBtn.Font = Enum.Font.Code
-clearLogsBtn.TextSize = 12
-clearLogsBtn.Parent = controlFrame
+for i, btnInfo in ipairs(buttons) do
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(0.15, 0, 0.7, 0)
+    button.Position = UDim2.new(btnInfo.pos, 0, 0.15, 0)
+    button.BackgroundColor3 = btnInfo.color
+    button.Text = btnInfo.name
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.Font = Enum.Font.Code
+    button.TextSize = 11
+    button.Parent = controlFrame
+    
+    local buttonCorner = Instance.new("UICorner")
+    buttonCorner.CornerRadius = UDim.new(0, 5)
+    buttonCorner.Parent = button
+    
+    controlButtons[btnInfo.name] = button
+end
 
--- Area display
-local displayFrame = Instance.new("Frame")
-displayFrame.Size = UDim2.new(1, 0, 0.67, 0)
-displayFrame.Position = UDim2.new(0, 0, 0.33, 0)
-displayFrame.BackgroundTransparency = 1
-displayFrame.Parent = mainFrame
+-- Display area dengan tabs
+local displayTabs = Instance.new("Frame")
+displayTabs.Size = UDim2.new(1, 0, 0.73, 0)
+displayTabs.Position = UDim2.new(0, 0, 0.27, 0)
+displayTabs.BackgroundTransparency = 1
+displayTabs.Parent = mainFrame
 
-local label = Instance.new("TextLabel")
-label.Size = UDim2.new(0.95, 0, 1, 0)
-label.Position = UDim2.new(0.025, 0, 0, 0)
-label.BackgroundTransparency = 1
-label.TextColor3 = Color3.fromRGB(255, 255, 255)
-label.Text = "System ready. Click START to begin monitoring..."
-label.TextWrapped = true
-label.Font = Enum.Font.Code
-label.TextSize = 14
-label.TextXAlignment = Enum.TextXAlignment.Left
-label.TextYAlignment = Enum.TextYAlignment.Top
-label.Parent = displayFrame
+-- Tab buttons
+local tabButtons = {}
+local activeTab = "events"
 
-local scrollFrame = Instance.new("ScrollingFrame")
-scrollFrame.Size = UDim2.new(0.95, 0, 1, 0)
-scrollFrame.Position = UDim2.new(0.025, 0, 0, 0)
-scrollFrame.BackgroundTransparency = 1
-scrollFrame.ScrollBarThickness = 6
-scrollFrame.Visible = false
-scrollFrame.Parent = displayFrame
+local tabs = {
+    {name = "📡 Events", key = "events"},
+    {name = "📈 Stats", key = "stats"}, 
+    {name = "🔧 System", key = "system"}
+}
 
-local scrollLabel = Instance.new("TextLabel")
-scrollLabel.Size = UDim2.new(1, 0, 2, 0)
-scrollLabel.BackgroundTransparency = 1
-scrollLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-scrollLabel.Text = ""
-scrollLabel.TextWrapped = true
-scrollLabel.Font = Enum.Font.Code
-scrollLabel.TextSize = 12
-scrollLabel.TextXAlignment = Enum.TextXAlignment.Left
-scrollLabel.TextYAlignment = Enum.TextYAlignment.Top
-scrollLabel.Parent = scrollFrame
+for i, tab in ipairs(tabs) do
+    local tabButton = Instance.new("TextButton")
+    tabButton.Size = UDim2.new(0.32, 0, 0.08, 0)
+    tabButton.Position = UDim2.new(0.01 + (i-1)*0.33, 0, 0, 0)
+    tabButton.BackgroundColor3 = tab.key == "events" and Color3.fromRGB(0, 100, 200) or Color3.fromRGB(40, 45, 60)
+    tabButton.Text = tab.name
+    tabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    tabButton.Font = Enum.Font.Code
+    tabButton.TextSize = 12
+    tabButton.Parent = displayTabs
+    
+    local tabCorner = Instance.new("UICorner")
+    tabCorner.CornerRadius = UDim.new(0, 5)
+    tabCorner.Parent = tabButton
+    
+    tabButtons[tab.key] = tabButton
+end
 
-print("Advanced Debug GUI dengan kontrol berhasil dibuat!")
+-- Content area
+local contentFrame = Instance.new("ScrollingFrame")
+contentFrame.Size = UDim2.new(0.98, 0, 0.9, 0)
+contentFrame.Position = UDim2.new(0.01, 0, 0.1, 0)
+contentFrame.BackgroundTransparency = 1
+contentFrame.ScrollBarThickness = 8
+contentFrame.Parent = displayTabs
 
--- Fungsi untuk update debug info
-local function updateDebugInfo(debugType, details, data)
+local contentLabel = Instance.new("TextLabel")
+contentLabel.Size = UDim2.new(1, 0, 2, 0)
+contentLabel.BackgroundTransparency = 1
+contentLabel.TextColor3 = Color3.fromRGB(220, 220, 255)
+contentLabel.Text = "DataStream Debugger Ready..."
+contentLabel.TextWrapped = true
+contentLabel.Font = Enum.Font.Code
+contentLabel.TextSize = 13
+contentLabel.TextXAlignment = Enum.TextXAlignment.Left
+contentLabel.TextYAlignment = Enum.TextYAlignment.Top
+contentLabel.Parent = contentFrame
+
+print("🌐 Advanced DataStream Debugger Loaded!")
+
+-- Fungsi untuk log datastream activity
+local function logDataStream(eventType, eventName, data, direction)
     if not isMonitoring then return end
     
-    local character = player.Character
-    local charName = "No Character"
-    local position = "Unknown"
-    local health = "N/A"
+    local timestamp = os.date("%H:%M:%S")
+    local logEntry = {
+        type = eventType,
+        event = eventName,
+        data = data,
+        direction = direction or "SERVER→CLIENT",
+        timestamp = timestamp,
+        player = player.Name,
+        tick = tick()
+    }
     
-    if character then
-        charName = character.Name
-        if character:FindFirstChild("HumanoidRootPart") then
-            local pos = character.HumanoidRootPart.Position
-            position = string.format("X:%.1f, Y:%.1f, Z:%.1f", pos.X, pos.Y, pos.Z)
+    table.insert(dataStreamLogs, logEntry)
+    
+    -- Keep only last 100 logs
+    if #dataStreamLogs > 100 then
+        table.remove(dataStreamLogs, 1)
+    end
+    
+    return logEntry
+end
+
+-- Fungsi update display berdasarkan tab aktif
+local function updateDisplay()
+    contentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    
+    if activeTab == "events" then
+        local displayText = "📡 LIVE DATASTREAM ACTIVITY\n" .. string.rep("=", 50) .. "\n\n"
+        
+        if #dataStreamLogs == 0 then
+            displayText = displayText .. "No datastream activity detected yet...\n\n"
+            displayText = displayText .. "Waiting for RemoteEvents to fire..."
+        else
+            -- Show last 10 events
+            for i = math.max(1, #dataStreamLogs - 9), #dataStreamLogs do
+                local log = dataStreamLogs[i]
+                displayText = displayText .. string.format(
+                    "🕒 [%s] %s\n📍 %s: %s\n📊 Data: %s\n%s\n\n",
+                    log.timestamp,
+                    log.direction,
+                    log.type,
+                    log.event,
+                    tostring(log.data),
+                    string.rep("-", 40)
+                )
+            end
         end
-        if character:FindFirstChild("Humanoid") then
-            health = string.format("%.0f/%.0f", character.Humanoid.Health, character.Humanoid.MaxHealth)
+        
+        contentLabel.Text = displayText
+        
+    elseif activeTab == "stats" then
+        local statsText = "📈 DATASTREAM STATISTICS\n" .. string.rep("=", 50) .. "\n\n"
+        
+        -- Hitung statistik
+        local eventCounts = {}
+        local directionCounts = {["SERVER→CLIENT"] = 0, ["CLIENT→SERVER"] = 0}
+        
+        for _, log in ipairs(dataStreamLogs) do
+            eventCounts[log.type] = (eventCounts[log.type] or 0) + 1
+            directionCounts[log.direction] = (directionCounts[log.direction] or 0) + 1
         end
+        
+        statsText = statsText .. string.format("Total Events: %d\n", #dataStreamLogs)
+        statsText = statsText .. string.format("Monitoring Time: %.1f seconds\n", tick() - (dataStreamLogs[1] and dataStreamLogs[1].tick or tick()))
+        statsText = statsText .. string.format("Tracked RemoteEvents: %d\n\n", #trackedRemoteEvents)
+        
+        statsText = statsText .. "📊 Event Types:\n"
+        for eventType, count in pairs(eventCounts) do
+            statsText = statsText .. string.format("  %s: %d\n", eventType, count)
+        end
+        
+        statsText = statsText .. "\n🔄 Directions:\n"
+        for direction, count in pairs(directionCounts) do
+            statsText = statsText .. string.format("  %s: %d\n", direction, count)
+        end
+        
+        contentLabel.Text = statsText
+        
+    elseif activeTab == "system" then
+        local systemText = "🔧 SYSTEM INFORMATION\n" .. string.rep("=", 50) .. "\n\n"
+        
+        -- Performance info
+        local fps = math.floor(1/RunService.Heartbeat:Wait())
+        local memory = math.floor(collectgarbage("count"))
+        
+        -- Character info
+        local charInfo = "No character"
+        if player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            local root = player.Character:FindFirstChild("HumanoidRootPart")
+            if humanoid and root then
+                charInfo = string.format("Health: %d/%d | Position: (%.1f, %.1f, %.1f)", 
+                    humanoid.Health, humanoid.MaxHealth, root.Position.X, root.Position.Y, root.Position.Z)
+            end
+        end
+        
+        systemText = systemText .. string.format("FPS: %d\n", fps)
+        systemText = systemText .. string.format("Memory: %d KB\n", memory)
+        systemText = systemText .. string.format("Player: %s\n", player.Name)
+        systemText = systemText .. string.format("Character: %s\n", charInfo)
+        systemText = systemText .. string.format("Monitoring: %s\n", isMonitoring and "ACTIVE" : "PAUSED")
+        systemText = systemText .. string.format("UI Visible: %s\n", screenGui.Enabled and "YES" : "NO")
+        
+        systemText = systemText .. "\n🎯 HOTKEYS:\n"
+        systemText = systemText .. "F1 - Toggle Monitoring\n"
+        systemText = systemText .. "F2 - Quick Stats\n"
+        systemText = systemText .. "F3 - Export Logs\n"
+        
+        contentLabel.Text = systemText
     end
     
-    local fps = math.floor(1/RunService.Heartbeat:Wait())
-    
-    local debugText = string.format([[
-🔍 DEBUG TYPE: %s
-📋 DETAILS: %s
-
-👤 CHARACTER INFO:
-- Name: %s
-- Health: %s
-- Position: %s
-
-⚡ PERFORMANCE:
-- FPS: %d
-- Time: %s
-- Status: %s
-
-📊 DATA:
-%s
-    ]], 
-    debugType, 
-    details,
-    charName,
-    health,
-    position,
-    fps,
-    os.date("%H:%M:%S"),
-    isMonitoring and "ACTIVE" or "PAUSED",
-    data or "No additional data")
-    
-    -- Tampilkan di scrolling frame untuk data panjang
-    if #debugText > 500 then
-        label.Visible = false
-        scrollFrame.Visible = true
-        scrollLabel.Text = debugText
-        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, scrollLabel.TextBounds.Y + 20)
-    else
-        scrollFrame.Visible = false
-        label.Visible = true
-        label.Text = debugText
-    end
-    
-    -- Print ke console juga
-    print("=== DEBUG ===")
-    print("Type: " .. debugType)
-    print("Details: " .. details)
-    print("Status: " .. (isMonitoring and "ACTIVE" or "PAUSED"))
-    print("=============")
+    contentFrame.CanvasSize = UDim2.new(0, 0, 0, contentLabel.TextBounds.Y + 20)
 end
-
--- Fungsi untuk memulai monitoring
-local function startMonitoring()
-    if isMonitoring then return end
-    
-    isMonitoring = true
-    startStopButton.Text = "STOP"
-    startStopButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-    statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    statusLabel.Text = "ON"
-    statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-    
-    updateDebugInfo("SYSTEM", "Monitoring Started", "All monitoring functions are now ACTIVE")
-    
-    -- Animasi
-    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    local tween = TweenService:Create(statusIndicator, tweenInfo, {BackgroundColor3 = Color3.fromRGB(0, 255, 0)})
-    tween:Play()
-end
-
--- Fungsi untuk menghentikan monitoring
-local function stopMonitoring()
-    if not isMonitoring then return end
-    
-    isMonitoring = false
-    startStopButton.Text = "START"
-    startStopButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-    statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    statusLabel.Text = "OFF"
-    statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
-    
-    updateDebugInfo("SYSTEM", "Monitoring Stopped", "All monitoring functions are now PAUSED")
-    
-    -- Animasi
-    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    local tween = TweenService:Create(statusIndicator, tweenInfo, {BackgroundColor3 = Color3.fromRGB(255, 0, 0)})
-    tween:Play()
-end
-
--- Toggle monitoring
-startStopButton.MouseButton1Click:Connect(function()
-    if isMonitoring then
-        stopMonitoring()
-    else
-        startMonitoring()
-    end
-end)
 
 -- Fungsi untuk melacak RemoteEvent
 local function trackRemoteEvent(remoteEvent)
@@ -302,221 +308,215 @@ local function trackRemoteEvent(remoteEvent)
     
     trackedRemoteEvents[remoteEvent] = true
     local eventName = remoteEvent.Name
+    local eventPath = remoteEvent:GetFullName()
+    
+    print("🔗 Now tracking RemoteEvent: " .. eventPath)
     
     local success, errorMsg = pcall(function()
         local connection = remoteEvent.OnClientEvent:Connect(function(...)
             if not isMonitoring then return end
             
             local args = {...}
-            local logEntry = {
-                type = "RECEIVED_FROM_SERVER",
-                event = eventName,
-                args = args,
-                timestamp = os.date("%H:%M:%S"),
-                player = player.Name
-            }
+            local dataSummary = string.format("Args: %d | Values: ", #args)
             
-            table.insert(remoteEventLogs, logEntry)
+            -- Limit data preview untuk avoid spam
+            for i, arg in ipairs(args) do
+                if i <= 3 then  -- Hanya tampilkan 3 argumen pertama
+                    dataSummary = dataSummary .. tostring(arg) .. ", "
+                end
+            end
             
-            updateDebugInfo("REMOTEEVENT RECEIVED", 
-                "Server → Client: " .. eventName,
-                string.format("Arguments Count: %d\nEvent: %s", #args, eventName))
+            if #args > 3 then
+                dataSummary = dataSummary .. "..."
+            end
+            
+            local logEntry = logDataStream("REMOTE_EVENT", eventName, dataSummary, "SERVER→CLIENT")
+            
+            -- Update UI jika di tab events
+            if activeTab == "events" then
+                updateDisplay()
+            end
+            
+            -- Print ke console untuk important events
+            if #args > 0 then
+                print(string.format("📨 [%s] %s → %s", logEntry.timestamp, eventName, dataSummary))
+            end
         end)
         
         remoteEventConnections[remoteEvent] = connection
     end)
     
-    if success then
-        print("Now tracking RemoteEvent: " .. eventName)
-    else
-        warn("Gagal melacak RemoteEvent " .. eventName .. ": " .. errorMsg)
+    if not success then
+        warn("❌ Failed to track RemoteEvent " .. eventName .. ": " .. errorMsg)
     end
 end
 
--- Scan RemoteEvents
+-- Scan semua RemoteEvents
 local function scanRemoteEvents()
+    print("🔍 Scanning for RemoteEvents...")
+    
+    -- Reset tracking
     trackedRemoteEvents = {}
+    for _, conn in pairs(remoteEventConnections) do
+        conn:Disconnect()
+    end
     remoteEventConnections = {}
     
-    -- Putuskan koneksi lama
-    for _, connection in pairs(remoteEventConnections) do
-        connection:Disconnect()
-    end
+    local eventCount = 0
     
-    -- Scan ReplicatedStorage
-    for _, remoteEvent in ipairs(ReplicatedStorage:GetDescendants()) do
-        if remoteEvent:IsA("RemoteEvent") then
-            trackRemoteEvent(remoteEvent)
+    -- Scan di ReplicatedStorage
+    for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") then
+            trackRemoteEvent(obj)
+            eventCount += 1
         end
     end
     
-    -- Scan workspace
-    for _, remoteEvent in ipairs(workspace:GetDescendants()) do
-        if remoteEvent:IsA("RemoteEvent") then
-            trackRemoteEvent(remoteEvent)
+    -- Scan di Workspace
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("RemoteEvent") then
+            trackRemoteEvent(obj)
+            eventCount += 1
         end
     end
     
-    updateDebugInfo("SYSTEM", "RemoteEvent Scan Complete", 
-        string.format("Total RemoteEvents tracked: %d", table.getn(trackedRemoteEvents)))
+    logDataStream("SYSTEM", "Event Scan", string.format("Found %d RemoteEvents", eventCount), "SYSTEM")
+    updateDisplay()
+    
+    return eventCount
 end
 
-eventScanBtn.MouseButton1Click:Connect(function()
-    scanRemoteEvents()
-end)
-
--- Scan buttons
-local function scanButtons()
-    -- Putuskan koneksi lama
-    for _, connection in pairs(buttonConnections) do
-        connection:Disconnect()
+-- Fungsi toggle monitoring
+local function toggleMonitoring()
+    isMonitoring = not isMonitoring
+    
+    if isMonitoring then
+        statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        statusLabel.Text = "MONITORING ACTIVE"
+        statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+        controlButtons["⏸️ Pause"].Text = "⏸️ Pause"
+        controlButtons["⏸️ Pause"].BackgroundColor3 = Color3.fromRGB(255, 150, 50)
+    else
+        statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        statusLabel.Text = "MONITORING PAUSED"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+        controlButtons["⏸️ Pause"].Text = "▶️ Resume"
+        controlButtons["⏸️ Pause"].BackgroundColor3 = Color3.fromRGB(50, 200, 50)
     end
     
-    buttonConnections = {}
-    wait(1)
-    
-    local guis = player.PlayerGui:GetDescendants()
-    local buttonCount = 0
-    
-    for _, guiElement in ipairs(guis) do
-        if guiElement:IsA("TextButton") or guiElement:IsA("ImageButton") then
-            local success, errorMsg = pcall(function()
-                local connection = guiElement.MouseButton1Click:Connect(function()
-                    if not isMonitoring then return end
-                    
-                    local additionalInfo = ""
-                    if guiElement:IsA("TextButton") then
-                        additionalInfo = "Teks: " .. (guiElement.Text or "N/A")
-                    end
-                    
-                    local buttonInfo = string.format([[
-Button Name: %s
-Parent: %s
-Visible: %s
-Size: %s
-Position: %s
-%s
-                    ]],
-                    guiElement.Name,
-                    guiElement.Parent and guiElement.Parent.Name or "N/A",
-                    tostring(guiElement.Visible),
-                    tostring(guiElement.AbsoluteSize),
-                    tostring(guiElement.AbsolutePosition),
-                    additionalInfo)
-                    
-                    updateDebugInfo("BUTTON CLICK", "Button: " .. guiElement.Name, buttonInfo)
-                    
-                    -- Highlight effect
-                    local originalBg = guiElement.BackgroundColor3
-                    guiElement.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-                    wait(0.1)
-                    guiElement.BackgroundColor3 = originalBg
-                end)
-                
-                buttonConnections[guiElement] = connection
-                buttonCount += 1
-            end)
-            
-            if not success then
-                warn("Gagal connect ke button " .. guiElement.Name .. ": " .. errorMsg)
-            end
-        end
-    end
-    
-    updateDebugInfo("SYSTEM", "Button Scan Complete", 
-        string.format("Total buttons connected: %d\nGUI elements scanned: %d", buttonCount, #guis))
+    logDataStream("SYSTEM", "Monitoring", isMonitoring and "STARTED" : "PAUSED", "SYSTEM")
+    updateDisplay()
 end
 
-buttonScanBtn.MouseButton1Click:Connect(function()
-    scanButtons()
-end)
+-- Fungsi clear data
+local function clearData()
+    dataStreamLogs = {}
+    logDataStream("SYSTEM", "Data Clear", "All logs cleared", "SYSTEM")
+    updateDisplay()
+    print("🧹 DataStream logs cleared!")
+end
 
--- Clear logs
-clearLogsBtn.MouseButton1Click:Connect(function()
-    remoteEventLogs = {}
-    updateDebugInfo("SYSTEM", "Logs Cleared", "All event logs have been cleared")
-end)
-
--- Monitor untuk RemoteEvents baru
-ReplicatedStorage.DescendantAdded:Connect(function(descendant)
-    if descendant:IsA("RemoteEvent") then
-        wait(0.5)
-        trackRemoteEvent(descendant)
-    end
-end)
-
--- Input detection untuk backup
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed or not isMonitoring then return end
+-- Fungsi export logs
+local function exportLogs()
+    local exportText = "DATASTREAM DEBUGGER EXPORT\n" .. string.rep("=", 50) .. "\n\n"
+    exportText = exportText .. string.format("Export Time: %s\n", os.date("%Y-%m-%d %H:%M:%S"))
+    exportText = exportText .. string.format("Player: %s\n", player.Name)
+    exportText = exportText .. string.format("Total Events: %d\n\n", #dataStreamLogs)
     
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        local mousePos = UserInputService:GetMouseLocation()
-        updateDebugInfo("MOUSE CLICK", "Left Mouse Button", 
-            string.format("Mouse Position: %s", tostring(mousePos)))
+    for i, log in ipairs(dataStreamLogs) do
+        exportText = exportText .. string.format("[%d] %s | %s | %s: %s\n",
+            i, log.timestamp, log.direction, log.type, log.event)
+        exportText = exportText .. string.format("     Data: %s\n\n", log.data)
     end
+    
+    -- Copy to clipboard (akan work di studio)
+    pcall(function()
+        setclipboard(exportText)
+    end)
+    
+    print("📋 Logs exported to clipboard!")
+    logDataStream("SYSTEM", "Export", "Logs copied to clipboard", "SYSTEM")
+end
+
+-- Setup tab handlers
+for tabKey, tabButton in pairs(tabButtons) do
+    tabButton.MouseButton1Click:Connect(function()
+        activeTab = tabKey
+        
+        -- Update semua tab colors
+        for key, btn in pairs(tabButtons) do
+            btn.BackgroundColor3 = key == tabKey and Color3.fromRGB(0, 100, 200) or Color3.fromRGB(40, 45, 60)
+        end
+        
+        updateDisplay()
+    end)
+end
+
+-- Setup control button handlers
+controlButtons["🔍 Scan Events"].MouseButton1Click:Connect(function()
+    local count = scanRemoteEvents()
+    logDataStream("SYSTEM", "Manual Scan", string.format("Scanned %d events", count), "SYSTEM")
 end)
+
+controlButtons["📊 View Logs"].MouseButton1Click:Connect(function()
+    activeTab = "events"
+    for key, btn in pairs(tabButtons) do
+        btn.BackgroundColor3 = key == "events" and Color3.fromRGB(0, 100, 200) or Color3.fromRGB(40, 45, 60)
+    end
+    updateDisplay()
+end)
+
+controlButtons["🧹 Clear Data"].MouseButton1Click:Connect(clearData)
+controlButtons["⏸️ Pause"].MouseButton1Click:Connect(toggleMonitoring)
+controlButtons["📋 Export"].MouseButton1Click:Connect(exportLogs)
 
 -- Hotkey system
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
     if input.KeyCode == Enum.KeyCode.F1 then
-        if #remoteEventLogs == 0 then
-            updateDebugInfo("REMOTEEVENT LOGS", "No events tracked", "No RemoteEvent activity recorded")
-            return
+        toggleMonitoring()
+    elseif input.KeyCode == Enum.KeyCode.F2 then
+        activeTab = "stats"
+        for key, btn in pairs(tabButtons) do
+            btn.BackgroundColor3 = key == "stats" and Color3.fromRGB(0, 100, 200) or Color3.fromRGB(40, 45, 60)
         end
-        
-        local logText = "📊 REMOTEEVENT ACTIVITY LOG:\n\n"
-        for i, log in ipairs(remoteEventLogs) do
-            logText = logText .. string.format("[%d] %s - %s: %s\nArgs Count: %d\n\n", 
-                i, log.timestamp, log.type, log.event, #log.args)
-        end
-        updateDebugInfo("REMOTEEVENT LOGS", "Recent Activity", logText)
-        
-    elseif input.KeyCode == Enum.KeyCode.F5 then
-        -- Toggle monitoring dengan F5
+        updateDisplay()
+    elseif input.KeyCode == Enum.KeyCode.F3 then
+        exportLogs()
+    end
+end)
+
+-- Auto-detect new RemoteEvents
+ReplicatedStorage.DescendantAdded:Connect(function(descendant)
+    if descendant:IsA("RemoteEvent") then
+        wait(0.5)  -- Tunggu sedikit untuk initialization
+        trackRemoteEvent(descendant)
+        logDataStream("SYSTEM", "Auto-Detect", "New RemoteEvent: " .. descendant:GetFullName(), "SYSTEM")
+    end
+end)
+
+-- Real-time updates
+spawn(function()
+    while true do
+        wait(2)
         if isMonitoring then
-            stopMonitoring()
-        else
-            startMonitoring()
+            -- Update title dengan real-time info
+            title.Text = string.format("🌐 DATASTREAM DEBUGGER | Events: %d | FPS: %d", 
+                #dataStreamLogs, math.floor(1/RunService.Heartbeat:Wait()))
+            
+            -- Auto-refresh display jika di tab events
+            if activeTab == "events" and #dataStreamLogs > 0 then
+                updateDisplay()
+            end
         end
     end
 end)
 
--- System info display
-local function updateSystemInfo()
-    while true do
-        wait(3)
-        local success, fps = pcall(function()
-            return math.floor(1/RunService.Heartbeat:Wait())
-        end)
-        
-        if not success then fps = 0 end
-        
-        -- Update title dengan info real-time
-        title.Text = string.format("⚡ DEBUG | FPS: %d | Events: %d | %s ⚡", 
-            fps, #remoteEventLogs, isMonitoring and "ACTIVE" or "PAUSED")
-    end
-end
-
 -- Initialize system
-local function initializeSystem()
-    -- Mulai dalam keadaan aktif
-    startMonitoring()
-    scanRemoteEvents()
-    scanButtons()
-    spawn(updateSystemInfo)
-    
-    updateDebugInfo("SYSTEM", "Initialization Complete", 
-        string.format("Debug system ready!\nUse F5 to toggle monitoring\nF1 to view logs"))
-    
-    print("=== ADVANCED DEBUG SYSTEM READY ===")
-    print("F1 - Show RemoteEvent Logs")
-    print("F5 - Toggle Monitoring")
-    print("Click STOP button to pause monitoring")
-    print("===================================")
-end
+wait(1)
+scanRemoteEvents()
+updateDisplay()
 
--- Tunggu sebentar sebelum initialize
-wait(2)
-initializeSystem()
+print("🎯 DataStream Debugger Initialized!")
+print("F1 - Toggle Monitoring | F2 - Stats | F3 - Export")

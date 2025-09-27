@@ -1,1040 +1,741 @@
--- Full Flexible Debug GUI Script
-
+-- LocalScript di StarterPlayerScripts
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local TextChatService = game:GetService("TextChatService")
 
--- Wait for player to be ready
+-- Tunggu sampai player ready
+if not player then
+    player = Players.LocalPlayer
+end
+
 player:WaitForChild("PlayerGui")
 
--- =============================================
--- CONFIGURATION SYSTEM
--- =============================================
-local Config = {
-    Theme = {
-        Primary = Color3.fromRGB(25, 25, 35),
-        Secondary = Color3.fromRGB(40, 40, 55),
-        Accent = Color3.fromRGB(0, 170, 255),
-        Success = Color3.fromRGB(0, 200, 83),
-        Warning = Color3.fromRGB(255, 145, 0),
-        Error = Color3.fromRGB(255, 50, 50),
-        Text = Color3.fromRGB(240, 240, 240),
-        TextSecondary = Color3.fromRGB(180, 180, 180)
-    },
-    
-    Layout = {
-        DefaultSize = UDim2.new(0, 450, 0, 350),
-        MinSize = UDim2.new(0, 300, 0, 200),
-        MaxSize = UDim2.new(0, 800, 0, 600),
-        HeaderHeight = 0.12,
-        ControlHeight = 0.1,
-        TabHeight = 0.08
-    },
-    
-    Features = {
-        Resizable = true,
-        Draggable = true,
-        Minimizable = true,
-        ThemeSwitcher = true,
-        PresetLayouts = true,
-        AutoSave = true,
-        AutoScan = true
-    }
-}
+-- Variabel sistem
+local trackedRemoteEvents = {}
+local trackedRemoteFunctions = {}
+local remoteEventLogs = {}
+local isMonitoring = true
+local buttonConnections = {}
+local remoteEventConnections = {}
+local remoteFunctionConnections = {}
+local maxLogEntries = 100 -- Batasi jumlah log
 
--- =============================================
--- STATE MANAGEMENT
--- =============================================
-local GUIState = {
-    IsVisible = true,
-    IsMinimized = false,
-    CurrentTheme = "Dark",
-    CurrentLayout = "Default",
-    WindowPosition = UDim2.new(0, 10, 0, 10),
-    WindowSize = Config.Layout.DefaultSize,
-    Tabs = {},
-    ActiveTab = "",
-    DebugLogs = {},
-    TrackedEvents = {},
-    PerformanceStats = {
-        FPS = 0,
-        Memory = 0,
-        Ping = 0
-    }
-}
+-- Buat UI debug yang lebih besar dengan kontrol
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AdvancedDebugGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player.PlayerGui
 
--- =============================================
--- DATA STORAGE SYSTEM
--- =============================================
-local function savePreferences()
-    local preferences = {
-        position = GUIState.WindowPosition,
-        size = GUIState.WindowSize,
-        theme = GUIState.CurrentTheme,
-        layout = GUIState.CurrentLayout,
-        minimized = GUIState.IsMinimized,
-        visible = GUIState.IsVisible
-    }
-    
-    pcall(function()
-        player:SetAttribute("DebugGUI_Preferences", preferences)
-    end)
-end
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 500, 0, 350)
+mainFrame.Position = UDim2.new(0, 10, 0, 10)
+mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+mainFrame.BackgroundTransparency = 0.15
+mainFrame.BorderSizePixel = 2
+mainFrame.BorderColor3 = Color3.fromRGB(255, 255, 0)
+mainFrame.Parent = screenGui
 
-local function loadPreferences()
-    local success, preferences = pcall(function()
-        return player:GetAttribute("DebugGUI_Preferences")
-    end)
-    
-    if success and preferences then
-        GUIState.WindowPosition = preferences.position or GUIState.WindowPosition
-        GUIState.WindowSize = preferences.size or GUIState.WindowSize
-        GUIState.CurrentTheme = preferences.theme or GUIState.CurrentTheme
-        GUIState.CurrentLayout = preferences.layout or GUIState.CurrentLayout
-        GUIState.IsMinimized = preferences.minimized or false
-        GUIState.IsVisible = preferences.visible ~= false
-    end
-end
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = mainFrame
 
--- =============================================
--- THEME SYSTEM
--- =============================================
-local Themes = {
-    Dark = {
-        Primary = Color3.fromRGB(25, 25, 35),
-        Secondary = Color3.fromRGB(40, 40, 55),
-        Accent = Color3.fromRGB(0, 170, 255),
-        Success = Color3.fromRGB(0, 200, 83),
-        Warning = Color3.fromRGB(255, 145, 0),
-        Error = Color3.fromRGB(255, 50, 50),
-        Text = Color3.fromRGB(240, 240, 240),
-        TextSecondary = Color3.fromRGB(180, 180, 180)
-    },
-    
-    Light = {
-        Primary = Color3.fromRGB(245, 245, 245),
-        Secondary = Color3.fromRGB(220, 220, 220),
-        Accent = Color3.fromRGB(0, 120, 215),
-        Success = Color3.fromRGB(46, 125, 50),
-        Warning = Color3.fromRGB(237, 108, 2),
-        Error = Color3.fromRGB(211, 47, 47),
-        Text = Color3.fromRGB(30, 30, 30),
-        TextSecondary = Color3.fromRGB(80, 80, 80)
-    },
-    
-    Green = {
-        Primary = Color3.fromRGB(15, 35, 25),
-        Secondary = Color3.fromRGB(30, 60, 45),
-        Accent = Color3.fromRGB(76, 175, 80),
-        Success = Color3.fromRGB(102, 187, 106),
-        Warning = Color3.fromRGB(255, 193, 7),
-        Error = Color3.fromRGB(244, 67, 54),
-        Text = Color3.fromRGB(220, 255, 220),
-        TextSecondary = Color3.fromRGB(180, 220, 180)
-    },
-    
-    Purple = {
-        Primary = Color3.fromRGB(35, 25, 45),
-        Secondary = Color3.fromRGB(55, 40, 70),
-        Accent = Color3.fromRGB(156, 39, 176),
-        Success = Color3.fromRGB(102, 187, 106),
-        Warning = Color3.fromRGB(255, 193, 7),
-        Error = Color3.fromRGB(244, 67, 54),
-        Text = Color3.fromRGB(240, 220, 255),
-        TextSecondary = Color3.fromRGB(200, 180, 220)
-    }
-}
+-- Header dengan kontrol
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0.15, 0)
+header.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+header.BackgroundTransparency = 0.1
+header.Parent = mainFrame
 
--- =============================================
--- LAYOUT PRESETS
--- =============================================
-local LayoutPresets = {
-    Default = {
-        size = UDim2.new(0, 450, 0, 350),
-        position = UDim2.new(0, 10, 0, 10)
-    },
-    
-    Wide = {
-        size = UDim2.new(0, 600, 0, 350),
-        position = UDim2.new(0, 10, 0, 10)
-    },
-    
-    Tall = {
-        size = UDim2.new(0, 450, 0, 500),
-        position = UDim2.new(0, 10, 0, 10)
-    },
-    
-    Full = {
-        size = UDim2.new(0, 700, 0, 500),
-        position = UDim2.new(0, 10, 0, 10)
-    },
-    
-    Compact = {
-        size = UDim2.new(0, 350, 0, 250),
-        position = UDim2.new(0, 10, 0, 10)
-    }
-}
+local cornerHeader = Instance.new("UICorner")
+cornerHeader.CornerRadius = UDim.new(0, 8)
+cornerHeader.Parent = header
 
--- =============================================
--- UI FACTORY SYSTEM
--- =============================================
-local UI = {}
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(0.6, 0, 1, 0)
+title.BackgroundTransparency = 1
+title.TextColor3 = Color3.fromRGB(255, 255, 0)
+title.Text = "🌱 GARDEN DEBUG SYSTEM 🌱"
+title.Font = Enum.Font.Code
+title.TextSize = 16
+title.Parent = header
 
-function UI.createFrame(parent, props)
-    local frame = Instance.new("Frame")
-    frame.BackgroundColor3 = props.BackgroundColor3 or Config.Theme.Primary
-    frame.BackgroundTransparency = props.BackgroundTransparency or 0
-    frame.BorderSizePixel = props.BorderSizePixel or 0
-    frame.Size = props.Size or UDim2.new(1, 0, 1, 0)
-    frame.Position = props.Position or UDim2.new(0, 0, 0, 0)
-    frame.Visible = props.Visible ~= false
-    frame.ZIndex = props.ZIndex or 1
-    
-    if props.CornerRadius then
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, props.CornerRadius)
-        corner.Parent = frame
-    end
-    
-    if props.Stroke then
-        local stroke = Instance.new("UIStroke")
-        stroke.Color = props.StrokeColor or Config.Theme.Secondary
-        stroke.Thickness = props.StrokeThickness or 1
-        stroke.Parent = frame
-    end
-    
-    if parent then
-        frame.Parent = parent
-    end
-    
-    return frame
-end
+-- Tombol Start/Stop
+local startStopButton = Instance.new("TextButton")
+startStopButton.Size = UDim2.new(0.35, 0, 0.6, 0)
+startStopButton.Position = UDim2.new(0.63, 0, 0.2, 0)
+startStopButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+startStopButton.Text = "STOP"
+startStopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+startStopButton.Font = Enum.Font.Code
+startStopButton.TextSize = 14
+startStopButton.Parent = header
 
-function UI.createTextLabel(parent, props)
-    local label = Instance.new("TextLabel")
-    label.Text = props.Text or ""
-    label.TextColor3 = props.TextColor3 or Config.Theme.Text
-    label.TextSize = props.TextSize or 14
-    label.Font = props.Font or Enum.Font.Code
-    label.BackgroundTransparency = props.BackgroundTransparency or 1
-    label.Size = props.Size or UDim2.new(1, 0, 1, 0)
-    label.Position = props.Position or UDim2.new(0, 0, 0, 0)
-    label.TextWrapped = props.TextWrapped or false
-    label.TextXAlignment = props.TextXAlignment or Enum.TextXAlignment.Left
-    label.TextYAlignment = props.TextYAlignment or Enum.TextYAlignment.Center
-    label.ZIndex = props.ZIndex or 2
-    label.RichText = props.RichText or false
-    
-    if parent then
-        label.Parent = parent
+local buttonCorner = Instance.new("UICorner")
+buttonCorner.CornerRadius = UDim.new(0, 6)
+buttonCorner.Parent = startStopButton
+
+-- Status indicator
+local statusIndicator = Instance.new("Frame")
+statusIndicator.Size = UDim2.new(0.02, 0, 0.4, 0)
+statusIndicator.Position = UDim2.new(0.59, 0, 0.3, 0)
+statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+statusIndicator.Parent = header
+
+local statusCorner = Instance.new("UICorner")
+statusCorner.CornerRadius = UDim.new(0, 4)
+statusCorner.Parent = statusIndicator
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(0.1, 0, 0.4, 0)
+statusLabel.Position = UDim2.new(0.5, 0, 0.3, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "ON"
+statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+statusLabel.Font = Enum.Font.Code
+statusLabel.TextSize = 12
+statusLabel.Parent = header
+
+-- Kontrol panel
+local controlFrame = Instance.new("Frame")
+controlFrame.Size = UDim2.new(1, 0, 0.18, 0)
+controlFrame.Position = UDim2.new(0, 0, 0.15, 0)
+controlFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+controlFrame.BackgroundTransparency = 0.3
+controlFrame.Parent = mainFrame
+
+local controlCorner = Instance.new("UICorner")
+controlCorner.CornerRadius = UDim.new(0, 6)
+controlCorner.Parent = controlFrame
+
+-- Tombol kontrol
+local buttonScanBtn = Instance.new("TextButton")
+buttonScanBtn.Size = UDim2.new(0.22, 0, 0.7, 0)
+buttonScanBtn.Position = UDim2.new(0.02, 0, 0.15, 0)
+buttonScanBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 200)
+buttonScanBtn.Text = "🔍 Buttons"
+buttonScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+buttonScanBtn.Font = Enum.Font.Code
+buttonScanBtn.TextSize = 12
+buttonScanBtn.Parent = controlFrame
+
+local eventScanBtn = Instance.new("TextButton")
+eventScanBtn.Size = UDim2.new(0.22, 0, 0.7, 0)
+eventScanBtn.Position = UDim2.new(0.26, 0, 0.15, 0)
+eventScanBtn.BackgroundColor3 = Color3.fromRGB(200, 70, 70)
+eventScanBtn.Text = "📡 Events"
+eventScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+eventScanBtn.Font = Enum.Font.Code
+eventScanBtn.TextSize = 12
+eventScanBtn.Parent = controlFrame
+
+local functionScanBtn = Instance.new("TextButton")
+functionScanBtn.Size = UDim2.new(0.22, 0, 0.7, 0)
+functionScanBtn.Position = UDim2.new(0.50, 0, 0.15, 0)
+functionScanBtn.BackgroundColor3 = Color3.fromRGB(70, 200, 70)
+functionScanBtn.Text = "🔧 Functions"
+functionScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+functionScanBtn.Font = Enum.Font.Code
+functionScanBtn.TextSize = 12
+functionScanBtn.Parent = controlFrame
+
+local clearLogsBtn = Instance.new("TextButton")
+clearLogsBtn.Size = UDim2.new(0.22, 0, 0.7, 0)
+clearLogsBtn.Position = UDim2.new(0.74, 0, 0.15, 0)
+clearLogsBtn.BackgroundColor3 = Color3.fromRGB(200, 200, 70)
+clearLogsBtn.Text = "🧹 Clear"
+clearLogsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+clearLogsBtn.Font = Enum.Font.Code
+clearLogsBtn.TextSize = 12
+clearLogsBtn.Parent = controlFrame
+
+-- Filter panel
+local filterFrame = Instance.new("Frame")
+filterFrame.Size = UDim2.new(1, 0, 0.12, 0)
+filterFrame.Position = UDim2.new(0, 0, 0.33, 0)
+filterFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+filterFrame.BackgroundTransparency = 0.4
+filterFrame.Parent = mainFrame
+
+local filterLabel = Instance.new("TextLabel")
+filterLabel.Size = UDim2.new(0.15, 0, 0.6, 0)
+filterLabel.Position = UDim2.new(0.02, 0, 0.2, 0)
+filterLabel.BackgroundTransparency = 1
+filterLabel.Text = "Filter:"
+filterLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+filterLabel.Font = Enum.Font.Code
+filterLabel.TextSize = 12
+filterLabel.Parent = filterFrame
+
+local filterTextBox = Instance.new("TextBox")
+filterTextBox.Size = UDim2.new(0.8, 0, 0.6, 0)
+filterTextBox.Position = UDim2.new(0.18, 0, 0.2, 0)
+filterTextBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+filterTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+filterTextBox.PlaceholderText = "Cari event/function (plant, grow, harvest, dll)..."
+filterTextBox.Font = Enum.Font.Code
+filterTextBox.TextSize = 12
+filterTextBox.Parent = filterFrame
+
+-- Area display
+local displayFrame = Instance.new("Frame")
+displayFrame.Size = UDim2.new(1, 0, 0.55, 0)
+displayFrame.Position = UDim2.new(0, 0, 0.45, 0)
+displayFrame.BackgroundTransparency = 1
+displayFrame.Parent = mainFrame
+
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Size = UDim2.new(0.98, 0, 1, 0)
+scrollFrame.Position = UDim2.new(0.01, 0, 0, 0)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.ScrollBarThickness = 8
+scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 0)
+scrollFrame.Parent = displayFrame
+
+local scrollLabel = Instance.new("TextLabel")
+scrollLabel.Size = UDim2.new(1, 0, 0, 0)
+scrollLabel.AutomaticSize = Enum.AutomaticSize.Y
+scrollLabel.BackgroundTransparency = 1
+scrollLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+scrollLabel.Text = "System ready. Click START to begin monitoring..."
+scrollLabel.TextWrapped = true
+scrollLabel.Font = Enum.Font.Code
+scrollLabel.TextSize = 12
+scrollLabel.TextXAlignment = Enum.TextXAlignment.Left
+scrollLabel.TextYAlignment = Enum.TextYAlignment.Top
+scrollLabel.Parent = scrollFrame
+
+print("🌱 Advanced Garden Debug GUI berhasil dibuat!")
+
+-- Fungsi untuk format data arguments
+local function formatArguments(args)
+    if not args or #args == 0 then
+        return "No arguments"
     end
     
-    return label
-end
-
-function UI.createButton(parent, props)
-    local button = Instance.new("TextButton")
-    button.Text = props.Text or "Button"
-    button.TextColor3 = props.TextColor3 or Config.Theme.Text
-    button.TextSize = props.TextSize or 14
-    button.Font = props.Font or Enum.Font.Code
-    button.BackgroundColor3 = props.BackgroundColor3 or Config.Theme.Accent
-    button.Size = props.Size or UDim2.new(0, 100, 0, 30)
-    button.Position = props.Position or UDim2.new(0, 0, 0, 0)
-    button.AutoButtonColor = props.AutoButtonColor ~= false
-    button.ZIndex = props.ZIndex or 2
-    
-    if props.CornerRadius then
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, props.CornerRadius)
-        corner.Parent = button
-    end
-    
-    if parent then
-        button.Parent = parent
-    end
-    
-    return button
-end
-
-function UI.createScrollingFrame(parent, props)
-    local frame = Instance.new("ScrollingFrame")
-    frame.BackgroundTransparency = props.BackgroundTransparency or 1
-    frame.Size = props.Size or UDim2.new(1, 0, 1, 0)
-    frame.Position = props.Position or UDim2.new(0, 0, 0, 0)
-    frame.ScrollBarThickness = props.ScrollBarThickness or 8
-    frame.CanvasSize = props.CanvasSize or UDim2.new(0, 0, 0, 0)
-    frame.ScrollBarImageColor3 = props.ScrollBarColor or Config.Theme.Accent
-    frame.ZIndex = props.ZIndex or 1
-    
-    if parent then
-        frame.Parent = parent
-    end
-    
-    return frame
-end
-
-function UI.createTextBox(parent, props)
-    local textBox = Instance.new("TextBox")
-    textBox.Text = props.Text or ""
-    textBox.PlaceholderText = props.PlaceholderText or ""
-    textBox.TextColor3 = props.TextColor3 or Config.Theme.Text
-    textBox.BackgroundColor3 = props.BackgroundColor3 or Config.Theme.Secondary
-    textBox.Size = props.Size or UDim2.new(1, 0, 0, 30)
-    textBox.Position = props.Position or UDim2.new(0, 0, 0, 0)
-    textBox.Font = props.Font or Enum.Font.Code
-    textBox.TextSize = props.TextSize or 14
-    textBox.ZIndex = props.ZIndex or 2
-    
-    if props.CornerRadius then
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, props.CornerRadius)
-        corner.Parent = textBox
-    end
-    
-    if parent then
-        textBox.Parent = parent
-    end
-    
-    return textBox
-end
-
--- =============================================
--- DEBUG LOGGING SYSTEM
--- =============================================
-local DebugLogger = {
-    MaxLogs = 100,
-    LogTypes = {
-        INFO = {Color = Color3.fromRGB(100, 200, 255), Icon = "ℹ️"},
-        SUCCESS = {Color = Color3.fromRGB(100, 255, 100), Icon = "✅"},
-        WARNING = {Color = Color3.fromRGB(255, 200, 100), Icon = "⚠️"},
-        ERROR = {Color = Color3.fromRGB(255, 100, 100), Icon = "❌"},
-        EVENT = {Color = Color3.fromRGB(200, 100, 255), Icon = "📡"},
-        PERFORMANCE = {Color = Color3.fromRGB(255, 255, 100), Icon = "⚡"}
-    }
-}
-
-function DebugLogger.addLog(logType, message, data)
-    local logInfo = DebugLogger.LogTypes[logType] or DebugLogger.LogTypes.INFO
-    local timestamp = os.date("%H:%M:%S")
-    
-    local logEntry = {
-        Type = logType,
-        Message = message,
-        Data = data,
-        Timestamp = timestamp,
-        Color = logInfo.Color,
-        Icon = logInfo.Icon
-    }
-    
-    table.insert(GUIState.DebugLogs, logEntry)
-    
-    -- Keep only MaxLogs entries
-    if #GUIState.DebugLogs > DebugLogger.MaxLogs then
-        table.remove(GUIState.DebugLogs, 1)
-    end
-    
-    return logEntry
-end
-
-function DebugLogger.clearLogs()
-    GUIState.DebugLogs = {}
-end
-
--- =============================================
--- EVENT TRACKING SYSTEM
--- =============================================
-local EventTracker = {
-    TrackedEvents = {},
-    EventLogs = {}
-}
-
-function EventTracker.trackRemoteEvent(remoteEvent)
-    if EventTracker.TrackedEvents[remoteEvent] then return end
-    
-    EventTracker.TrackedEvents[remoteEvent] = true
-    
-    local connection = remoteEvent.OnClientEvent:Connect(function(...)
-        local args = {...}
-        local logEntry = DebugLogger.addLog("EVENT", 
-            "RemoteEvent Fired: " .. remoteEvent.Name,
-            string.format("Args Count: %d\nPath: %s", #args, remoteEvent:GetFullName()))
+    local formatted = {}
+    for i, arg in ipairs(args) do
+        local argType = typeof(arg)
+        local argValue = tostring(arg)
         
-        table.insert(EventTracker.EventLogs, {
-            Event = remoteEvent,
-            Args = args,
-            Timestamp = os.date("%H:%M:%S"),
-            LogEntry = logEntry
-        })
-    end)
+        -- Truncate long strings
+        if argType == "string" and #argValue > 50 then
+            argValue = argValue:sub(1, 50) .. "..."
+        end
+        
+        -- Special formatting for common types
+        if argType == "Vector3" then
+            argValue = string.format("Vector3(%.1f, %.1f, %.1f)", arg.X, arg.Y, arg.Z)
+        elseif argType == "CFrame" then
+            argValue = "CFrame(...)"
+        elseif argType == "Instance" then
+            argValue = arg:GetFullName()
+        end
+        
+        table.insert(formatted, string.format("[%d] %s: %s", i, argType, argValue))
+    end
     
-    return connection
+    return table.concat(formatted, "\n")
 end
 
-function EventTracker.scanAndTrackEvents()
-    -- Scan ReplicatedStorage
-    for _, descendant in ipairs(ReplicatedStorage:GetDescendants()) do
-        if descendant:IsA("RemoteEvent") then
-            EventTracker.trackRemoteEvent(descendant)
+-- Fungsi untuk update debug info
+local function updateDebugInfo(debugType, details, data)
+    if not isMonitoring then return end
+    
+    local character = player.Character
+    local charName = "No Character"
+    local position = "Unknown"
+    local health = "N/A"
+    
+    if character then
+        charName = character.Name
+        if character:FindFirstChild("HumanoidRootPart") then
+            local pos = character.HumanoidRootPart.Position
+            position = string.format("X:%.1f, Y:%.1f, Z:%.1f", pos.X, pos.Y, pos.Z)
+        end
+        if character:FindFirstChild("Humanoid") then
+            health = string.format("%.0f/%.0f", character.Humanoid.Health, character.Humanoid.MaxHealth)
         end
     end
     
-    -- Scan workspace
-    for _, descendant in ipairs(workspace:GetDescendants()) do
-        if descendant:IsA("RemoteEvent") then
-            EventTracker.trackRemoteEvent(descendant)
-        end
+    local fps = math.floor(1/RunService.Heartbeat:Wait())
+    
+    local debugText = string.format([[
+🎯 DEBUG TYPE: %s
+📋 DETAILS: %s
+
+👤 PLAYER INFO:
+- Name: %s
+- Health: %s
+- Position: %s
+
+⚡ PERFORMANCE:
+- FPS: %d
+- Time: %s
+- Status: %s
+
+📊 DATA:
+%s
+    ]], 
+    debugType, 
+    details,
+    player.Name,
+    health,
+    position,
+    fps,
+    os.date("%H:%M:%S"),
+    isMonitoring and "ACTIVE" or "PAUSED",
+    data or "No additional data")
+    
+    scrollLabel.Text = debugText
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, scrollLabel.TextBounds.Y + 20)
+    
+    -- Print ke console juga
+    print("🌱=== GARDEN DEBUG ===")
+    print("Type: " .. debugType)
+    print("Details: " .. details)
+    print("Status: " .. (isMonitoring and "ACTIVE" or "PAUSED"))
+    print("=====================🌱")
+end
+
+-- Fungsi untuk menambah log entry
+local function addLogEntry(entry)
+    table.insert(remoteEventLogs, entry)
+    
+    -- Batasi jumlah log entries
+    if #remoteEventLogs > maxLogEntries then
+        table.remove(remoteEventLogs, 1)
     end
 end
 
--- =============================================
--- PERFORMANCE MONITORING SYSTEM
--- =============================================
-local PerformanceMonitor = {
-    SampleCount = 60,
-    FrameTimes = {},
-    LastUpdate = 0
-}
-
-function PerformanceMonitor.update()
-    local currentTime = tick()
+-- Fungsi untuk memulai monitoring
+local function startMonitoring()
+    if isMonitoring then return end
     
-    -- Calculate FPS
-    table.insert(PerformanceMonitor.FrameTimes, currentTime)
-    if #PerformanceMonitor.FrameTimes > PerformanceMonitor.SampleCount then
-        table.remove(PerformanceMonitor.FrameTimes, 1)
-    end
+    isMonitoring = true
+    startStopButton.Text = "STOP"
+    startStopButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+    statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    statusLabel.Text = "ON"
+    statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
     
-    local fps = 0
-    if #PerformanceMonitor.FrameTimes > 1 then
-        local timeSpan = PerformanceMonitor.FrameTimes[#PerformanceMonitor.FrameTimes] - PerformanceMonitor.FrameTimes[1]
-        fps = math.floor((#PerformanceMonitor.FrameTimes - 1) / timeSpan)
-    end
+    updateDebugInfo("SYSTEM", "Monitoring Started", "All monitoring functions are now ACTIVE")
     
-    GUIState.PerformanceStats.FPS = fps
-    
-    -- Update every second
-    if currentTime - PerformanceMonitor.LastUpdate >= 1 then
-        PerformanceMonitor.LastUpdate = currentTime
-        
-        -- Memory usage (approximate)
-        local memory = math.floor(collectgarbage("count") / 1024) -- Convert to MB
-        GUIState.PerformanceStats.Memory = memory
-        
-        DebugLogger.addLog("PERFORMANCE", 
-            string.format("FPS: %d | Memory: %.1fMB", fps, memory))
-    end
+    -- Animasi
+    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(statusIndicator, tweenInfo, {BackgroundColor3 = Color3.fromRGB(0, 255, 0)})
+    tween:Play()
 end
 
--- =============================================
--- MAIN GUI CREATION
--- =============================================
-local function createFlexibleGUI()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "FlexibleDebugGUI"
-    screenGui.ResetOnSpawn = false
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    screenGui.Enabled = GUIState.IsVisible
-    screenGui.Parent = player.PlayerGui
-
-    -- Main Container
-    local mainContainer = UI.createFrame(screenGui, {
-        Size = GUIState.WindowSize,
-        Position = GUIState.WindowPosition,
-        BackgroundColor3 = Config.Theme.Primary,
-        CornerRadius = 12,
-        Stroke = true,
-        StrokeColor = Config.Theme.Secondary,
-        StrokeThickness = 2
-    })
-    mainContainer.ZIndex = 10
-
-    -- Header Bar
-    local header = UI.createFrame(mainContainer, {
-        Size = UDim2.new(1, 0, Config.Layout.HeaderHeight, 0),
-        BackgroundColor3 = Config.Theme.Secondary,
-        CornerRadius = 12
-    })
-    header.ZIndex = 11
-
-    -- Title
-    local title = UI.createTextLabel(header, {
-        Text = "🔧 Flexible Debug GUI v2.0",
-        TextSize = 16,
-        TextColor3 = Config.Theme.Accent,
-        Size = UDim2.new(0.6, 0, 1, 0),
-        Position = UDim2.new(0.02, 0, 0, 0),
-        Font = Enum.Font.GothamBold
-    })
-    title.ZIndex = 12
-
-    -- Control Buttons
-    local controlButtons = UI.createFrame(header, {
-        Size = UDim2.new(0.35, 0, 1, 0),
-        Position = UDim2.new(0.65, 0, 0, 0),
-        BackgroundTransparency = 1
-    })
-    controlButtons.ZIndex = 12
-
-    local minimizeBtn = UI.createButton(controlButtons, {
-        Text = GUIState.IsMinimized and "🗖" or "🗕",
-        Size = UDim2.new(0.25, 0, 0.6, 0),
-        Position = UDim2.new(0, 0, 0.2, 0),
-        BackgroundColor3 = Config.Theme.Warning,
-        CornerRadius = 6,
-        TextSize = 12
-    })
-    minimizeBtn.ZIndex = 13
-
-    local settingsBtn = UI.createButton(controlButtons, {
-        Text = "⚙️",
-        Size = UDim2.new(0.25, 0, 0.6, 0),
-        Position = UDim2.new(0.26, 0, 0.2, 0),
-        BackgroundColor3 = Config.Theme.Secondary,
-        CornerRadius = 6,
-        TextSize = 12
-    })
-    settingsBtn.ZIndex = 13
-
-    local themeBtn = UI.createButton(controlButtons, {
-        Text = "🎨",
-        Size = UDim2.new(0.25, 0, 0.6, 0),
-        Position = UDim2.new(0.52, 0, 0.2, 0),
-        BackgroundColor3 = Config.Theme.Secondary,
-        CornerRadius = 6,
-        TextSize = 12
-    })
-    themeBtn.ZIndex = 13
-
-    local closeBtn = UI.createButton(controlButtons, {
-        Text = "✕",
-        Size = UDim2.new(0.25, 0, 0.6, 0),
-        Position = UDim2.new(0.78, 0, 0.2, 0),
-        BackgroundColor3 = Config.Theme.Error,
-        CornerRadius = 6,
-        TextSize = 12
-    })
-    closeBtn.ZIndex = 13
-
-    -- Content Area (will be hidden when minimized)
-    local contentArea = UI.createFrame(mainContainer, {
-        Size = UDim2.new(1, 0, 1 - Config.Layout.HeaderHeight, 0),
-        Position = UDim2.new(0, 0, Config.Layout.HeaderHeight, 0),
-        BackgroundTransparency = 1,
-        Visible = not GUIState.IsMinimized
-    })
-    contentArea.ZIndex = 11
-
-    -- Tab Bar
-    local tabBar = UI.createFrame(contentArea, {
-        Size = UDim2.new(1, 0, Config.Layout.TabHeight, 0),
-        Position = UDim2.new(0, 0, 0, 0),
-        BackgroundColor3 = Config.Theme.Secondary
-    })
-    tabBar.ZIndex = 12
-
-    -- Tab Content Area
-    local tabContentArea = UI.createFrame(contentArea, {
-        Size = UDim2.new(1, -10, 1 - Config.Layout.TabHeight - 0.05, 0),
-        Position = UDim2.new(0, 5, Config.Layout.TabHeight, 0),
-        BackgroundTransparency = 1
-    })
-    tabContentArea.ZIndex = 11
-
-    -- Status Bar
-    local statusBar = UI.createFrame(contentArea, {
-        Size = UDim2.new(1, 0, 0.05, 0),
-        Position = UDim2.new(0, 0, 0.95, 0),
-        BackgroundColor3 = Config.Theme.Secondary
-    })
-    statusBar.ZIndex = 12
-
-    local statusText = UI.createTextLabel(statusBar, {
-        Text = "Ready | FPS: 0 | Memory: 0MB",
-        TextSize = 11,
-        TextColor3 = Config.Theme.TextSecondary,
-        Size = UDim2.new(1, -10, 1, 0),
-        Position = UDim2.new(0, 5, 0, 0)
-    })
-    statusText.ZIndex = 13
-
-    -- Resize Handle
-    local resizeHandle = UI.createFrame(mainContainer, {
-        Size = UDim2.new(0, 20, 0, 20),
-        Position = UDim2.new(1, -20, 1, -20),
-        BackgroundColor3 = Config.Theme.Accent,
-        CornerRadius = 4,
-        Visible = Config.Features.Resizable
-    })
-    resizeHandle.ZIndex = 15
-
-    local resizeIcon = UI.createTextLabel(resizeHandle, {
-        Text = "⤢",
-        TextSize = 12,
-        TextColor3 = Config.Theme.Text,
-        Size = UDim2.new(1, 0, 1, 0),
-        Position = UDim2.new(0, 0, 0, 0)
-    })
-    resizeIcon.ZIndex = 16
-
-    -- Settings Panel (initially hidden)
-    local settingsPanel = UI.createFrame(mainContainer, {
-        Size = UDim2.new(0.8, 0, 0.7, 0),
-        Position = UDim2.new(0.1, 0, 0.15, 0),
-        BackgroundColor3 = Config.Theme.Primary,
-        CornerRadius = 8,
-        Stroke = true,
-        StrokeColor = Config.Theme.Accent,
-        StrokeThickness = 2,
-        Visible = false
-    })
-    settingsPanel.ZIndex = 20
-
-    local settingsTitle = UI.createTextLabel(settingsPanel, {
-        Text = "⚙️ Debug GUI Settings",
-        TextSize = 16,
-        TextColor3 = Config.Theme.Accent,
-        Size = UDim2.new(1, 0, 0.1, 0),
-        Position = UDim2.new(0, 0, 0, 0),
-        TextXAlignment = Enum.TextXAlignment.Center,
-        Font = Enum.Font.GothamBold
-    })
-    settingsTitle.ZIndex = 21
-
-    return {
-        ScreenGui = screenGui,
-        MainContainer = mainContainer,
-        Header = header,
-        Title = title,
-        ContentArea = contentArea,
-        TabBar = tabBar,
-        TabContentArea = tabContentArea,
-        StatusBar = statusBar,
-        StatusText = statusText,
-        ResizeHandle = resizeHandle,
-        SettingsPanel = settingsPanel,
-        
-        -- Control Buttons
-        MinimizeBtn = minimizeBtn,
-        SettingsBtn = settingsBtn,
-        ThemeBtn = themeBtn,
-        CloseBtn = closeBtn,
-        
-        -- Tabs collection
-        Tabs = {}
-    }
+-- Fungsi untuk menghentikan monitoring
+local function stopMonitoring()
+    if not isMonitoring then return end
+    
+    isMonitoring = false
+    startStopButton.Text = "START"
+    startStopButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+    statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    statusLabel.Text = "OFF"
+    statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+    
+    updateDebugInfo("SYSTEM", "Monitoring Stopped", "All monitoring functions are now PAUSED")
+    
+    -- Animasi
+    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(statusIndicator, tweenInfo, {BackgroundColor3 = Color3.fromRGB(255, 0, 0)})
+    tween:Play()
 end
 
--- =============================================
--- TAB MANAGEMENT SYSTEM
--- =============================================
-local TabSystem = {}
-
-function TabSystem.createTab(gui, name, icon, tooltip)
-    local tabCount = #gui.Tabs
-    local tabWidth = 1 / math.max(4, tabCount + 1) -- Max 4 tabs visible
-    
-    local tabButton = UI.createButton(gui.TabBar, {
-        Text = icon and (icon .. " " .. name) or name,
-        Size = UDim2.new(tabWidth - 0.02, 0, 0.8, 0),
-        Position = UDim2.new(tabWidth * tabCount + 0.01, 0, 0.1, 0),
-        BackgroundColor3 = tabCount == 0 and Config.Theme.Accent or Config.Theme.Secondary,
-        CornerRadius = 6,
-        TextSize = 11
-    })
-    tabButton.ZIndex = 13
-
-    local tabContent = UI.createFrame(gui.TabContentArea, {
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Visible = tabCount == 0 -- First tab visible by default
-    })
-    tabContent.ZIndex = 11
-
-    local tab = {
-        Name = name,
-        Icon = icon,
-        Button = tabButton,
-        Content = tabContent,
-        IsActive = tabCount == 0
-    }
-
-    table.insert(gui.Tabs, tab)
-    
-    if tabCount == 0 then
-        GUIState.ActiveTab = name
-    end
-
-    -- Tab click handler
-    tabButton.MouseButton1Click:Connect(function()
-        TabSystem.switchToTab(gui, name)
-    end)
-
-    return tab
-end
-
-function TabSystem.switchToTab(gui, tabName)
-    for _, tab in ipairs(gui.Tabs) do
-        local isActive = tab.Name == tabName
-        tab.Content.Visible = isActive
-        tab.Button.BackgroundColor3 = isActive and Config.Theme.Accent or Config.Theme.Secondary
-        tab.IsActive = isActive
-    end
-    GUIState.ActiveTab = tabName
-end
-
--- =============================================
--- INTERACTION SYSTEM
--- =============================================
-local InteractionSystem = {}
-
-function InteractionSystem.makeDraggable(gui)
-    local dragInput
-    local dragStart
-    local startPos
-
-    local function update(input)
-        local delta = input.Position - dragStart
-        local newPos = UDim2.new(
-            startPos.X.Scale, startPos.X.Offset + delta.X,
-            startPos.Y.Scale, startPos.Y.Offset + delta.Y
-        )
-        
-        -- Keep within screen bounds
-        local screenSize = gui.ScreenGui.AbsoluteSize
-        local containerSize = gui.MainContainer.AbsoluteSize
-        newPos = UDim2.new(
-            newPos.X.Scale, math.clamp(newPos.X.Offset, 0, screenSize.X - containerSize.X),
-            newPos.Y.Scale, math.clamp(newPos.Y.Offset, 0, screenSize.Y - containerSize.Y)
-        )
-        
-        gui.MainContainer.Position = newPos
-        GUIState.WindowPosition = newPos
-    end
-
-    gui.Header.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragStart = input.Position
-            startPos = gui.MainContainer.Position
-            
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    savePreferences()
-                end
-            end)
-        end
-    end)
-
-    gui.Header.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement then
-            dragInput = input
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput then
-            update(input)
-        end
-    end)
-end
-
-function InteractionSystem.makeResizable(gui)
-    local resizeInput
-    local dragStart
-    local startSize
-
-    local function update(input)
-        local delta = input.Position - dragStart
-        local newSize = UDim2.new(
-            startSize.X.Scale, math.max(Config.Layout.MinSize.X.Offset, startSize.X.Offset + delta.X),
-            startSize.Y.Scale, math.max(Config.Layout.MinSize.Y.Offset, startSize.Y.Offset + delta.Y)
-        )
-        
-        -- Limit maximum size
-        newSize = UDim2.new(
-            newSize.X.Scale, math.min(Config.Layout.MaxSize.X.Offset, newSize.X.Offset),
-            newSize.Y.Scale, math.min(Config.Layout.MaxSize.Y.Offset, newSize.Y.Offset)
-        )
-        
-        gui.MainContainer.Size = newSize
-        GUIState.WindowSize = newSize
-    end
-
-    gui.ResizeHandle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragStart = input.Position
-            startSize = gui.MainContainer.Size
-            
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    savePreferences()
-                end
-            end)
-        end
-    end)
-
-    gui.ResizeHandle.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement then
-            resizeInput = input
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if input == resizeInput then
-            update(input)
-        end
-    end)
-end
-
--- =============================================
--- CONSOLE SYSTEM
--- =============================================
-local ConsoleSystem = {}
-
-function ConsoleSystem.createConsoleTab(gui)
-    local consoleTab = TabSystem.createTab(gui, "Console", "📟", "Debug Console")
-    
-    -- Console controls
-    local controlsFrame = UI.createFrame(consoleTab.Content, {
-        Size = UDim2.new(1, 0, 0.1, 0),
-        Position = UDim2.new(0, 0, 0, 0),
-        BackgroundColor3 = Config.Theme.Secondary,
-        CornerRadius = 6
-    })
-    
-    local clearBtn = UI.createButton(controlsFrame, {
-        Text = "🧹 Clear",
-        Size = UDim2.new(0.15, 0, 0.7, 0),
-        Position = UDim2.new(0.02, 0, 0.15, 0),
-        BackgroundColor3 = Config.Theme.Warning,
-        CornerRadius = 4,
-        TextSize = 11
-    })
-    
-    local autoScrollBtn = UI.createButton(controlsFrame, {
-        Text = "📜 Auto-Scroll: ON",
-        Size = UDim2.new(0.2, 0, 0.7, 0),
-        Position = UDim2.new(0.18, 0, 0.15, 0),
-        BackgroundColor3 = Config.Theme.Success,
-        CornerRadius = 4,
-        TextSize = 11
-    })
-    
-    -- Console output
-    local consoleScroll = UI.createScrollingFrame(consoleTab.Content, {
-        Size = UDim2.new(1, 0, 0.9, 0),
-        Position = UDim2.new(0, 0, 0.1, 0),
-        CanvasSize = UDim2.new(0, 0, 2, 0),
-        ScrollBarThickness = 8
-    })
-    
-    local consoleOutput = UI.createTextLabel(consoleScroll, {
-        Text = "🔧 Debug Console Ready!\n" .. os.date("🕒 %H:%M:%S") .. "\n\n",
-        TextSize = 12,
-        TextColor3 = Config.Theme.Text,
-        Size = UDim2.new(1, -10, 2, 0),
-        Position = UDim2.new(0, 5, 0, 5),
-        TextXAlignment = Enum.TextXAlignment.Left,
-        TextYAlignment = Enum.TextYAlignment.Top,
-        TextWrapped = true
-    })
-    
-    -- Clear button handler
-    clearBtn.MouseButton1Click:Connect(function()
-        DebugLogger.clearLogs()
-        consoleOutput.Text = "🧹 Console Cleared!\n" .. os.date("🕒 %H:%M:%S") .. "\n\n"
-        consoleScroll.CanvasSize = UDim2.new(0, 0, 0, consoleOutput.TextBounds.Y + 20)
-    end)
-    
-    -- Auto-scroll toggle
-    local autoScroll = true
-    autoScrollBtn.MouseButton1Click:Connect(function()
-        autoScroll = not autoScroll
-        autoScrollBtn.Text = "📜 Auto-Scroll: " .. (autoScroll and "ON" or "OFF")
-        autoScrollBtn.BackgroundColor3 = autoScroll and Config.Theme.Success or Config.Theme.Secondary
-    end)
-    
-    -- Function to update console
-    local function updateConsole()
-        local logText = "🔧 Debug Console\n" .. os.date("🕒 %H:%M:%S") .. "\n\n"
-        
-        for i, log in ipairs(GUIState.DebugLogs) do
-            local logLine = string.format("[%s] %s %s", log.Timestamp, log.Icon, log.Message)
-            if log.Data then
-                logLine = logLine .. "\n   " .. log.Data
-            end
-            logText = logText .. logLine .. "\n\n"
-        end
-        
-        consoleOutput.Text = logText
-        consoleScroll.CanvasSize = UDim2.new(0, 0, 0, consoleOutput.TextBounds.Y + 20)
-        
-        if autoScroll then
-            consoleScroll.CanvasPosition = Vector2.new(0, consoleScroll.CanvasSize.Y.Offset)
-        end
-    end
-    
-    -- Update console periodically
-    spawn(function()
-        while true do
-            wait(0.5)
-            if GUIState.ActiveTab == "Console" then
-                updateConsole()
-            end
-        end
-    end)
-    
-    return consoleTab
-end
-
--- =============================================
--- INITIALIZATION
--- =============================================
-local function initializeFlexibleGUI()
-    -- Load saved preferences
-    loadPreferences()
-    
-    -- Create GUI
-    local gui = createFlexibleGUI()
-    
-    -- Setup interactions
-    if Config.Features.Draggable then
-        InteractionSystem.makeDraggable(gui)
-    end
-    
-    if Config.Features.Resizable then
-        InteractionSystem.makeResizable(gui)
-    end
-
-    -- Button handlers
-    gui.CloseBtn.MouseButton1Click:Connect(function()
-        GUIState.IsVisible = false
-        gui.ScreenGui.Enabled = false
-        savePreferences()
-    end)
-
-    gui.MinimizeBtn.MouseButton1Click:Connect(function()
-        GUIState.IsMinimized = not GUIState.IsMinimized
-        gui.ContentArea.Visible = not GUIState.IsMinimized
-        gui.MinimizeBtn.Text = GUIState.IsMinimized and "🗖" or "🗕"
-        savePreferences()
-    end)
-
-    gui.SettingsBtn.MouseButton1Click:Connect(function()
-        gui.SettingsPanel.Visible = not gui.SettingsPanel.Visible
-    end)
-
-    gui.ThemeBtn.MouseButton1Click:Connect(function()
-        -- Cycle through themes
-        local themes = {"Dark", "Light", "Green", "Purple"}
-        local currentIndex = table.find(themes, GUIState.CurrentTheme) or 1
-        local nextIndex = (currentIndex % #themes) + 1
-        GUIState.CurrentTheme = themes[nextIndex]
-        
-        -- In a full implementation, this would update all colors
-        DebugLogger.addLog("INFO", "Theme changed to: " .. GUIState.CurrentTheme)
-        savePreferences()
-    end)
-
-    -- Create default tabs
-    ConsoleSystem.createConsoleTab(gui)
-    TabSystem.createTab(gui, "Events", "📡", "Event Monitor")
-    TabSystem.createTab(gui, "Performance", "⚡", "Performance Stats")
-    TabSystem.createTab(gui, "Settings", "⚙️", "GUI Settings")
-
-    -- Start performance monitoring
-    spawn(function()
-        while true do
-            PerformanceMonitor.update()
-            
-            -- Update status bar
-            gui.StatusText.Text = string.format("FPS: %d | Memory: %.1fMB | Logs: %d", 
-                GUIState.PerformanceStats.FPS, 
-                GUIState.PerformanceStats.Memory,
-                #GUIState.DebugLogs)
-            
-            wait(0.1)
-        end
-    end)
-
-    -- Auto-scan events if enabled
-    if Config.Features.AutoScan then
-        wait(3)
-        EventTracker.scanAndTrackEvents()
-        DebugLogger.addLog("SUCCESS", "Auto-scanned and tracked RemoteEvents")
-    end
-
-    -- Hotkey system
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        
-        if input.KeyCode == Enum.KeyCode.F9 then
-            GUIState.IsVisible = not GUIState.IsVisible
-            gui.ScreenGui.Enabled = GUIState.IsVisible
-            savePreferences()
-            
-        elseif input.KeyCode == Enum.KeyCode.F10 then
-            GUIState.IsMinimized = not GUIState.IsMinimized
-            gui.ContentArea.Visible = not GUIState.IsMinimized
-            gui.MinimizeBtn.Text = GUIState.IsMinimized and "🗖" or "🗕"
-            savePreferences()
-            
-        elseif input.KeyCode == Enum.KeyCode.F11 then
-            -- Quick log test
-            DebugLogger.addLog("INFO", "Hotkey test log", "F11 pressed at " .. os.date("%H:%M:%S"))
-        end
-    end)
-
-    -- Initial log
-    DebugLogger.addLog("SUCCESS", "Flexible Debug GUI Initialized!", 
-        string.format("Version 2.0 | Theme: %s | Tabs: %d", 
-        GUIState.CurrentTheme, #gui.Tabs))
-
-    print("🎯 Flexible Debug GUI v2.0 Loaded!")
-    print("F9 - Toggle GUI")
-    print("F10 - Toggle Minimize") 
-    print("F11 - Test Log")
-
-    return gui
-end
-
--- =============================================
--- AUTO-START
--- =============================================
-spawn(function()
-    wait(2) -- Wait for game to fully load
-    
-    local success, errorMsg = pcall(function()
-        local gui = initializeFlexibleGUI()
-        
-        -- Public API
-        _G.DebugGUI = {
-            log = function(type, message, data)
-                DebugLogger.addLog(type, message, data)
-            end,
-            
-            clear = function()
-                DebugLogger.clearLogs()
-            end,
-            
-            trackEvent = function(remoteEvent)
-                return EventTracker.trackRemoteEvent(remoteEvent)
-            end
-        }
-    end)
-    
-    if not success then
-        warn("❌ Failed to initialize Debug GUI: " .. tostring(errorMsg))
+-- Toggle monitoring
+startStopButton.MouseButton1Click:Connect(function()
+    if isMonitoring then
+        stopMonitoring()
+    else
+        startMonitoring()
     end
 end)
 
--- Return the API for external use
-return {
-    Config = Config,
-    Themes = Themes,
-    LayoutPresets = LayoutPresets
-}
+-- Fungsi untuk melacak RemoteEvent
+local function trackRemoteEvent(remoteEvent)
+    if trackedRemoteEvents[remoteEvent] then return end
+    
+    trackedRemoteEvents[remoteEvent] = true
+    local eventName = remoteEvent.Name
+    local eventPath = remoteEvent:GetFullName()
+    
+    local success, errorMsg = pcall(function()
+        local connection = remoteEvent.OnClientEvent:Connect(function(...)
+            if not isMonitoring then return end
+            
+            local args = {...}
+            local logEntry = {
+                type = "REMOTEEVENT_RECEIVED",
+                event = eventName,
+                path = eventPath,
+                args = args,
+                timestamp = os.date("%H:%M:%S"),
+                player = player.Name
+            }
+            
+            addLogEntry(logEntry)
+            
+            -- Filter berdasarkan input user
+            local filterText = filterTextBox.Text:lower()
+            if filterText == "" or eventName:lower():find(filterText, 1, true) then
+                updateDebugInfo("🌐 REMOTEEVENT RECEIVED", 
+                    "Server → Client: " .. eventName,
+                    string.format("Event: %s\nPath: %s\nArguments Count: %d\n\nArguments:\n%s",
+                    eventName, eventPath, #args, formatArguments(args)))
+            end
+        end)
+        
+        remoteEventConnections[remoteEvent] = connection
+    end)
+    
+    if success then
+        print("📡 Now tracking RemoteEvent: " .. eventName .. " at " .. eventPath)
+    else
+        warn("❌ Gagal melacak RemoteEvent " .. eventName .. ": " .. errorMsg)
+    end
+end
+
+-- Fungsi untuk melacak RemoteFunction
+local function trackRemoteFunction(remoteFunction)
+    if trackedRemoteFunctions[remoteFunction] then return end
+    
+    trackedRemoteFunctions[remoteFunction] = true
+    local functionName = remoteFunction.Name
+    local functionPath = remoteFunction:GetFullName()
+    
+    local success, errorMsg = pcall(function()
+        -- Simpan function asli
+        local originalFunction = remoteFunction.InvokeServer
+        
+        -- Override function
+        remoteFunction.InvokeServer = function(self, ...)
+            local args = {...}
+            
+            if isMonitoring then
+                local logEntry = {
+                    type = "REMOTEFUNCTION_INVOKED",
+                    functionName = functionName,
+                    path = functionPath,
+                    args = args,
+                    timestamp = os.date("%H:%M:%S"),
+                    player = player.Name,
+                    direction = "CLIENT → SERVER"
+                }
+                
+                addLogEntry(logEntry)
+                
+                -- Filter berdasarkan input user
+                local filterText = filterTextBox.Text:lower()
+                if filterText == "" or functionName:lower():find(filterText, 1, true) then
+                    updateDebugInfo("🔧 REMOTEFUNCTION INVOKED", 
+                        "Client → Server: " .. functionName,
+                        string.format("Function: %s\nPath: %s\nArguments Count: %d\n\nArguments:\n%s",
+                        functionName, functionPath, #args, formatArguments(args)))
+                end
+            end
+            
+            -- Panggil function asli
+            return originalFunction(self, ...)
+        end
+        
+        remoteFunctionConnections[remoteFunction] = true
+    end)
+    
+    if success then
+        print("🔧 Now tracking RemoteFunction: " .. functionName .. " at " .. functionPath)
+    else
+        warn("❌ Gagal melacak RemoteFunction " .. functionName .. ": " .. errorMsg)
+    end
+end
+
+-- Scan RemoteEvents dan RemoteFunctions
+local function scanNetworkObjects()
+    trackedRemoteEvents = {}
+    trackedRemoteFunctions = {}
+    
+    -- Putuskan koneksi lama
+    for _, connection in pairs(remoteEventConnections) do
+        connection:Disconnect()
+    end
+    
+    remoteEventConnections = {}
+    remoteFunctionConnections = {}
+    
+    local eventCount = 0
+    local functionCount = 0
+    
+    -- Scan semua tempat umum
+    local locationsToScan = {
+        ReplicatedStorage,
+        workspace,
+        game:GetService("Lighting"),
+        game:GetService("StarterPack"),
+        game:GetService("StarterGui"),
+        game:GetService("StarterPlayer")
+    }
+    
+    for _, location in ipairs(locationsToScan) do
+        for _, obj in ipairs(location:GetDescendants()) do
+            if obj:IsA("RemoteEvent") then
+                trackRemoteEvent(obj)
+                eventCount += 1
+            elseif obj:IsA("RemoteFunction") then
+                trackRemoteFunction(obj)
+                functionCount += 1
+            end
+        end
+    end
+    
+    updateDebugInfo("SYSTEM", "Network Scan Complete", 
+        string.format("RemoteEvents tracked: %d\nRemoteFunctions tracked: %d", eventCount, functionCount))
+end
+
+eventScanBtn.MouseButton1Click:Connect(function()
+    scanNetworkObjects()
+end)
+
+functionScanBtn.MouseButton1Click:Connect(function()
+    scanNetworkObjects()
+end)
+
+-- Scan buttons
+local function scanButtons()
+    -- Putuskan koneksi lama
+    for _, connection in pairs(buttonConnections) do
+        connection:Disconnect()
+    end
+    
+    buttonConnections = {}
+    wait(0.5)
+    
+    local guis = player.PlayerGui:GetDescendants()
+    local buttonCount = 0
+    
+    for _, guiElement in ipairs(guis) do
+        if guiElement:IsA("TextButton") or guiElement:IsA("ImageButton") then
+            local success, errorMsg = pcall(function()
+                local connection = guiElement.MouseButton1Click:Connect(function()
+                    if not isMonitoring then return end
+                    
+                    local additionalInfo = ""
+                    if guiElement:IsA("TextButton") then
+                        additionalInfo = "Teks: " .. (guiElement.Text or "N/A")
+                    end
+                    
+                    local buttonInfo = string.format([[
+Button Name: %s
+Parent: %s
+Visible: %s
+Size: %s
+Position: %s
+AbsoluteSize: %s
+AbsolutePosition: %s
+%s
+                    ]],
+                    guiElement.Name,
+                    guiElement.Parent and guiElement.Parent:GetFullName() or "N/A",
+                    tostring(guiElement.Visible),
+                    tostring(guiElement.Size),
+                    tostring(guiElement.Position),
+                    tostring(guiElement.AbsoluteSize),
+                    tostring(guiElement.AbsolutePosition),
+                    additionalInfo)
+                    
+                    updateDebugInfo("🖱️ BUTTON CLICK", "Button: " .. guiElement.Name, buttonInfo)
+                    
+                    -- Highlight effect
+                    local originalBg = guiElement.BackgroundColor3
+                    local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+                    local tween = TweenService:Create(guiElement, tweenInfo, {BackgroundColor3 = Color3.fromRGB(0, 255, 0)})
+                    tween:Play()
+                    wait(0.3)
+                    tween = TweenService:Create(guiElement, tweenInfo, {BackgroundColor3 = originalBg})
+                    tween:Play()
+                end)
+                
+                buttonConnections[guiElement] = connection
+                buttonCount += 1
+            end)
+            
+            if not success then
+                warn("❌ Gagal connect ke button " .. guiElement.Name .. ": " .. errorMsg)
+            end
+        end
+    end
+    
+    updateDebugInfo("SYSTEM", "Button Scan Complete", 
+        string.format("Total buttons connected: %d\nGUI elements scanned: %d", buttonCount, #guis))
+end
+
+buttonScanBtn.MouseButton1Click:Connect(function()
+    scanButtons()
+end)
+
+-- Clear logs
+clearLogsBtn.MouseButton1Click:Connect(function()
+    remoteEventLogs = {}
+    updateDebugInfo("SYSTEM", "Logs Cleared", "All event logs have been cleared")
+end)
+
+-- Filter text change
+filterTextBox:GetPropertyChangedSignal("Text"):Connect(function()
+    if #remoteEventLogs > 0 then
+        updateDebugInfo("FILTER", "Filter Updated", "Filter text: " .. filterTextBox.Text)
+    end
+end)
+
+-- Monitor untuk RemoteEvents/RemoteFunctions baru
+local function setupDescendantMonitoring()
+    local function onDescendantAdded(descendant)
+        if descendant:IsA("RemoteEvent") then
+            wait(0.5)
+            trackRemoteEvent(descendant)
+        elseif descendant:IsA("RemoteFunction") then
+            wait(0.5)
+            trackRemoteFunction(descendant)
+        end
+    end
+    
+    -- Monitor semua lokasi penting
+    local locationsToMonitor = {
+        ReplicatedStorage,
+        workspace
+    }
+    
+    for _, location in ipairs(locationsToMonitor) do
+        location.DescendantAdded:Connect(onDescendantAdded)
+    end
+end
+
+-- Input detection untuk backup
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed or not isMonitoring then return end
+    
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mousePos = UserInputService:GetMouseLocation()
+        updateDebugInfo("MOUSE CLICK", "Left Mouse Button", 
+            string.format("Mouse Position: %s", tostring(mousePos)))
+    end
+end)
+
+-- Hotkey system
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.F1 then
+        if #remoteEventLogs == 0 then
+            updateDebugInfo("📊 REMOTEEVENT LOGS", "No events tracked", "No network activity recorded")
+            return
+        end
+        
+        local logText = "📊 NETWORK ACTIVITY LOG (Recent First):\n\n"
+        for i = #remoteEventLogs, 1, -1 do
+            local log = remoteEventLogs[i]
+            logText = logText .. string.format("--- [%d] %s ---\n", i, log.timestamp)
+            logText = logText .. string.format("Type: %s\n", log.type)
+            logText = logText .. string.format("Name: %s\n", log.event or log.functionName)
+            logText = logText .. string.format("Path: %s\n", log.path)
+            logText = logText .. string.format("Args Count: %d\n\n", #log.args)
+        end
+        updateDebugInfo("📊 ACTIVITY LOGS", "Recent Network Activity", logText)
+        
+    elseif input.KeyCode == Enum.KeyCode.F2 then
+        -- Show player info
+        local playerInfo = string.format([[
+Player: %s
+UserID: %d
+Account Age: %d days
+Membership: %s
+
+Character: %s
+Health: %s
+Position: %s
+        ]],
+        player.Name,
+        player.UserId,
+        player.AccountAge,
+        tostring(player.MembershipType),
+        player.Character and player.Character.Name or "None",
+        player.Character and player.Character:FindFirstChild("Humanoid") and 
+            string.format("%.0f/%.0f", player.Character.Humanoid.Health, player.Character.Humanoid.MaxHealth) or "N/A",
+        player.Character and player.Character:FindFirstChild("HumanoidRootPart") and 
+            string.format("X:%.1f, Y:%.1f, Z:%.1f", 
+                player.Character.HumanoidRootPart.Position.X,
+                player.Character.HumanoidRootPart.Position.Y,
+                player.Character.HumanoidRootPart.Position.Z) or "N/A")
+        
+        updateDebugInfo("👤 PLAYER INFO", "Detailed Player Information", playerInfo)
+        
+    elseif input.KeyCode == Enum.KeyCode.F5 then
+        -- Toggle monitoring dengan F5
+        if isMonitoring then
+            stopMonitoring()
+        else
+            startMonitoring()
+        end
+    elseif input.KeyCode == Enum.KeyCode.F6 then
+        -- Quick scan
+        scanNetworkObjects()
+    end
+end)
+
+-- System info display
+local function updateSystemInfo()
+    while true do
+        wait(2)
+        if isMonitoring then
+            local success, fps = pcall(function()
+                return math.floor(1/RunService.Heartbeat:Wait())
+            end)
+            
+            if not success then fps = 0 end
+            
+            -- Update title dengan info real-time
+            title.Text = string.format("🌱 DEBUG | FPS: %d | Events: %d | %s 🌱", 
+                fps, #remoteEventLogs, isMonitoring and "ACTIVE" or "PAUSED")
+        end
+    end
+end
+
+-- Initialize system
+local function initializeSystem()
+    -- Mulai dalam keadaan aktif
+    startMonitoring()
+    setupDescendantMonitoring()
+    scanNetworkObjects()
+    scanButtons()
+    spawn(updateSystemInfo)
+    
+    updateDebugInfo("🌱 SYSTEM READY", "Garden Debug System Initialized", 
+        string.format([[
+Hotkeys:
+F1 - Show Network Activity Logs
+F2 - Show Player Info  
+F5 - Toggle Monitoring
+F6 - Quick Rescan
+
+Filter: Type in filter box to filter events/functions
+Click STOP button to pause monitoring
+
+Game: Grow a Garden
+Player: %s
+        ]], player.Name))
+    
+    print("🌱=== GARDEN DEBUG SYSTEM READY ===")
+    print("F1 - Show Network Activity Logs")
+    print("F2 - Show Player Info")
+    print("F5 - Toggle Monitoring") 
+    print("F6 - Quick Rescan")
+    print("🌱===================================")
+end
+
+-- Tunggu sebentar sebelum initialize
+wait(2)
+initializeSystem()

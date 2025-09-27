@@ -1,4 +1,4 @@
--- Grow A Garden Auto Farm Script - Fixed UI Version
+-- Grow A Garden Auto Farm Script - Fixed UI Versiona
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")

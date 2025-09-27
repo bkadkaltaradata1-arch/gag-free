@@ -7,6 +7,7 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local TextService = game:GetService("TextService")
 
 -- Tunggu sampai player ready
 if not player then
@@ -172,7 +173,7 @@ contentFrame.ScrollBarThickness = 8
 contentFrame.Parent = displayTabs
 
 local contentLabel = Instance.new("TextLabel")
-contentLabel.Size = UDim2.new(1, 0, 2, 0)
+contentLabel.Size = UDim2.new(1, 0, 0, 0)
 contentLabel.BackgroundTransparency = 1
 contentLabel.TextColor3 = Color3.fromRGB(220, 220, 255)
 contentLabel.Text = "DataStream Debugger Ready..."
@@ -210,10 +211,21 @@ local function logDataStream(eventType, eventName, data, direction)
     return logEntry
 end
 
+-- Fungsi untuk mendapatkan ukuran text yang tepat
+local function getTextSize(text, fontSize, font)
+    local success, result = pcall(function()
+        return TextService:GetTextSize(text, fontSize, font, Vector2.new(450, 10000))
+    end)
+    
+    if success then
+        return result.Y
+    else
+        return #text * 0.5 -- Fallback estimation
+    end
+end
+
 -- Fungsi update display berdasarkan tab aktif
 local function updateDisplay()
-    contentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-    
     if activeTab == "events" then
         local displayText = "📡 LIVE DATASTREAM ACTIVITY\n" .. string.rep("=", 50) .. "\n\n"
         
@@ -288,8 +300,8 @@ local function updateDisplay()
         systemText = systemText .. string.format("Memory: %d KB\n", memory)
         systemText = systemText .. string.format("Player: %s\n", player.Name)
         systemText = systemText .. string.format("Character: %s\n", charInfo)
-        systemText = systemText .. string.format("Monitoring: %s\n", isMonitoring and "ACTIVE" : "PAUSED")
-        systemText = systemText .. string.format("UI Visible: %s\n", screenGui.Enabled and "YES" : "NO")
+        systemText = systemText .. string.format("Monitoring: %s\n", isMonitoring and "ACTIVE" or "PAUSED")
+        systemText = systemText .. string.format("UI Visible: %s\n", screenGui.Enabled and "YES" or "NO")
         
         systemText = systemText .. "\n🎯 HOTKEYS:\n"
         systemText = systemText .. "F1 - Toggle Monitoring\n"
@@ -299,7 +311,9 @@ local function updateDisplay()
         contentLabel.Text = systemText
     end
     
-    contentFrame.CanvasSize = UDim2.new(0, 0, 0, contentLabel.TextBounds.Y + 20)
+    -- Update canvas size secara aman
+    local textHeight = getTextSize(contentLabel.Text, 13, Enum.Font.Code)
+    contentFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(textHeight + 20, 200))
 end
 
 -- Fungsi untuk melacak RemoteEvent
@@ -404,7 +418,7 @@ local function toggleMonitoring()
         controlButtons["⏸️ Pause"].BackgroundColor3 = Color3.fromRGB(50, 200, 50)
     end
     
-    logDataStream("SYSTEM", "Monitoring", isMonitoring and "STARTED" : "PAUSED", "SYSTEM")
+    logDataStream("SYSTEM", "Monitoring", isMonitoring and "STARTED" or "PAUSED", "SYSTEM")
     updateDisplay()
 end
 
@@ -416,7 +430,7 @@ local function clearData()
     print("🧹 DataStream logs cleared!")
 end
 
--- Fungsi export logs
+-- Fungsi export logs (simplified tanpa setclipboard)
 local function exportLogs()
     local exportText = "DATASTREAM DEBUGGER EXPORT\n" .. string.rep("=", 50) .. "\n\n"
     exportText = exportText .. string.format("Export Time: %s\n", os.date("%Y-%m-%d %H:%M:%S"))
@@ -429,13 +443,11 @@ local function exportLogs()
         exportText = exportText .. string.format("     Data: %s\n\n", log.data)
     end
     
-    -- Copy to clipboard (akan work di studio)
-    pcall(function()
-        setclipboard(exportText)
-    end)
+    -- Print ke console sebagai alternatif export
+    print("📋 EXPORTED LOGS:")
+    print(exportText)
     
-    print("📋 Logs exported to clipboard!")
-    logDataStream("SYSTEM", "Export", "Logs copied to clipboard", "SYSTEM")
+    logDataStream("SYSTEM", "Export", "Logs printed to console", "SYSTEM")
 end
 
 -- Setup tab handlers
@@ -502,8 +514,9 @@ spawn(function()
         wait(2)
         if isMonitoring then
             -- Update title dengan real-time info
+            local fps = math.floor(1/RunService.Heartbeat:Wait())
             title.Text = string.format("🌐 DATASTREAM DEBUGGER | Events: %d | FPS: %d", 
-                #dataStreamLogs, math.floor(1/RunService.Heartbeat:Wait()))
+                #dataStreamLogs, fps)
             
             -- Auto-refresh display jika di tab events
             if activeTab == "events" and #dataStreamLogs > 0 then
@@ -515,8 +528,9 @@ end)
 
 -- Initialize system
 wait(1)
-scanRemoteEvents()
+local eventCount = scanRemoteEvents()
 updateDisplay()
 
 print("🎯 DataStream Debugger Initialized!")
-print("F1 - Toggle Monitoring | F2 - Stats | F3 - Export")
+print("📊 Found " .. eventCount .. " RemoteEvents")
+print("🎮 Hotkeys: F1 (Toggle) | F2 (Stats) | F3 (Export)")

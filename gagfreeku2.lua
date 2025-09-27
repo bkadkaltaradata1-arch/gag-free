@@ -1,5 +1,5 @@
 -- Full Flexible Debug GUI Script
--- LocalScript di StarterPlayerScripts
+
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")

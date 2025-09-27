@@ -1,4 +1,4 @@
--- Grow A Garden Auto Farm Script
+-- Grow A Garden Auto Farm Scripta
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")

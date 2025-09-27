@@ -1,4 +1,3 @@
-autobuy dengan tombol Sheckles_Buy
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm

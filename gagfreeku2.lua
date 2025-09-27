@@ -1,9 +1,8 @@
--- Grow A Garden Auto Farm Script - Fixed UI Versiona
+-- Grow A Garden Auto Farm Script with Rayfield
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
-local TweenService = game:GetService("TweenService")
 
 -- Wait for player to load
 if not Player then
@@ -16,19 +15,18 @@ local Backpack = Player:WaitForChild("Backpack")
 local HRP = Character:WaitForChild("HumanoidRootPart")
 local Humanoid = Character:WaitForChild("Humanoid")
 
--- Initialize variables
+-- Wait for other services
 local FarmsFolder = Workspace:WaitForChild("Farm")
 local BuySeedStock = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("BuySeedStock")
 local Plant = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("Plant_RE")
 local sellAllRemote = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("Sell_Inventory")
 local removeItem = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("Remove_Item")
-local Sheckles_Buy = ReplicatedStorage.GameEvents:FindFirstChild("Sheckles_Buy")
 
--- Find NPCs
+-- Find NPCs safely
 local Steven = Workspace:FindFirstChild("NPCS") and Workspace.NPCS:FindFirstChild("Steven")
 local Sam = Workspace:FindFirstChild("NPCS") and Workspace.NPCS:FindFirstChild("Sam")
 
--- Game Variables
+-- Initialize variables
 local CropsListAndStocks = {}
 local wantedFruits = {}
 local plantAura = false
@@ -38,295 +36,66 @@ local plantToRemove = {"None Selected"}
 local shouldAutoPlant = false
 local isSelling = false
 local autoBuyEnabled = false
+local lastShopStock = {}
 local isBuying = false
+
+-- Sheckles Buy Variables
+local Sheckles_Buy = ReplicatedStorage.GameEvents:FindFirstChild("Sheckles_Buy")
 local autoShecklesBuyEnabled = false
 local shecklesBuyCooldown = 5
 local lastShecklesBuyTime = 0
 
--- Simple UI Library as fallback
-local function createSimpleUI()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "GrowAGardenUI"
-    screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-    
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 400, 0, 500)
-    mainFrame.Position = UDim2.new(0, 10, 0.5, -250)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    mainFrame.BorderSizePixel = 0
-    mainFrame.Parent = screenGui
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent = mainFrame
-    
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 40)
-    title.Position = UDim2.new(0, 0, 0, 0)
-    title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.Text = "Grow A Garden Auto Farm"
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 18
-    title.Parent = mainFrame
-    
-    local closeButton = Instance.new("TextButton")
-    closeButton.Size = UDim2.new(0, 30, 0, 30)
-    closeButton.Position = UDim2.new(1, -35, 0, 5)
-    closeButton.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
-    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeButton.Text = "X"
-    closeButton.Font = Enum.Font.GothamBold
-    closeButton.TextSize = 14
-    closeButton.Parent = mainFrame
-    closeButton.MouseButton1Click:Connect(function()
-        screenGui.Enabled = not screenGui.Enabled
+-- GUI Variables
+local SeedShopGUI = Player.PlayerGui:FindFirstChild("Seed_Shop") and Player.PlayerGui.Seed_Shop.Frame:FindFirstChild("ScrollingFrame")
+local shopTimer = Player.PlayerGui:FindFirstChild("Seed_Shop") and Player.PlayerGui.Seed_Shop.Frame.Frame:FindFirstChild("Timer")
+
+-- Load Rayfield UI dengan error handling yang lebih baik
+local Rayfield = nil
+local LoadedRayfield = false
+
+local function LoadLibrary()
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
     end)
     
-    local tabButtons = {}
-    local tabFrames = {}
-    local tabs = {"Plants", "Seeds", "Sell", "Player"}
-    
-    for i, tabName in ipairs(tabs) do
-        local tabButton = Instance.new("TextButton")
-        tabButton.Size = UDim2.new(0.25, -5, 0, 30)
-        tabButton.Position = UDim2.new((i-1) * 0.25, 5, 0, 40)
-        tabButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-        tabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        tabButton.Text = tabName
-        tabButton.Font = Enum.Font.Gotham
-        tabButton.TextSize = 12
-        tabButton.Parent = mainFrame
-        
-        local tabFrame = Instance.new("ScrollingFrame")
-        tabFrame.Size = UDim2.new(1, -10, 1, -80)
-        tabFrame.Position = UDim2.new(0, 5, 0, 75)
-        tabFrame.BackgroundTransparency = 1
-        tabFrame.Visible = i == 1
-        tabFrame.Parent = mainFrame
-        
-        local layout = Instance.new("UIListLayout")
-        layout.Parent = tabFrame
-        layout.Padding = UDim.new(0, 5)
-        
-        tabButtons[tabName] = tabButton
-        tabFrames[tabName] = tabFrame
-        
-        tabButton.MouseButton1Click:Connect(function()
-            for _, frame in pairs(tabFrames) do
-                frame.Visible = false
-            end
-            tabFrame.Visible = true
-        end)
+    if success then
+        return result
+    else
+        warn("Failed to load Rayfield: " .. tostring(result))
+        return nil
     end
-    
-    -- Plants Tab
-    local plantsFrame = tabFrames["Plants"]
-    
-    -- Harvest Aura
-    local auraToggle = Instance.new("TextButton")
-    auraToggle.Size = UDim2.new(1, 0, 0, 30)
-    auraToggle.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-    auraToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-    auraToggle.Text = "Harvest Aura: OFF"
-    auraToggle.Font = Enum.Font.Gotham
-    auraToggle.TextSize = 12
-    auraToggle.Parent = plantsFrame
-    auraToggle.MouseButton1Click:Connect(function()
-        plantAura = not plantAura
-        auraToggle.Text = "Harvest Aura: " .. (plantAura and "ON" or "OFF")
-        auraToggle.BackgroundColor3 = plantAura and Color3.fromRGB(60, 180, 60) or Color3.fromRGB(80, 80, 80)
-    end)
-    
-    -- Collect All Plants
-    local collectButton = Instance.new("TextButton")
-    collectButton.Size = UDim2.new(1, 0, 0, 30)
-    collectButton.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
-    collectButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    collectButton.Text = "Collect All Plants"
-    collectButton.Font = Enum.Font.Gotham
-    collectButton.TextSize = 12
-    collectButton.Parent = plantsFrame
-    collectButton.MouseButton1Click:Connect(function()
-        -- Collect plants function will be added
-        print("Collecting all plants...")
-    end)
-    
-    -- Plant All Seeds
-    local plantButton = Instance.new("TextButton")
-    plantButton.Size = UDim2.new(1, 0, 0, 30)
-    plantButton.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
-    plantButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    plantButton.Text = "Plant All Seeds"
-    plantButton.Font = Enum.Font.Gotham
-    plantButton.TextSize = 12
-    plantButton.Parent = plantsFrame
-    plantButton.MouseButton1Click:Connect(function()
-        -- Plant seeds function will be added
-        print("Planting all seeds...")
-    end)
-    
-    -- Auto Plant Toggle
-    local autoPlantToggle = Instance.new("TextButton")
-    autoPlantToggle.Size = UDim2.new(1, 0, 0, 30)
-    autoPlantToggle.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-    autoPlantToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-    autoPlantToggle.Text = "Auto Plant: OFF"
-    autoPlantToggle.Font = Enum.Font.Gotham
-    autoPlantToggle.TextSize = 12
-    autoPlantToggle.Parent = plantsFrame
-    autoPlantToggle.MouseButton1Click:Connect(function()
-        shouldAutoPlant = not shouldAutoPlant
-        autoPlantToggle.Text = "Auto Plant: " .. (shouldAutoPlant and "ON" or "OFF")
-        autoPlantToggle.BackgroundColor3 = shouldAutoPlant and Color3.fromRGB(60, 180, 60) or Color3.fromRGB(80, 80, 80)
-    end)
-    
-    -- Seeds Tab
-    local seedsFrame = tabFrames["Seeds"]
-    
-    -- Auto Buy Toggle
-    local autoBuyToggle = Instance.new("TextButton")
-    autoBuyToggle.Size = UDim2.new(1, 0, 0, 30)
-    autoBuyToggle.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-    autoBuyToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-    autoBuyToggle.Text = "Auto Buy Seeds: OFF"
-    autoBuyToggle.Font = Enum.Font.Gotham
-    autoBuyToggle.TextSize = 12
-    autoBuyToggle.Parent = seedsFrame
-    autoBuyToggle.MouseButton1Click:Connect(function()
-        autoBuyEnabled = not autoBuyEnabled
-        autoBuyToggle.Text = "Auto Buy Seeds: " .. (autoBuyEnabled and "ON" or "OFF")
-        autoBuyToggle.BackgroundColor3 = autoBuyEnabled and Color3.fromRGB(60, 180, 60) or Color3.fromRGB(80, 80, 80)
-    end)
-    
-    -- Sheckles Buy Section
-    if Sheckles_Buy then
-        local shecklesToggle = Instance.new("TextButton")
-        shecklesToggle.Size = UDim2.new(1, 0, 0, 30)
-        shecklesToggle.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-        shecklesToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-        shecklesToggle.Text = "Auto Sheckles Buy: OFF"
-        shecklesToggle.Font = Enum.Font.Gotham
-        shecklesToggle.TextSize = 12
-        shecklesToggle.Parent = seedsFrame
-        shecklesToggle.MouseButton1Click:Connect(function()
-            autoShecklesBuyEnabled = not autoShecklesBuyEnabled
-            shecklesToggle.Text = "Auto Sheckles Buy: " .. (autoShecklesBuyEnabled and "ON" or "OFF")
-            shecklesToggle.BackgroundColor3 = autoShecklesBuyEnabled and Color3.fromRGB(60, 180, 60) or Color3.fromRGB(80, 80, 80)
-        end)
-        
-        local shecklesButton = Instance.new("TextButton")
-        shecklesButton.Size = UDim2.new(1, 0, 0, 30)
-        shecklesButton.BackgroundColor3 = Color3.fromRGB(200, 120, 60)
-        shecklesButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        shecklesButton.Text = "Sheckles Buy Now"
-        shecklesButton.Font = Enum.Font.Gotham
-        shecklesButton.TextSize = 12
-        shecklesButton.Parent = seedsFrame
-        shecklesButton.MouseButton1Click:Connect(function()
-            -- Sheckles buy function will be added
-            print("Sheckles buy...")
-        end)
-    end
-    
-    -- Sell Tab
-    local sellFrame = tabFrames["Sell"]
-    
-    -- Auto Sell Toggle
-    local autoSellToggle = Instance.new("TextButton")
-    autoSellToggle.Size = UDim2.new(1, 0, 0, 30)
-    autoSellToggle.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-    autoSellToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-    autoSellToggle.Text = "Auto Sell: OFF"
-    autoSellToggle.Font = Enum.Font.Gotham
-    autoSellToggle.TextSize = 12
-    autoSellToggle.Parent = sellFrame
-    autoSellToggle.MouseButton1Click:Connect(function()
-        shouldSell = not shouldSell
-        autoSellToggle.Text = "Auto Sell: " .. (shouldSell and "ON" or "OFF")
-        autoSellToggle.BackgroundColor3 = shouldSell and Color3.fromRGB(60, 180, 60) or Color3.fromRGB(80, 80, 80)
-    end)
-    
-    -- Sell Now Button
-    local sellButton = Instance.new("TextButton")
-    sellButton.Size = UDim2.new(1, 0, 0, 30)
-    sellButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
-    sellButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    sellButton.Text = "Sell All Now"
-    sellButton.Font = Enum.Font.Gotham
-    sellButton.TextSize = 12
-    sellButton.Parent = sellFrame
-    sellButton.MouseButton1Click:Connect(function()
-        -- Sell function will be added
-        print("Selling all...")
-    end)
-    
-    -- Player Tab
-    local playerFrame = tabFrames["Player"]
-    
-    -- Speed Slider
-    local speedLabel = Instance.new("TextLabel")
-    speedLabel.Size = UDim2.new(1, 0, 0, 20)
-    speedLabel.BackgroundTransparency = 1
-    speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    speedLabel.Text = "Walk Speed: 16"
-    speedLabel.Font = Enum.Font.Gotham
-    speedLabel.TextSize = 12
-    speedLabel.Parent = playerFrame
-    
-    local speedSlider = Instance.new("TextButton")
-    speedSlider.Size = UDim2.new(1, 0, 0, 30)
-    speedSlider.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-    speedSlider.Text = "Adjust Speed (16-500)"
-    speedSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
-    speedSlider.Font = Enum.Font.Gotham
-    speedSlider.TextSize = 12
-    speedSlider.Parent = playerFrame
-    
-    -- Jump Power Slider
-    local jumpLabel = Instance.new("TextLabel")
-    jumpLabel.Size = UDim2.new(1, 0, 0, 20)
-    jumpLabel.BackgroundTransparency = 1
-    jumpLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    jumpLabel.Text = "Jump Power: 50"
-    jumpLabel.Font = Enum.Font.Gotham
-    jumpLabel.TextSize = 12
-    jumpLabel.Parent = playerFrame
-    
-    local jumpSlider = Instance.new("TextButton")
-    jumpSlider.Size = UDim2.new(1, 0, 0, 30)
-    jumpSlider.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-    jumpSlider.Text = "Adjust Jump Power (50-500)"
-    jumpSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
-    jumpSlider.Font = Enum.Font.Gotham
-    jumpSlider.TextSize = 12
-    jumpSlider.Parent = playerFrame
-    
-    -- TP Wand
-    local tpWandButton = Instance.new("TextButton")
-    tpWandButton.Size = UDim2.new(1, 0, 0, 30)
-    tpWandButton.BackgroundColor3 = Color3.fromRGB(120, 80, 200)
-    tpWandButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    tpWandButton.Text = "Create TP Wand"
-    tpWandButton.Font = Enum.Font.Gotham
-    tpWandButton.TextSize = 12
-    tpWandButton.Parent = playerFrame
-    tpWandButton.MouseButton1Click:Connect(function()
-        local mouse = Player:GetMouse()
-        local TPWand = Instance.new("Tool", Backpack)
-        TPWand.Name = "TP Wand"
-        TPWand.RequiresHandle = false
-        mouse.Button1Down:Connect(function()
-            if Character:FindFirstChild("TP Wand") then
-                HRP.CFrame = mouse.Hit + Vector3.new(0, 3, 0)
-            end
-        end)
-    end)
-    
-    return screenGui
 end
 
--- Game Functions
+-- Coba load Rayfield
+Rayfield = LoadLibrary()
+
+if not Rayfield then
+    -- Fallback ke alternative method
+    local success, alternative = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Rayfield/main/source.lua"))()
+    end)
+    
+    if success then
+        Rayfield = alternative
+    else
+        error("Failed to load Rayfield UI Library")
+    end
+end
+
+-- Create main window
+local Window = Rayfield:CreateWindow({
+   Name = "Grow A Garden Auto Farm",
+   LoadingTitle = "Grow A Garden Script",
+   LoadingSubtitle = "Loading...",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "GAGscript",
+      FileName = "Config"
+   },
+   KeySystem = false, -- Disable key system untuk testing
+})
+
+-- Utility functions
 local function findPlayerFarm()
     for i,v in pairs(FarmsFolder:GetChildren()) do
         if v.Important and v.Important.Data and v.Important.Data.Owner and v.Important.Data.Owner.Value == Player.Name then
@@ -336,6 +105,23 @@ local function findPlayerFarm()
     return nil
 end
 
+local function getAllIFromDict(Dict)
+    local newList = {"None Selected"}
+    for i,_ in pairs(Dict) do
+        table.insert(newList, i)
+    end
+    return newList
+end
+
+local function isInTable(table,value)
+    for _,i in pairs(table) do
+        if i==value then
+            return true
+        end
+    end
+    return false
+end
+
 local function getPlantedFruitTypes()
     local list = {"None Selected"}
     local farm = findPlayerFarm()
@@ -343,7 +129,7 @@ local function getPlantedFruitTypes()
     
     if farm.Important and farm.Important.Plants_Physical then
         for _,plant in pairs(farm.Important.Plants_Physical:GetChildren()) do
-            if not table.find(list, plant.Name) then
+            if not(isInTable(list, plant.Name)) then
                 table.insert(list, plant.Name)
             end
         end
@@ -351,8 +137,38 @@ local function getPlantedFruitTypes()
     return list
 end
 
+local function StripPlantStock(UnstrippedStock)
+    local num = string.match(UnstrippedStock, "%d+")
+    return num
+end
+
+function getCropsListAndStock()
+    local oldStock = CropsListAndStocks
+    CropsListAndStocks = {}
+    
+    if SeedShopGUI then
+        for _,Plant in pairs(SeedShopGUI:GetChildren()) do
+            if Plant:FindFirstChild("Main_Frame") and Plant.Main_Frame:FindFirstChild("Stock_Text") then
+                local PlantName = Plant.Name
+                local PlantStock = StripPlantStock(Plant.Main_Frame.Stock_Text.Text)
+                CropsListAndStocks[PlantName] = PlantStock
+            end
+        end
+    end
+    
+    local isRefreshed = false
+    for cropName, stock in pairs(CropsListAndStocks) do
+        if oldStock[cropName] ~= stock then
+            isRefreshed = true
+            break
+        end
+    end
+    
+    return isRefreshed
+end
+
 local function getPlantingBoundaries(farm)
-    local offset = Vector3.new(15.2844, 0, 28.356)
+    local offset = Vector3.new(15.2844,0,28.356)
     local edges = {}
     
     if farm.Important and farm.Important.Plant_Locations then
@@ -475,9 +291,45 @@ local function CollectAllPlants()
     end
 end
 
+local function removePlantsOfKind(kind)
+    if not kind or kind[1] == "None Selected" then return end
+    
+    local Shovel = Backpack:FindFirstChild("Shovel [Destroy Plants]") or Backpack:FindFirstChild("Shovel")
+    if not Shovel then return end
+    
+    Shovel.Parent = Character
+    wait(0.5)
+    
+    local farm = findPlayerFarm()
+    if farm and farm.Important and farm.Important.Plants_Physical then
+        for _,plant in pairs(farm.Important.Plants_Physical:GetChildren()) do
+            if plant.Name == kind[1] then
+                if plant:FindFirstChild("Fruit_Spawn") then
+                    local spawnPoint = plant.Fruit_Spawn
+                    HRP.CFrame = plant.PrimaryPart.CFrame
+                    wait(0.2)
+                    removeItem:FireServer(spawnPoint)
+                    wait(0.1)
+                end
+            end
+        end
+    end
+    
+    if Shovel and Shovel.Parent == Character then
+        Shovel.Parent = Backpack
+    end
+end
+
 -- Sheckles Buy Function
 local function performShecklesBuy()
-    if not Sheckles_Buy then return false end
+    if not Sheckles_Buy then 
+        Rayfield:Notify({
+            Title = "Sheckles Buy Error",
+            Content = "Sheckles_Buy remote not found!",
+            Duration = 3
+        })
+        return false 
+    end
     
     local currentTime = tick()
     if currentTime - lastShecklesBuyTime < shecklesBuyCooldown then return false end
@@ -488,10 +340,90 @@ local function performShecklesBuy()
     
     if success then
         lastShecklesBuyTime = currentTime
+        Rayfield:Notify({
+            Title = "Sheckles Buy",
+            Content = "Purchase successful!",
+            Duration = 2
+        })
         return true
     else
+        Rayfield:Notify({
+            Title = "Sheckles Buy Error",
+            Content = "Failed to purchase: " .. tostring(errorMsg),
+            Duration = 3
+        })
         return false
     end
+end
+
+local function buyCropSeeds(cropName)
+    local args = {[1] = cropName}
+    local success, errorMsg = pcall(function()
+        BuySeedStock:FireServer(unpack(args))
+    end)
+    return success
+end
+
+function buyWantedCropSeeds()
+    if #wantedFruits == 0 then
+        Rayfield:Notify({
+            Title = "Auto Buy",
+            Content = "No fruits selected to buy!",
+            Duration = 3
+        })
+        return false
+    end
+    
+    if isBuying then
+        return false
+    end
+    
+    isBuying = true
+    local beforePos = HRP.CFrame
+    
+    if Sam then
+        HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
+        wait(1.5)
+        HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
+        wait(0.5)
+    end
+    
+    local boughtAny = false
+    for _, fruitName in ipairs(wantedFruits) do
+        local stock = tonumber(CropsListAndStocks[fruitName] or 0)
+        if stock > 0 then
+            for j = 1, stock do
+                if buyCropSeeds(fruitName) then
+                    boughtAny = true
+                end
+                wait(0.2)
+            end
+        end
+    end
+    
+    if Sam then
+        wait(0.5)
+        HRP.CFrame = beforePos
+    end
+    
+    isBuying = false
+    
+    if boughtAny then
+        Rayfield:Notify({
+            Title = "Auto Buy",
+            Content = "Successfully bought seeds!",
+            Duration = 3
+        })
+    end
+    
+    return boughtAny
+end
+
+local function getTimeInSeconds(input)
+    if not input then return 0 end
+    local minutes = tonumber(input:match("(%d+)m")) or 0
+    local seconds = tonumber(input:match("(%d+)s")) or 0
+    return minutes * 60 + seconds
 end
 
 local function sellAll()
@@ -512,7 +444,373 @@ local function sellAll()
     
     HRP.CFrame = OrgPos
     isSelling = false
+    
+    Rayfield:Notify({
+        Title = "Sell All",
+        Content = "Items sold successfully!",
+        Duration = 3
+    })
 end
+
+-- Create tabs
+local Tab = Window:CreateTab("Plants", 4483345998)
+local testingTab = Window:CreateTab("Testing", 4483345998)
+local localPlayerTab = Window:CreateTab("LocalPlayer", 4483345998)
+local seedsTab = Window:CreateTab("Seeds", 4483345998)
+local sellTab = Window:CreateTab("Sell", 4483345998)
+
+-- Plants Tab
+Tab:CreateSection("Remove Plants")
+
+local PlantToRemoveDropdown = Tab:CreateDropdown({
+   Name = "Choose A Plant To Remove",
+   Options = getPlantedFruitTypes(),
+   CurrentOption = "None Selected",
+   MultipleOptions = false,
+   Callback = function(Option)
+        plantToRemove = {Option}
+        print("Selected plant to remove: " .. Option)
+   end,
+})
+
+Tab:CreateButton({
+    Name = "Refresh Selection",
+    Callback = function()
+        PlantToRemoveDropdown:Refresh(getPlantedFruitTypes())
+        Rayfield:Notify({
+            Title = "Plants",
+            Content = "Plant list refreshed!",
+            Duration = 2
+        })
+    end,
+})
+
+Tab:CreateButton({
+    Name = "Remove Selected Plant",
+    Callback = function()
+        if plantToRemove[1] == "None Selected" then
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "Please select a plant to remove first!",
+                Duration = 3
+            })
+            return
+        end
+        removePlantsOfKind(plantToRemove)
+        Rayfield:Notify({
+            Title = "Remove Plants",
+            Content = "Removing " .. plantToRemove[1] .. " plants...",
+            Duration = 3
+        })
+    end,
+})
+
+Tab:CreateSection("Harvesting Plants")
+
+Tab:CreateToggle({
+   Name = "Harvest Plants Aura",
+   CurrentValue = false,
+   Callback = function(Value)
+        plantAura = Value
+        Rayfield:Notify({
+            Title = "Harvest Aura",
+            Content = Value and "Enabled" or "Disabled",
+            Duration = 2
+        })
+   end,
+})
+
+Tab:CreateButton({
+    Name = "Collect All Plants",
+    Callback = function()
+        CollectAllPlants()
+        Rayfield:Notify({
+            Title = "Harvest",
+            Content = "Collecting all plants...",
+            Duration = 3
+        })
+    end,
+})
+
+Tab:CreateSection("Planting")
+
+Tab:CreateButton({
+    Name = "Plant all Seeds",
+    Callback = function()
+        plantAllSeeds()
+        Rayfield:Notify({
+            Title = "Planting",
+            Content = "Planting all seeds...",
+            Duration = 3
+        })
+    end,
+})
+
+Tab:CreateToggle({
+    Name = "Auto Plant",
+    CurrentValue = false,
+    Callback = function(Value)
+        shouldAutoPlant = Value
+        Rayfield:Notify({
+            Title = "Auto Plant",
+            Content = Value and "Enabled" or "Disabled",
+            Duration = 2
+        })
+    end,
+})
+
+-- Testing Tab
+testingTab:CreateSection("Debug Info")
+
+testingTab:CreateButton({
+    Name = "Print Player Info",
+    Callback = function()
+        print("Player:", Player.Name)
+        print("Farm:", findPlayerFarm() and "Found" or "Not Found")
+        print("Sheckles_Buy:", Sheckles_Buy and "Exists" or "Not Found")
+        Rayfield:Notify({
+            Title = "Debug Info",
+            Content = "Check console for details",
+            Duration = 3
+        })
+    end,
+})
+
+testingTab:CreateSection("Shop Info")
+
+local RayFieldShopTimer = testingTab:CreateParagraph({Title = "Shop Timer", Content = "Waiting..."})
+
+testingTab:CreateButton({
+    Name = "Print Crop Stocks",
+    Callback = function()
+        for i,v in pairs(CropsListAndStocks) do
+            print(i.."'s Stock Is:", v)
+        end
+        Rayfield:Notify({
+            Title = "Crop Stocks",
+            Content = "Check console for stock info",
+            Duration = 3
+        })
+    end,
+})
+
+-- LocalPlayer Tab
+localPlayerTab:CreateSection("Movement")
+
+local speedSlider = localPlayerTab:CreateSlider({
+   Name = "Walk Speed",
+   Range = {16, 500},
+   Increment = 5,
+   Suffix = "Speed",
+   CurrentValue = 16,
+   Callback = function(Value)
+        if Humanoid then
+            Humanoid.WalkSpeed = Value
+        end
+   end,
+})
+
+local jumpSlider = localPlayerTab:CreateSlider({
+   Name = "Jump Power",
+   Range = {50, 500},
+   Increment = 5,
+   Suffix = "Jump Power",
+   CurrentValue = 50,
+   Callback = function(Value)
+        if Humanoid then
+            Humanoid.JumpPower = Value
+        end
+   end,
+})
+
+localPlayerTab:CreateButton({
+    Name = "Default Speed",
+    Callback = function()
+        speedSlider:Set(16)
+        jumpSlider:Set(50)
+        Rayfield:Notify({
+            Title = "Movement",
+            Content = "Speed reset to default",
+            Duration = 2
+        })
+    end,
+})
+
+localPlayerTab:CreateSection("Teleport")
+
+localPlayerTab:CreateButton({
+    Name = "Create TP Wand",
+    Callback = function()
+        local mouse = Player:GetMouse()
+        local TPWand = Instance.new("Tool", Backpack)
+        TPWand.Name = "TP Wand"
+        TPWand.RequiresHandle = false
+        mouse.Button1Down:Connect(function()
+            if Character:FindFirstChild("TP Wand") then
+                HRP.CFrame = mouse.Hit + Vector3.new(0, 3, 0)
+            end
+        end)
+        Rayfield:Notify({
+            Title = "TP Wand",
+            Content = "TP Wand created! Left-click to teleport",
+            Duration = 4
+        })
+    end,
+})
+
+localPlayerTab:CreateButton({
+    Name = "Destroy TP Wand",
+    Callback = function()
+        if Backpack:FindFirstChild("TP Wand") then
+            Backpack:FindFirstChild("TP Wand"):Destroy()
+        end
+        if Character:FindFirstChild("TP Wand") then
+            Character:FindFirstChild("TP Wand"):Destroy()
+        end
+        Rayfield:Notify({
+            Title = "TP Wand",
+            Content = "TP Wand destroyed",
+            Duration = 2
+        })
+    end,
+})
+
+-- Seeds Tab
+seedsTab:CreateSection("Seed Selection")
+
+local initialCrops = getAllIFromDict(CropsListAndStocks)
+
+local fruitDropdown = seedsTab:CreateDropdown({
+   Name = "Fruits To Buy",
+   Options = initialCrops,
+   CurrentOption = {"None Selected"},
+   MultipleOptions = true,
+   Callback = function(Options)
+        wantedFruits = {}
+        for _, option in ipairs(Options) do
+            if option ~= "None Selected" then
+                table.insert(wantedFruits, option)
+            end
+        end
+        Rayfield:Notify({
+            Title = "Seed Selection",
+            Content = "Selected: " .. table.concat(wantedFruits, ", "),
+            Duration = 3
+        })
+   end,
+})
+
+seedsTab:CreateToggle({
+    Name = "Enable Auto-Buy",
+    CurrentValue = false,
+    Callback = function(Value)
+        autoBuyEnabled = Value
+        Rayfield:Notify({
+            Title = "Auto Buy",
+            Content = Value and "Enabled" or "Disabled",
+            Duration = 2
+        })
+    end,
+})
+
+seedsTab:CreateButton({
+    Name = "Buy Selected Fruits Now",
+    Callback = function()
+        if #wantedFruits == 0 then
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "Please select fruits to buy first!",
+                Duration = 3
+            })
+            return
+        end
+        buyWantedCropSeeds()
+    end,
+})
+
+seedsTab:CreateSection("Sheckles Buy")
+
+if Sheckles_Buy then
+    seedsTab:CreateToggle({
+        Name = "Auto Sheckles Buy",
+        CurrentValue = false,
+        Callback = function(Value)
+            autoShecklesBuyEnabled = Value
+            Rayfield:Notify({
+                Title = "Auto Sheckles",
+                Content = Value and "Enabled - Buying every " .. shecklesBuyCooldown .. "s" or "Disabled",
+                Duration = 3
+            })
+        end,
+    })
+
+    seedsTab:CreateSlider({
+       Name = "Sheckles Buy Cooldown",
+       Range = {1, 60},
+       Increment = 1,
+       Suffix = "seconds",
+       CurrentValue = 5,
+       Callback = function(Value)
+            shecklesBuyCooldown = Value
+            Rayfield:Notify({
+                Title = "Sheckles Cooldown",
+                Content = "Set to " .. Value .. " seconds",
+                Duration = 2
+            })
+       end,
+    })
+
+    seedsTab:CreateButton({
+        Name = "Sheckles Buy Now",
+        Callback = function()
+            performShecklesBuy()
+        end,
+    })
+else
+    seedsTab:CreateLabel({
+        Name = "Sheckles_Buy feature not available",
+        Description = "The Sheckles_Buy remote was not found in the game"
+    })
+end
+
+-- Sell Tab
+sellTab:CreateSection("Auto Sell")
+
+sellTab:CreateToggle({
+    Name = "Auto Sell Enabled",
+    CurrentValue = false,
+    Callback = function(Value)
+        shouldSell = Value
+        Rayfield:Notify({
+            Title = "Auto Sell",
+            Content = Value and "Enabled" or "Disabled",
+            Duration = 2
+        })
+    end,
+})
+
+sellTab:CreateSlider({
+   Name = "Items Threshold for Auto Sell",
+   Range = {1, 200},
+   Increment = 1,
+   Suffix = "Items",
+   CurrentValue = 70,
+   Callback = function(Value)
+        AutoSellItems = Value
+        Rayfield:Notify({
+            Title = "Sell Threshold",
+            Content = "Set to " .. Value .. " items",
+            Duration = 2
+        })
+   end,
+})
+
+sellTab:CreateButton({
+    Name = "Sell All Now",
+    Callback = function()
+        sellAll()
+    end,
+})
 
 -- Main loops
 spawn(function()
@@ -526,6 +824,17 @@ end)
 
 spawn(function()
     while true do
+        if shopTimer and shopTimer.Text then
+            local shopTime = getTimeInSeconds(shopTimer.Text)
+            RayFieldShopTimer:Set({Title = "Shop Timer", Content = "Shop Resets in " .. shopTime .. "s"})
+            
+            local isRefreshed = getCropsListAndStock()
+            if isRefreshed and autoBuyEnabled and not isBuying then
+                wait(2)
+                buyWantedCropSeeds()
+            end
+        end
+        
         if shouldSell and #Backpack:GetChildren() >= AutoSellItems and not isSelling then
             sellAll()
         end
@@ -577,28 +886,32 @@ spawn(function()
     end
 end)
 
--- Create UI
-local success, ui = pcall(function()
-    return createSimpleUI()
-end)
-
-if success then
-    print("✅ Grow A Garden UI loaded successfully!")
-    print("✅ Features loaded:")
-    print("   - Auto Harvest Aura")
-    print("   - Auto Plant")
-    print("   - Auto Sheckles Buy")
-    print("   - Auto Sell")
-    print("   - Player Utilities")
-else
-    warn("❌ Failed to create UI: " .. tostring(ui))
-end
-
 -- Update references on character respawn
 Player.CharacterAdded:Connect(function(newCharacter)
     Character = newCharacter
     HRP = newCharacter:WaitForChild("HumanoidRootPart")
     Humanoid = newCharacter:WaitForChild("Humanoid")
+    
+    if speedSlider then
+        Humanoid.WalkSpeed = speedSlider.CurrentValue
+    end
+    if jumpSlider then
+        Humanoid.JumpPower = jumpSlider.CurrentValue
+    end
 end)
 
-print("🎮 Grow A Garden script loaded successfully!")
+-- Initial setup
+local playerFarm = findPlayerFarm()
+getCropsListAndStock()
+
+-- Success notification
+Rayfield:Notify({
+    Title = "Script Loaded",
+    Content = "Grow A Garden script has been loaded successfully!",
+    Duration = 6,
+    Image = 4483345998
+})
+
+print("✅ Grow A Garden script loaded successfully!")
+print("✅ Rayfield UI initialized!")
+print("✅ All features are ready to use!")

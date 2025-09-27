@@ -24,6 +24,12 @@ local remoteEventConnections = {}
 local remoteFunctionConnections = {}
 local maxLogEntries = 100 -- Batasi jumlah log
 
+-- State GUI
+local isMinimized = false
+local isDragging = false
+local dragStartPos = nil
+local guiStartPos = nil
+
 -- Buat UI debug yang lebih besar dengan kontrol
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "AdvancedDebugGUI"
@@ -43,7 +49,7 @@ local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 8)
 corner.Parent = mainFrame
 
--- Header dengan kontrol
+-- Header dengan kontrol (area drag)
 local header = Instance.new("Frame")
 header.Size = UDim2.new(1, 0, 0.15, 0)
 header.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -54,6 +60,7 @@ local cornerHeader = Instance.new("UICorner")
 cornerHeader.CornerRadius = UDim.new(0, 8)
 cornerHeader.Parent = header
 
+-- Title dengan drag area
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(0.6, 0, 1, 0)
 title.BackgroundTransparency = 1
@@ -63,10 +70,25 @@ title.Font = Enum.Font.Code
 title.TextSize = 16
 title.Parent = header
 
+-- Tombol minimize/maximize
+local minimizeButton = Instance.new("TextButton")
+minimizeButton.Size = UDim2.new(0.08, 0, 0.6, 0)
+minimizeButton.Position = UDim2.new(0.52, 0, 0.2, 0)
+minimizeButton.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
+minimizeButton.Text = "−"
+minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeButton.Font = Enum.Font.Code
+minimizeButton.TextSize = 18
+minimizeButton.Parent = header
+
+local minimizeCorner = Instance.new("UICorner")
+minimizeCorner.CornerRadius = UDim.new(0, 6)
+minimizeCorner.Parent = minimizeButton
+
 -- Tombol Start/Stop
 local startStopButton = Instance.new("TextButton")
 startStopButton.Size = UDim2.new(0.35, 0, 0.6, 0)
-startStopButton.Position = UDim2.new(0.63, 0, 0.2, 0)
+startStopButton.Position = UDim2.new(0.61, 0, 0.2, 0)
 startStopButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
 startStopButton.Text = "STOP"
 startStopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -81,7 +103,7 @@ buttonCorner.Parent = startStopButton
 -- Status indicator
 local statusIndicator = Instance.new("Frame")
 statusIndicator.Size = UDim2.new(0.02, 0, 0.4, 0)
-statusIndicator.Position = UDim2.new(0.59, 0, 0.3, 0)
+statusIndicator.Position = UDim2.new(0.57, 0, 0.3, 0)
 statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
 statusIndicator.Parent = header
 
@@ -99,7 +121,7 @@ statusLabel.Font = Enum.Font.Code
 statusLabel.TextSize = 12
 statusLabel.Parent = header
 
--- Kontrol panel
+-- Kontrol panel (akan disembunyikan saat minimize)
 local controlFrame = Instance.new("Frame")
 controlFrame.Size = UDim2.new(1, 0, 0.18, 0)
 controlFrame.Position = UDim2.new(0, 0, 0.15, 0)
@@ -180,7 +202,7 @@ filterTextBox.Font = Enum.Font.Code
 filterTextBox.TextSize = 12
 filterTextBox.Parent = filterFrame
 
--- Area display
+-- Area display (konten utama)
 local displayFrame = Instance.new("Frame")
 displayFrame.Size = UDim2.new(1, 0, 0.55, 0)
 displayFrame.Position = UDim2.new(0, 0, 0.45, 0)
@@ -209,6 +231,133 @@ scrollLabel.TextYAlignment = Enum.TextYAlignment.Top
 scrollLabel.Parent = scrollFrame
 
 print("🌱 Advanced Garden Debug GUI berhasil dibuat!")
+
+-- Fungsi untuk minimize GUI
+local function minimizeGUI()
+    if isMinimized then return end
+    
+    isMinimized = true
+    minimizeButton.Text = "+"
+    minimizeButton.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
+    
+    -- Simpan size dan position sebelum minimize
+    mainFrame.ClipsDescendants = true
+    
+    -- Animasi minimize
+    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(mainFrame, tweenInfo, {
+        Size = UDim2.new(0, 300, 0, 60)
+    })
+    tween:Play()
+    
+    -- Sembunyikan konten
+    controlFrame.Visible = false
+    filterFrame.Visible = false
+    displayFrame.Visible = false
+    
+    -- Update title untuk minimized state
+    title.Text = "🌱 DEBUG [MINIMIZED]"
+    
+    updateDebugInfo("SYSTEM", "GUI Minimized", "GUI has been minimized. Click + to maximize.")
+end
+
+-- Fungsi untuk maximize GUI
+local function maximizeGUI()
+    if not isMinimized then return end
+    
+    isMinimized = false
+    minimizeButton.Text = "−"
+    minimizeButton.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
+    
+    -- Animasi maximize
+    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(mainFrame, tweenInfo, {
+        Size = UDim2.new(0, 500, 0, 350)
+    })
+    tween:Play()
+    
+    -- Tampilkan konten setelah animasi
+    wait(0.3)
+    mainFrame.ClipsDescendants = false
+    controlFrame.Visible = true
+    filterFrame.Visible = true
+    displayFrame.Visible = true
+    
+    -- Update title
+    title.Text = "🌱 GARDEN DEBUG SYSTEM 🌱"
+    
+    updateDebugInfo("SYSTEM", "GUI Maximized", "GUI has been maximized.")
+end
+
+-- Toggle minimize/maximize
+minimizeButton.MouseButton1Click:Connect(function()
+    if isMinimized then
+        maximizeGUI()
+    else
+        minimizeGUI()
+    end
+end)
+
+-- Fungsi untuk drag GUI
+local function startDrag(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = true
+        dragStartPos = Vector2.new(input.Position.X, input.Position.Y)
+        guiStartPos = mainFrame.Position
+    end
+end
+
+local function endDrag(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = false
+        dragStartPos = nil
+        guiStartPos = nil
+    end
+end
+
+local function updateDrag(input)
+    if isDragging and dragStartPos and guiStartPos then
+        local delta = Vector2.new(
+            input.Position.X - dragStartPos.X,
+            input.Position.Y - dragStartPos.Y
+        )
+        
+        local newPosition = UDim2.new(
+            guiStartPos.X.Scale, 
+            guiStartPos.X.Offset + delta.X,
+            guiStartPos.Y.Scale, 
+            guiStartPos.Y.Offset + delta.Y
+        )
+        
+        -- Batasi agar tidak keluar layar
+        local viewportSize = workspace.CurrentCamera.ViewportSize
+        local frameSize = mainFrame.AbsoluteSize
+        
+        if newPosition.Offset.X < 0 then
+            newPosition = UDim2.new(newPosition.X.Scale, 0, newPosition.Y.Scale, newPosition.Y.Offset)
+        elseif newPosition.Offset.X + frameSize.X > viewportSize.X then
+            newPosition = UDim2.new(newPosition.X.Scale, viewportSize.X - frameSize.X, newPosition.Y.Scale, newPosition.Y.Offset)
+        end
+        
+        if newPosition.Offset.Y < 0 then
+            newPosition = UDim2.new(newPosition.X.Scale, newPosition.X.Offset, newPosition.Y.Scale, 0)
+        elseif newPosition.Offset.Y + frameSize.Y > viewportSize.Y then
+            newPosition = UDim2.new(newPosition.X.Scale, newPosition.X.Offset, newPosition.Y.Scale, viewportSize.Y - frameSize.Y)
+        end
+        
+        mainFrame.Position = newPosition
+    end
+end
+
+-- Setup drag events untuk header
+header.InputBegan:Connect(startDrag)
+header.InputEnded:Connect(endDrag)
+header.InputChanged:Connect(updateDrag)
+
+-- Juga buat title bisa di-drag
+title.InputBegan:Connect(startDrag)
+title.InputEnded:Connect(endDrag)
+title.InputChanged:Connect(updateDrag)
 
 -- Fungsi untuk format data arguments
 local function formatArguments(args)
@@ -276,6 +425,7 @@ local function updateDebugInfo(debugType, details, data)
 - FPS: %d
 - Time: %s
 - Status: %s
+- GUI: %s
 
 📊 DATA:
 %s
@@ -288,6 +438,7 @@ local function updateDebugInfo(debugType, details, data)
     fps,
     os.date("%H:%M:%S"),
     isMonitoring and "ACTIVE" or "PAUSED",
+    isMinimized and "MINIMIZED" or "MAXIMIZED",
     data or "No additional data")
     
     scrollLabel.Text = debugText
@@ -298,6 +449,7 @@ local function updateDebugInfo(debugType, details, data)
     print("Type: " .. debugType)
     print("Details: " .. details)
     print("Status: " .. (isMonitoring and "ACTIVE" or "PAUSED"))
+    print("GUI: " .. (isMinimized and "MINIMIZED" or "MAXIMIZED"))
     print("=====================🌱")
 end
 
@@ -614,18 +766,7 @@ local function setupDescendantMonitoring()
     end
 end
 
--- Input detection untuk backup
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed or not isMonitoring then return end
-    
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        local mousePos = UserInputService:GetMouseLocation()
-        updateDebugInfo("MOUSE CLICK", "Left Mouse Button", 
-            string.format("Mouse Position: %s", tostring(mousePos)))
-    end
-end)
-
--- Hotkey system
+-- Hotkey system dengan fitur tambahan
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
@@ -683,6 +824,17 @@ Position: %s
     elseif input.KeyCode == Enum.KeyCode.F6 then
         -- Quick scan
         scanNetworkObjects()
+    elseif input.KeyCode == Enum.KeyCode.F9 then
+        -- Toggle minimize/maximize dengan F9
+        if isMinimized then
+            maximizeGUI()
+        else
+            minimizeGUI()
+        end
+    elseif input.KeyCode == Enum.KeyCode.F10 then
+        -- Reset GUI position
+        mainFrame.Position = UDim2.new(0, 10, 0, 10)
+        updateDebugInfo("SYSTEM", "GUI Position Reset", "GUI has been reset to default position")
     end
 end)
 
@@ -698,8 +850,9 @@ local function updateSystemInfo()
             if not success then fps = 0 end
             
             -- Update title dengan info real-time
-            title.Text = string.format("🌱 DEBUG | FPS: %d | Events: %d | %s 🌱", 
-                fps, #remoteEventLogs, isMonitoring and "ACTIVE" or "PAUSED")
+            local minimizedText = isMinimized and "[MINIMIZED]" or ""
+            title.Text = string.format("🌱 DEBUG %s | FPS: %d | Events: %d | %s 🌱", 
+                minimizedText, fps, #remoteEventLogs, isMonitoring and "ACTIVE" or "PAUSED")
         end
     end
 end
@@ -720,9 +873,13 @@ F1 - Show Network Activity Logs
 F2 - Show Player Info  
 F5 - Toggle Monitoring
 F6 - Quick Rescan
+F9 - Toggle Minimize/Maximize
+F10 - Reset GUI Position
+
+Drag: Click and drag header to move GUI
+Minimize: Click - button to minimize
 
 Filter: Type in filter box to filter events/functions
-Click STOP button to pause monitoring
 
 Game: Grow a Garden
 Player: %s
@@ -733,6 +890,8 @@ Player: %s
     print("F2 - Show Player Info")
     print("F5 - Toggle Monitoring") 
     print("F6 - Quick Rescan")
+    print("F9 - Toggle Minimize/Maximize")
+    print("F10 - Reset GUI Position")
     print("🌱===================================")
 end
 

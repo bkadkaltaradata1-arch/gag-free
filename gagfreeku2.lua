@@ -1,23 +1,24 @@
--- Lot di StarterPlayerScripts
+-- LocalScript di StarterPlayerScripts
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Tunggu sampai player ready
 player:WaitForChild("PlayerGui")
 
--- Buat UI debug
+-- Buat UI debug yang lebih besar
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "ButtonDebugGUI"
+screenGui.Name = "AdvancedDebugGUI"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player.PlayerGui
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 350, 0, 120)
+frame.Size = UDim2.new(0, 400, 0, 200)
 frame.Position = UDim2.new(0, 10, 0, 10)
 frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-frame.BackgroundTransparency = 0.3
+frame.BackgroundTransparency = 0.2
 frame.BorderSizePixel = 2
 frame.BorderColor3 = Color3.fromRGB(255, 255, 255)
 frame.Parent = screenGui
@@ -26,73 +27,208 @@ local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 8)
 corner.Parent = frame
 
-local label = Instance.new("TextLabel")
-label.Size = UDim2.new(0.95, 0, 0.9, 0)
-label.Position = UDim2.new(0.025, 0, 0.05, 0)
-label.BackgroundTransparency = 1
-label.TextColor3 = Color3.fromRGB(255, 255, 255)
-label.Text = "Klik tombol untuk melihat debug info..."
-label.TextWrapped = true
-label.Font = Enum.Font.Code
-label.TextSize = 16
-label.TextXAlignment = Enum.TextXAlignment.Left
-label.TextYAlignment = Enum.TextYAlignment.Top
-label.Parent = frame
-
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0.2, 0)
+title.Size = UDim2.new(1, 0, 0.15, 0)
 title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-title.BackgroundTransparency = 0.2
+title.BackgroundTransparency = 0.1
 title.TextColor3 = Color3.fromRGB(255, 255, 0)
-title.Text = "DEBUG BUTTON INFO"
+title.Text = "⚡ ADVANCED DEBUG SYSTEM ⚡"
 title.Font = Enum.Font.Code
-title.TextSize = 14
+title.TextSize = 16
 title.Parent = frame
 
 local cornerTitle = Instance.new("UICorner")
 cornerTitle.CornerRadius = UDim.new(0, 8)
 cornerTitle.Parent = title
 
-print("Debug UI berhasil dibuat!")
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(0.95, 0, 0.8, 0)
+label.Position = UDim2.new(0.025, 0, 0.2, 0)
+label.BackgroundTransparency = 1
+label.TextColor3 = Color3.fromRGB(255, 255, 255)
+label.Text = "Klik tombol atau gunakan RemoteEvent untuk melihat debug info..."
+label.TextWrapped = true
+label.Font = Enum.Font.Code
+label.TextSize = 14
+label.TextXAlignment = Enum.TextXAlignment.Left
+label.TextYAlignment = Enum.TextYAlignment.Top
+label.Parent = frame
+
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Size = UDim2.new(0.95, 0, 0.75, 0)
+scrollFrame.Position = UDim2.new(0.025, 0, 0.2, 0)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.ScrollBarThickness = 6
+scrollFrame.Visible = false
+scrollFrame.Parent = frame
+
+local scrollLabel = Instance.new("TextLabel")
+scrollLabel.Size = UDim2.new(1, 0, 2, 0)
+scrollLabel.BackgroundTransparency = 1
+scrollLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+scrollLabel.Text = ""
+scrollLabel.TextWrapped = true
+scrollLabel.Font = Enum.Font.Code
+scrollLabel.TextSize = 12
+scrollLabel.TextXAlignment = Enum.TextXAlignment.Left
+scrollLabel.TextYAlignment = Enum.TextYAlignment.Top
+scrollLabel.Parent = scrollFrame
+
+print("Advanced Debug UI berhasil dibuat!")
+
+-- Variabel untuk melacak RemoteEvents
+local trackedRemoteEvents = {}
+local remoteEventLogs = {}
 
 -- Fungsi untuk update debug info
-local function updateDebugInfo(buttonName, additionalInfo)
+local function updateDebugInfo(debugType, details, data)
     local character = player.Character
     local charName = "No Character"
     local position = "Unknown"
+    local health = "N/A"
     
-    if character and character:FindFirstChild("HumanoidRootPart") then
+    if character then
         charName = character.Name
-        local pos = character.HumanoidRootPart.Position
-        position = string.format("X:%.1f, Y:%.1f, Z:%.1f", pos.X, pos.Y, pos.Z)
+        if character:FindFirstChild("HumanoidRootPart") then
+            local pos = character.HumanoidRootPart.Position
+            position = string.format("X:%.1f, Y:%.1f, Z:%.1f", pos.X, pos.Y, pos.Z)
+        end
+        if character:FindFirstChild("Humanoid") then
+            health = string.format("%.0f/%.0f", character.Humanoid.Health, character.Humanoid.MaxHealth)
+        end
     end
     
+    local fps = math.floor(1/RunService.Heartbeat:Wait())
+    local ping = "N/A"
+    
     local debugText = string.format([[
-Tombol: %s
-Karakter: %s
-Posisi: %s
-Waktu: %s
+🔍 DEBUG TYPE: %s
+📋 DETAILS: %s
+
+👤 CHARACTER INFO:
+- Name: %s
+- Health: %s
+- Position: %s
+
+⚡ PERFORMANCE:
+- FPS: %d
+- Ping: %s
+- Server Time: %s
+
+📊 DATA:
 %s
     ]], 
-    buttonName, 
+    debugType, 
+    details,
     charName,
+    health,
     position,
+    fps,
+    ping,
     os.date("%H:%M:%S"),
-    additionalInfo or "")
+    data or "No additional data")
     
-    label.Text = debugText
+    -- Tampilkan di scrolling frame untuk data panjang
+    if #debugText > 500 then
+        label.Visible = false
+        scrollFrame.Visible = true
+        scrollLabel.Text = debugText
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, scrollLabel.TextBounds.Y + 20)
+    else
+        scrollFrame.Visible = false
+        label.Visible = true
+        label.Text = debugText
+    end
     
     -- Print ke console juga
-    print("=== DEBUG BUTTON ===")
-    print("Tombol: " .. buttonName)
-    print("Karakter: " .. charName)
-    print("Posisi: " .. position)
-    print("====================")
+    print("=== ADVANCED DEBUG ===")
+    print("Type: " .. debugType)
+    print("Details: " .. details)
+    print("Character: " .. charName)
+    print("Position: " .. position)
+    print("======================")
 end
 
--- Method 1: Direct button connection (Lebih reliable)
+-- Fungsi untuk melacak RemoteEvent
+local function trackRemoteEvent(remoteEvent)
+    if trackedRemoteEvents[remoteEvent] then
+        return -- Sudah dilacak
+    end
+    
+    trackedRemoteEvents[remoteEvent] = true
+    local eventName = remoteEvent.Name
+    
+    -- Lacak ketika client memanggil server
+    if remoteEvent:IsA("RemoteEvent") then
+        local oldFireServer = remoteEvent.FireServer
+        remoteEvent.FireServer = function(self, ...)
+            local args = {...}
+            local logEntry = {
+                type = "FIRED_TO_SERVER",
+                event = eventName,
+                args = args,
+                timestamp = os.date("%H:%M:%S"),
+                player = player.Name
+            }
+            
+            table.insert(remoteEventLogs, logEntry)
+            
+            updateDebugInfo("REMOTEEVENT FIRED", 
+                "Client → Server: " .. eventName,
+                string.format("Arguments: %s\nCount: %d", tostring(args), #args))
+            
+            return oldFireServer(self, ...)
+        end
+    end
+    
+    -- Lacak ketika client menerima dari server
+    local connection = remoteEvent.OnClientEvent:Connect(function(...)
+        local args = {...}
+        local logEntry = {
+            type = "RECEIVED_FROM_SERVER",
+            event = eventName,
+            args = args,
+            timestamp = os.date("%H:%M:%S"),
+            player = player.Name
+        }
+        
+        table.insert(remoteEventLogs, logEntry)
+        
+        updateDebugInfo("REMOTEEVENT RECEIVED", 
+            "Server → Client: " .. eventName,
+            string.format("Arguments: %s\nCount: %d", tostring(args), #args))
+    end)
+    
+    print("Now tracking RemoteEvent: " .. eventName)
+end
+
+-- Auto-track existing RemoteEvents
+local function trackExistingRemoteEvents()
+    -- Cari di ReplicatedStorage
+    for _, remoteEvent in ipairs(ReplicatedStorage:GetDescendants()) do
+        if remoteEvent:IsA("RemoteEvent") then
+            trackRemoteEvent(remoteEvent)
+        end
+    end
+    
+    -- Cari di workspace (kadang ada yang disimpan di sini)
+    for _, remoteEvent in ipairs(workspace:GetDescendants()) do
+        if remoteEvent:IsA("RemoteEvent") then
+            trackRemoteEvent(remoteEvent)
+        end
+    end
+end
+
+-- Monitor untuk RemoteEvents baru
+ReplicatedStorage.DescendantAdded:Connect(function(descendant)
+    if descendant:IsA("RemoteEvent") then
+        wait(0.5) -- Tunggu sebentar untuk inisialisasi
+        trackRemoteEvent(descendant)
+    end
+end)
+
+-- Method 1: Direct button connection
 local function connectToButtons()
-    -- Tunggu sebentar untuk memastikan GUI sudah dimuat
     wait(2)
     
     local guis = player.PlayerGui:GetDescendants()
@@ -105,14 +241,28 @@ local function connectToButtons()
                 connection:Disconnect()
             end
             
-            -- Tambah connection baru
             guiElement.MouseButton1Click:Connect(function()
                 local additionalInfo = ""
                 if guiElement:IsA("TextButton") then
-                    additionalInfo = "Teks: " .. guiElement.Text
+                    additionalInfo = "Teks: " .. (guiElement.Text or "N/A")
                 end
                 
-                updateDebugInfo(guiElement.Name, additionalInfo)
+                local buttonInfo = string.format([[
+Button Name: %s
+Parent: %s
+Visible: %s
+Size: %s
+Position: %s
+%s
+                ]],
+                guiElement.Name,
+                guiElement.Parent and guiElement.Parent.Name or "N/A",
+                tostring(guiElement.Visible),
+                tostring(guiElement.AbsoluteSize),
+                tostring(guiElement.AbsolutePosition),
+                additionalInfo)
+                
+                updateDebugInfo("BUTTON CLICK", "Button: " .. guiElement.Name, buttonInfo)
                 
                 -- Highlight effect
                 local originalBg = guiElement.BackgroundColor3
@@ -122,15 +272,11 @@ local function connectToButtons()
             end)
             
             buttonCount += 1
-            print("Debug connected to button: " .. guiElement.Name)
         end
     end
     
-    print("Total buttons connected: " .. buttonCount)
-    
-    if buttonCount == 0 then
-        updateDebugInfo("No Buttons Found", "Pastikan GUI sudah dimuat")
-    end
+    updateDebugInfo("SYSTEM", "Button Connection Complete", 
+        string.format("Total buttons connected: %d\nGUI elements scanned: %d", buttonCount, #guis))
 end
 
 -- Method 2: Input detection untuk backup
@@ -138,42 +284,63 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        -- Cari tombol yang diklik menggunakan Raycast
         local mousePos = UserInputService:GetMouseLocation()
         
-        for _, gui in ipairs(player.PlayerGui:GetChildren()) do
-            if gui:IsA("ScreenGui") then
-                local buttons = gui:GetDescendants()
-                for _, button in ipairs(buttons) do
-                    if (button:IsA("TextButton") or button:IsA("ImageButton")) and button.Visible then
-                        -- Simple position check (basic detection)
-                        updateDebugInfo("Mouse Click", "Position: " .. tostring(mousePos))
-                        break
-                    end
-                end
-            end
-        end
+        updateDebugInfo("MOUSE CLICK", "Left Mouse Button", 
+            string.format("Mouse Position: %s\nGame Processed: %s", tostring(mousePos), tostring(gameProcessed)))
     end
 end)
 
--- Auto-reconnect ketika GUI berubah
-player.PlayerGui.ChildAdded:Connect(function(child)
-    if child:IsA("ScreenGui") then
-        wait(1) -- Tunggu GUI loading
-        connectToButtons()
+-- Fungsi untuk menampilkan log RemoteEvent
+local function showRemoteEventLogs()
+    if #remoteEventLogs == 0 then
+        updateDebugInfo("REMOTEEVENT LOGS", "No events tracked yet", "Start interacting with the game to see RemoteEvent activity.")
+        return
+    end
+    
+    local logText = "📊 REMOTEEVENT ACTIVITY LOG:\n\n"
+    
+    for i, log in ipairs(remoteEventLogs) do
+        logText .= string.format("[%d] %s - %s: %s\nArgs Count: %d\n\n", 
+            i, log.timestamp, log.type, log.event, #log.args)
+    end
+    
+    updateDebugInfo("REMOTEEVENT LOGS", "Recent Activity", logText)
+end
+
+-- Tambah hotkey untuk debug info
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.F1 then
+        showRemoteEventLogs()
+    elseif input.KeyCode == Enum.KeyCode.F2 then
+        connectToButtons() -- Re-scan buttons
+    elseif input.KeyCode == Enum.KeyCode.F3 then
+        trackExistingRemoteEvents() -- Re-scan RemoteEvents
     end
 end)
 
--- Jalankan pertama kali
-connectToButtons()
-
--- Update waktu secara real-time
-while true do
-    wait(1)
-    -- Refresh waktu setiap detik
-    if label.Text ~= "Klik tombol untuk melihat debug info..." then
-        local currentText = label.Text
-        local newText = string.gsub(currentText, "Waktu: %d+:%d+:%d+", "Waktu: " .. os.date("%H:%M:%S"))
-        label.Text = newText
+-- System info display
+local function updateSystemInfo()
+    while true do
+        wait(5)
+        local fps = math.floor(1/RunService.Heartbeat:Wait())
+        
+        -- Update title dengan info real-time
+        title.Text = string.format("⚡ DEBUG SYSTEM | FPS: %d | Events: %d ⚡", 
+            fps, #remoteEventLogs)
     end
 end
+
+-- Jalankan sistem
+trackExistingRemoteEvents()
+connectToButtons()
+spawn(updateSystemInfo)
+
+-- Help message
+print("=== ADVANCED DEBUG SYSTEM READY ===")
+print("F1 - Show RemoteEvent Logs")
+print("F2 - Re-scan Buttons")
+print("F3 - Re-scan RemoteEvents")
+print("===================================")

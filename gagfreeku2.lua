@@ -1,11 +1,11 @@
--- LocalScript di StarterPlayerScripts1
+-- LocalScript di StarterPlayerScripts
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
-local TextService = game:GetService("TextService")
+local HttpService = game:GetService("HttpService")
 
 -- Tunggu sampai player ready
 if not player then
@@ -20,8 +20,13 @@ local remoteEventLogs = {}
 local isMonitoring = true
 local buttonConnections = {}
 local remoteEventConnections = {}
-local lastButtonClick = {}
-local lastRemoteEvent = {}
+
+-- Variabel untuk rekam kegiatan
+local isRecording = false
+local activityLog = {}
+local recordedActivities = {}
+local isPlayingBack = false
+local currentPlaybackIndex = 1
 
 -- Buat UI debug yang lebih besar dengan kontrol
 local screenGui = Instance.new("ScreenGui")
@@ -30,10 +35,10 @@ screenGui.ResetOnSpawn = false
 screenGui.Parent = player.PlayerGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 500, 0, 300)
+mainFrame.Size = UDim2.new(0, 500, 0, 350) -- Diperbesar untuk fitur baru
 mainFrame.Position = UDim2.new(0, 10, 0, 10)
 mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-mainFrame.BackgroundTransparency = 0.1
+mainFrame.BackgroundTransparency = 0.2
 mainFrame.BorderSizePixel = 2
 mainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
 mainFrame.Parent = screenGui
@@ -57,9 +62,9 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(0.6, 0, 1, 0)
 title.BackgroundTransparency = 1
 title.TextColor3 = Color3.fromRGB(255, 255, 0)
-title.Text = "⚡ DETAILED DEBUG SYSTEM ⚡"
+title.Text = "⚡ DEBUG SYSTEM ⚡"
 title.Font = Enum.Font.Code
-title.TextSize = 14
+title.TextSize = 16
 title.Parent = header
 
 -- Tombol Start/Stop
@@ -70,7 +75,7 @@ startStopButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
 startStopButton.Text = "STOP"
 startStopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 startStopButton.Font = Enum.Font.Code
-startStopButton.TextSize = 12
+startStopButton.TextSize = 14
 startStopButton.Parent = header
 
 local buttonCorner = Instance.new("UICorner")
@@ -88,42 +93,99 @@ local statusCorner = Instance.new("UICorner")
 statusCorner.CornerRadius = UDim.new(0, 4)
 statusCorner.Parent = statusIndicator
 
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(0.1, 0, 0.4, 0)
+statusLabel.Position = UDim2.new(0.5, 0, 0.3, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "ON"
+statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+statusLabel.Font = Enum.Font.Code
+statusLabel.TextSize = 12
+statusLabel.Parent = header
+
 -- Kontrol panel
 local controlFrame = Instance.new("Frame")
-controlFrame.Size = UDim2.new(1, 0, 0.2, 0)
+controlFrame.Size = UDim2.new(1, 0, 0.2, 0) -- Diperbesar
 controlFrame.Position = UDim2.new(0, 0, 0.15, 0)
 controlFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-controlFrame.BackgroundTransparency = 0.2
+controlFrame.BackgroundTransparency = 0.3
 controlFrame.Parent = mainFrame
 
 local controlCorner = Instance.new("UICorner")
 controlCorner.CornerRadius = UDim.new(0, 6)
 controlCorner.Parent = controlFrame
 
--- Tombol kontrol
-local buttons = {
-    {name = "🔍 Scan Buttons", color = Color3.fromRGB(70, 70, 200), pos = 0.02},
-    {name = "📡 Scan Events", color = Color3.fromRGB(200, 70, 70), pos = 0.18},
-    {name = "📊 Button Stats", color = Color3.fromRGB(70, 200, 70), pos = 0.34},
-    {name = "🔔 Event Stats", color = Color3.fromRGB(200, 70, 200), pos = 0.50},
-    {name = "🧹 Clear Logs", color = Color3.fromRGB(200, 200, 70), pos = 0.66},
-    {name = "📝 Last Events", color = Color3.fromRGB(70, 200, 200), pos = 0.82}
-}
+-- Baris pertama tombol kontrol
+local buttonScanBtn = Instance.new("TextButton")
+buttonScanBtn.Size = UDim2.new(0.23, 0, 0.4, 0)
+buttonScanBtn.Position = UDim2.new(0.02, 0, 0.1, 0)
+buttonScanBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 200)
+buttonScanBtn.Text = "🔍 Scan Buttons"
+buttonScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+buttonScanBtn.Font = Enum.Font.Code
+buttonScanBtn.TextSize = 11
+buttonScanBtn.Parent = controlFrame
 
-local controlButtons = {}
-for i, btnInfo in ipairs(buttons) do
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.16, 0, 0.7, 0)
-    btn.Position = UDim2.new(btnInfo.pos, 0, 0.15, 0)
-    btn.BackgroundColor3 = btnInfo.color
-    btn.Text = btnInfo.name
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.Code
-    btn.TextSize = 10
-    btn.TextWrapped = true
-    btn.Parent = controlFrame
-    controlButtons[btnInfo.name] = btn
-end
+local eventScanBtn = Instance.new("TextButton")
+eventScanBtn.Size = UDim2.new(0.23, 0, 0.4, 0)
+eventScanBtn.Position = UDim2.new(0.27, 0, 0.1, 0)
+eventScanBtn.BackgroundColor3 = Color3.fromRGB(200, 70, 70)
+eventScanBtn.Text = "📡 Scan Events"
+eventScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+eventScanBtn.Font = Enum.Font.Code
+eventScanBtn.TextSize = 11
+eventScanBtn.Parent = controlFrame
+
+local clearLogsBtn = Instance.new("TextButton")
+clearLogsBtn.Size = UDim2.new(0.23, 0, 0.4, 0)
+clearLogsBtn.Position = UDim2.new(0.52, 0, 0.1, 0)
+clearLogsBtn.BackgroundColor3 = Color3.fromRGB(200, 200, 70)
+clearLogsBtn.Text = "🧹 Clear Logs"
+clearLogsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+clearLogsBtn.Font = Enum.Font.Code
+clearLogsBtn.TextSize = 11
+clearLogsBtn.Parent = controlFrame
+
+-- Baris kedua tombol kontrol (fitur rekam kegiatan)
+local recordButton = Instance.new("TextButton")
+recordButton.Size = UDim2.new(0.23, 0, 0.4, 0)
+recordButton.Position = UDim2.new(0.02, 0, 0.55, 0)
+recordButton.BackgroundColor3 = Color3.fromRGB(200, 70, 150)
+recordButton.Text = "🔴 RECORD"
+recordButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+recordButton.Font = Enum.Font.Code
+recordButton.TextSize = 11
+recordButton.Parent = controlFrame
+
+local saveButton = Instance.new("TextButton")
+saveButton.Size = UDim2.new(0.23, 0, 0.4, 0)
+saveButton.Position = UDim2.new(0.27, 0, 0.55, 0)
+saveButton.BackgroundColor3 = Color3.fromRGB(70, 150, 70)
+saveButton.Text = "💾 SAVE"
+saveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+saveButton.Font = Enum.Font.Code
+saveButton.TextSize = 11
+saveButton.Parent = controlFrame
+
+local playButton = Instance.new("TextButton")
+playButton.Size = UDim2.new(0.23, 0, 0.4, 0)
+playButton.Position = UDim2.new(0.52, 0, 0.55, 0)
+playButton.BackgroundColor3 = Color3.fromRGB(70, 150, 200)
+playButton.Text = "▶ PLAY"
+playButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+playButton.Font = Enum.Font.Code
+playButton.TextSize = 11
+playButton.Parent = controlFrame
+
+local loadButton = Instance.new("TextButton")
+loadButton.Size = UDim2.new(0.23, 0, 0.4, 0)
+loadButton.Position = UDim2.new(0.77, 0, 0.55, 0)
+loadButton.BackgroundColor3 = Color3.fromRGB(150, 100, 70)
+loadButton.Text = "📂 LOAD"
+loadButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+loadButton.Font = Enum.Font.Code
+loadButton.TextSize = 11
+loadButton.Parent = controlFrame
 
 -- Area display
 local displayFrame = Instance.new("Frame")
@@ -132,18 +194,32 @@ displayFrame.Position = UDim2.new(0, 0, 0.35, 0)
 displayFrame.BackgroundTransparency = 1
 displayFrame.Parent = mainFrame
 
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(0.95, 0, 1, 0)
+label.Position = UDim2.new(0.025, 0, 0, 0)
+label.BackgroundTransparency = 1
+label.TextColor3 = Color3.fromRGB(255, 255, 255)
+label.Text = "System ready. Click START to begin monitoring..."
+label.TextWrapped = true
+label.Font = Enum.Font.Code
+label.TextSize = 14
+label.TextXAlignment = Enum.TextXAlignment.Left
+label.TextYAlignment = Enum.TextYAlignment.Top
+label.Parent = displayFrame
+
 local scrollFrame = Instance.new("ScrollingFrame")
-scrollFrame.Size = UDim2.new(0.98, 0, 1, 0)
-scrollFrame.Position = UDim2.new(0.01, 0, 0, 0)
+scrollFrame.Size = UDim2.new(0.95, 0, 1, 0)
+scrollFrame.Position = UDim2.new(0.025, 0, 0, 0)
 scrollFrame.BackgroundTransparency = 1
-scrollFrame.ScrollBarThickness = 8
+scrollFrame.ScrollBarThickness = 6
+scrollFrame.Visible = false
 scrollFrame.Parent = displayFrame
 
 local scrollLabel = Instance.new("TextLabel")
-scrollLabel.Size = UDim2.new(1, 0, 0, 0)
+scrollLabel.Size = UDim2.new(1, 0, 2, 0)
 scrollLabel.BackgroundTransparency = 1
 scrollLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-scrollLabel.Text = "System ready. Click START to begin monitoring..."
+scrollLabel.Text = ""
 scrollLabel.TextWrapped = true
 scrollLabel.Font = Enum.Font.Code
 scrollLabel.TextSize = 12
@@ -151,36 +227,9 @@ scrollLabel.TextXAlignment = Enum.TextXAlignment.Left
 scrollLabel.TextYAlignment = Enum.TextYAlignment.Top
 scrollLabel.Parent = scrollFrame
 
-print("Detailed Debug GUI berhasil dibuat!")
+print("Advanced Debug GUI dengan fitur rekam kegiatan berhasil dibuat!")
 
--- Fungsi untuk format data arguments
-local function formatArguments(args, maxDepth, currentDepth)
-    if currentDepth >= maxDepth then
-        return "{...}"  -- Prevent infinite recursion
-    end
-    
-    local result = {}
-    for i, arg in ipairs(args) do
-        local argType = typeof(arg)
-        if argType == "table" then
-            table.insert(result, "table[" .. tostring(#arg) .. " items]")
-        elseif argType == "Instance" then
-            table.insert(result, arg:GetFullName())
-        elseif argType == "Vector3" then
-            table.insert(result, string.format("Vector3(%.2f, %.2f, %.2f)", arg.X, arg.Y, arg.Z))
-        elseif argType == "CFrame" then
-            local x, y, z = arg:GetComponents()
-            table.insert(result, string.format("CFrame(%.2f, %.2f, %.2f, ...)", x, y, z))
-        elseif argType == "string" and #arg > 50 then
-            table.insert(result, string.format("%q...", string.sub(arg, 1, 50)))
-        else
-            table.insert(result, tostring(arg))
-        end
-    end
-    return "{" .. table.concat(result, ", ") .. "}"
-end
-
--- Fungsi untuk update debug info dengan auto-scroll
+-- Fungsi untuk update debug info
 local function updateDebugInfo(debugType, details, data)
     if not isMonitoring then return end
     
@@ -202,6 +251,9 @@ local function updateDebugInfo(debugType, details, data)
     
     local fps = math.floor(1/RunService.Heartbeat:Wait())
     
+    local recordingStatus = isRecording and "🔴 RECORDING" or "⚫ NOT RECORDING"
+    local playbackStatus = isPlayingBack and "▶ PLAYING" or "⏸ READY"
+    
     local debugText = string.format([[
 🔍 DEBUG TYPE: %s
 📋 DETAILS: %s
@@ -216,6 +268,11 @@ local function updateDebugInfo(debugType, details, data)
 - Time: %s
 - Status: %s
 
+🎥 RECORDING:
+- Status: %s
+- Playback: %s
+- Activities: %d recorded
+
 📊 DATA:
 %s
     ]], 
@@ -226,102 +283,267 @@ local function updateDebugInfo(debugType, details, data)
     position,
     fps,
     os.date("%H:%M:%S"),
-    isMonitoring and "ACTIVE" : "PAUSED",
+    isMonitoring and "ACTIVE" or "PAUSED",
+    recordingStatus,
+    playbackStatus,
+    #activityLog,
     data or "No additional data")
     
-    scrollLabel.Text = debugText
-    
-    -- Auto-adjust scroll frame size
-    local textSize = TextService:GetTextSize(debugText, 12, Enum.Font.Code, Vector2.new(480, 1000))
-    scrollLabel.Size = UDim2.new(1, 0, 0, textSize.Y + 20)
-    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, textSize.Y + 20)
-    
-    -- Auto-scroll to top
-    scrollFrame.CanvasPosition = Vector2.new(0, 0)
+    -- Tampilkan di scrolling frame untuk data panjang
+    if #debugText > 500 then
+        label.Visible = false
+        scrollFrame.Visible = true
+        scrollLabel.Text = debugText
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, scrollLabel.TextBounds.Y + 20)
+    else
+        scrollFrame.Visible = false
+        label.Visible = true
+        label.Text = debugText
+    end
     
     -- Print ke console juga
-    print("=== DETAILED DEBUG ===")
+    print("=== DEBUG ===")
     print("Type: " .. debugType)
     print("Details: " .. details)
-    print("======================")
+    print("Recording: " .. (isRecording and "ON" or "OFF"))
+    print("=============")
 end
 
--- Fungsi untuk mendapatkan info detail button
-local function getButtonDetailedInfo(button)
-    local info = {}
-    
-    -- Basic info
-    info["🔹 Button Name"] = button.Name
-    info["🔹 Class"] = button.ClassName
-    info["🔹 Full Path"] = button:GetFullName()
-    info["🔹 Parent"] = button.Parent and button.Parent:GetFullName() or "None"
-    
-    -- Visibility and state
-    info["👀 Visibility"] = button.Visible and "✅ Visible" : "❌ Hidden"
-    info["🎯 Active"] = button.Active and "✅ Active" : "❌ Inactive"
-    info["🎨 Background Color"] = tostring(button.BackgroundColor3)
-    info["📏 Background Transparency"] = tostring(button.BackgroundTransparency)
-    
-    -- Position and size
-    local absSize = button.AbsoluteSize
-    local absPos = button.AbsolutePosition
-    info["📐 Absolute Size"] = string.format("%d x %d", absSize.X, absSize.Y)
-    info["📍 Absolute Position"] = string.format("X:%d, Y:%d", absPos.X, absPos.Y)
-    info["🎮 Anchor Point"] = tostring(button.AnchorPoint)
-    
-    -- Text properties (if TextButton)
-    if button:IsA("TextButton") then
-        info["📝 Text"] = button.Text ~= "" and button.Text or "Empty"
-        info["🔤 Text Color"] = tostring(button.TextColor3)
-        info["📚 Text Size"] = tostring(button.TextSize)
-        info["🔡 Font"] = tostring(button.Font)
-        info["📐 Text Scaled"] = tostring(button.TextScaled)
-    end
-    
-    -- Image properties (if ImageButton)
-    if button:IsA("ImageButton") then
-        info["🖼️ Image"] = button.Image ~= "" and button.Image or "No Image"
-        info["🎭 Image Color"] = tostring(button.ImageColor3)
-        info["📐 Image Rect Size"] = tostring(button.ImageRectSize)
-    end
-    
-    -- ZIndex and layout order
-    info["📊 ZIndex"] = tostring(button.ZIndex)
-    info["🔢 Layout Order"] = tostring(button.LayoutOrder)
-    
-    -- Format info menjadi string
-    local result = ""
-    for key, value in pairs(info) do
-        result = result .. key .. ": " .. value .. "\n"
-    end
-    
-    return result
-end
-
--- Fungsi untuk memulai/menghentikan monitoring
+-- Fungsi untuk memulai monitoring
 local function startMonitoring()
     if isMonitoring then return end
+    
     isMonitoring = true
     startStopButton.Text = "STOP"
     startStopButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
     statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    statusLabel.Text = "ON"
+    statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+    
     updateDebugInfo("SYSTEM", "Monitoring Started", "All monitoring functions are now ACTIVE")
+    
+    -- Animasi
+    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(statusIndicator, tweenInfo, {BackgroundColor3 = Color3.fromRGB(0, 255, 0)})
+    tween:Play()
 end
 
+-- Fungsi untuk menghentikan monitoring
 local function stopMonitoring()
     if not isMonitoring then return end
+    
     isMonitoring = false
     startStopButton.Text = "START"
     startStopButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
     statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    statusLabel.Text = "OFF"
+    statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+    
     updateDebugInfo("SYSTEM", "Monitoring Stopped", "All monitoring functions are now PAUSED")
+    
+    -- Animasi
+    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(statusIndicator, tweenInfo, {BackgroundColor3 = Color3.fromRGB(255, 0, 0)})
+    tween:Play()
 end
 
+-- ========== FITUR REKAM KEGIATAN ==========
+
+-- Fungsi untuk mulai/menghentikan rekaman
+local function toggleRecording()
+    if isPlayingBack then
+        updateDebugInfo("RECORDING", "Cannot record during playback", "Stop playback first")
+        return
+    end
+    
+    if not isRecording then
+        -- Mulai rekaman
+        isRecording = true
+        activityLog = {}
+        recordButton.Text = "⏹ STOP REC"
+        recordButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        updateDebugInfo("RECORDING", "Recording Started", "Now recording all activities...")
+    else
+        -- Hentikan rekaman
+        isRecording = false
+        recordButton.Text = "🔴 RECORD"
+        recordButton.BackgroundColor3 = Color3.fromRGB(200, 70, 150)
+        updateDebugInfo("RECORDING", "Recording Stopped", 
+            string.format("Recorded %d activities", #activityLog))
+    end
+end
+
+-- Fungsi untuk menambah aktivitas ke log
+local function logActivity(activityType, details, data)
+    if not isRecording then return end
+    
+    local activity = {
+        type = activityType,
+        details = details,
+        data = data,
+        timestamp = os.time(),
+        tick = tick()
+    }
+    
+    table.insert(activityLog, activity)
+    
+    -- Update UI secara real-time
+    title.Text = string.format("⚡ DEBUG | Recording: %d activities ⚡", #activityLog)
+end
+
+-- Fungsi untuk menyimpan rekaman
+local function saveRecording()
+    if #activityLog == 0 then
+        updateDebugInfo("SAVE", "No activities to save", "Record some activities first")
+        return
+    end
+    
+    local recordingData = {
+        activities = activityLog,
+        timestamp = os.date("%Y-%m-%d %H:%M:%S"),
+        playerName = player.Name,
+        totalActivities = #activityLog
+    }
+    
+    -- Simpan ke recordedActivities
+    local recordingName = "Recording_" .. os.date("%H%M%S")
+    recordedActivities[recordingName] = recordingData
+    
+    -- Simpan ke file (jika memungkinkan)
+    local success, message = pcall(function()
+        local jsonData = HttpService:JSONEncode(recordingData)
+        -- Catatan: Untuk menyimpan secara permanen, perlu menggunakan DataStore
+        -- Ini hanya contoh penyimpanan sementara
+        print("=== RECORDING SAVED ===")
+        print("Name: " .. recordingName)
+        print("Activities: " .. #activityLog)
+        print("======================")
+    end)
+    
+    updateDebugInfo("SAVE", "Recording Saved", 
+        string.format("Name: %s\nActivities: %d\nStatus: %s", 
+        recordingName, #activityLog, success and "SUCCESS" or "FAILED: " .. tostring(message)))
+end
+
+-- Fungsi untuk memuat rekaman
+local function loadRecording()
+    if next(recordedActivities) == nil then
+        updateDebugInfo("LOAD", "No recordings available", "Save some recordings first")
+        return
+    end
+    
+    -- Tampilkan daftar rekaman yang tersedia
+    local recordingList = "Available Recordings:\n\n"
+    for name, data in pairs(recordedActivities) do
+        recordingList = recordingList .. string.format("📁 %s - %d activities (%s)\n", 
+            name, data.totalActivities, data.timestamp)
+    end
+    
+    updateDebugInfo("LOAD", "Recordings Loaded", recordingList)
+    
+    -- Otomatis pilih rekaman terbaru untuk diputar
+    local latestRecording = nil
+    local latestTime = 0
+    
+    for name, data in pairs(recordedActivities) do
+        if data.timestamp > latestTime then
+            latestTime = data.timestamp
+            latestRecording = name
+        end
+    end
+    
+    if latestRecording then
+        updateDebugInfo("LOAD", "Auto-selected latest", "Selected: " .. latestRecording)
+        return recordedActivities[latestRecording]
+    end
+    
+    return nil
+end
+
+-- Fungsi untuk memutar rekaman
+local function playRecording()
+    if isRecording then
+        updateDebugInfo("PLAYBACK", "Cannot play during recording", "Stop recording first")
+        return
+    end
+    
+    if isPlayingBack then
+        -- Hentikan playback
+        isPlayingBack = false
+        playButton.Text = "▶ PLAY"
+        playButton.BackgroundColor3 = Color3.fromRGB(70, 150, 200)
+        updateDebugInfo("PLAYBACK", "Playback Stopped", "Playback interrupted")
+        return
+    end
+    
+    local recording = loadRecording()
+    if not recording then
+        updateDebugInfo("PLAYBACK", "No recording to play", "Save a recording first")
+        return
+    end
+    
+    isPlayingBack = true
+    playButton.Text = "⏹ STOP"
+    playButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    
+    updateDebugInfo("PLAYBACK", "Playback Started", 
+        string.format("Playing: %d activities", #recording.activities))
+    
+    -- Putar rekaman dalam coroutine terpisah
+    spawn(function()
+        currentPlaybackIndex = 1
+        
+        for i, activity in ipairs(recording.activities) do
+            if not isPlayingBack then break end
+            
+            currentPlaybackIndex = i
+            
+            -- Simulasi aktivitas
+            updateDebugInfo("PLAYBACK", "Executing Activity", 
+                string.format("Activity %d/%d: %s - %s", 
+                i, #recording.activities, activity.type, activity.details))
+            
+            -- Tambahkan delay berdasarkan timestamp asli (jika ada)
+            if i > 1 then
+                local prevActivity = recording.activities[i-1]
+                local timeDiff = activity.tick - prevActivity.tick
+                wait(math.max(0.1, timeDiff)) -- Minimum delay 0.1 detik
+            else
+                wait(0.5) -- Delay awal
+            end
+            
+            -- Di sini bisa ditambahkan eksekusi aktivitas nyata
+            -- seperti memicu RemoteEvent atau mengklik button
+        end
+        
+        if isPlayingBack then
+            isPlayingBack = false
+            playButton.Text = "▶ PLAY"
+            playButton.BackgroundColor3 = Color3.fromRGB(70, 150, 200)
+            updateDebugInfo("PLAYBACK", "Playback Completed", 
+                string.format("Finished %d activities", #recording.activities))
+        end
+    end)
+end
+
+-- ========== EVENT HANDLERS ==========
+
+-- Toggle monitoring
 startStopButton.MouseButton1Click:Connect(function()
-    if isMonitoring then stopMonitoring() else startMonitoring() end
+    if isMonitoring then
+        stopMonitoring()
+    else
+        startMonitoring()
+    end
 end)
 
--- Fungsi untuk melacak RemoteEvent dengan detail arguments
+-- Tombol rekam kegiatan
+recordButton.MouseButton1Click:Connect(toggleRecording)
+saveButton.MouseButton1Click:Connect(saveRecording)
+playButton.MouseButton1Click:Connect(playRecording)
+loadButton.MouseButton1Click:Connect(loadRecording)
+
+-- Fungsi untuk melacak RemoteEvent
 local function trackRemoteEvent(remoteEvent)
     if trackedRemoteEvents[remoteEvent] then return end
     
@@ -333,39 +555,22 @@ local function trackRemoteEvent(remoteEvent)
             if not isMonitoring then return end
             
             local args = {...}
-            local argsDetail = formatArguments(args, 3, 0)
-            
             local logEntry = {
                 type = "RECEIVED_FROM_SERVER",
                 event = eventName,
                 args = args,
-                argsDetail = argsDetail,
                 timestamp = os.date("%H:%M:%S"),
                 player = player.Name
             }
             
             table.insert(remoteEventLogs, logEntry)
-            lastRemoteEvent = logEntry
             
-            local eventInfo = string.format([[
-📡 EVENT: %s
-📍 LOCATION: %s
-⏰ TIME: %s
-👤 PLAYER: %s
-📦 ARGUMENTS (%d):
-%s
-
-📋 FULL PATH: %s
-            ]], 
-            eventName,
-            remoteEvent:GetFullName(),
-            logEntry.timestamp,
-            player.Name,
-            #args,
-            argsDetail,
-            remoteEvent:GetFullName())
+            -- Log aktivitas jika sedang merekam
+            logActivity("REMOTEEVENT", "Server → Client: " .. eventName, args)
             
-            updateDebugInfo("REMOTEEVENT RECEIVED", "Server → Client", eventInfo)
+            updateDebugInfo("REMOTEEVENT RECEIVED", 
+                "Server → Client: " .. eventName,
+                string.format("Arguments Count: %d\nEvent: %s", #args, eventName))
         end)
         
         remoteEventConnections[remoteEvent] = connection
@@ -379,30 +584,40 @@ local function trackRemoteEvent(remoteEvent)
 end
 
 -- Scan RemoteEvents
-controlButtons["📡 Scan Events"].MouseButton1Click:Connect(function()
+local function scanRemoteEvents()
     trackedRemoteEvents = {}
+    remoteEventConnections = {}
+    
+    -- Putuskan koneksi lama
     for _, connection in pairs(remoteEventConnections) do
         connection:Disconnect()
     end
     
-    local eventCount = 0
-    local locations = {ReplicatedStorage, workspace}
+    -- Scan ReplicatedStorage
+    for _, remoteEvent in ipairs(ReplicatedStorage:GetDescendants()) do
+        if remoteEvent:IsA("RemoteEvent") then
+            trackRemoteEvent(remoteEvent)
+        end
+    end
     
-    for _, location in ipairs(locations) do
-        for _, remoteEvent in ipairs(location:GetDescendants()) do
-            if remoteEvent:IsA("RemoteEvent") then
-                trackRemoteEvent(remoteEvent)
-                eventCount += 1
-            end
+    -- Scan workspace
+    for _, remoteEvent in ipairs(workspace:GetDescendants()) do
+        if remoteEvent:IsA("RemoteEvent") then
+            trackRemoteEvent(remoteEvent)
         end
     end
     
     updateDebugInfo("SYSTEM", "RemoteEvent Scan Complete", 
-        string.format("Total RemoteEvents found: %d\nLocations scanned: ReplicatedStorage, Workspace", eventCount))
+        string.format("Total RemoteEvents tracked: %d", table.getn(trackedRemoteEvents)))
+end
+
+eventScanBtn.MouseButton1Click:Connect(function()
+    scanRemoteEvents()
 end)
 
--- Scan buttons dengan info detail
-controlButtons["🔍 Scan Buttons"].MouseButton1Click:Connect(function()
+-- Scan buttons
+local function scanButtons()
+    -- Putuskan koneksi lama
     for _, connection in pairs(buttonConnections) do
         connection:Disconnect()
     end
@@ -419,24 +634,30 @@ controlButtons["🔍 Scan Buttons"].MouseButton1Click:Connect(function()
                 local connection = guiElement.MouseButton1Click:Connect(function()
                     if not isMonitoring then return end
                     
-                    local buttonInfo = getButtonDetailedInfo(guiElement)
-                    lastButtonClick = {
-                        button = guiElement,
-                        timestamp = os.date("%H:%M:%S"),
-                        info = buttonInfo
-                    }
+                    local additionalInfo = ""
+                    if guiElement:IsA("TextButton") then
+                        additionalInfo = "Teks: " .. (guiElement.Text or "N/A")
+                    end
                     
-                    local clickInfo = string.format(["
-🕒 CLICK TIME: %s
-👤 PLAYER: %s
-
+                    local buttonInfo = string.format([[
+Button Name: %s
+Parent: %s
+Visible: %s
+Size: %s
+Position: %s
 %s
-                    ]], 
-                    lastButtonClick.timestamp, 
-                    player.Name,
-                    buttonInfo)
+                    ]],
+                    guiElement.Name,
+                    guiElement.Parent and guiElement.Parent.Name or "N/A",
+                    tostring(guiElement.Visible),
+                    tostring(guiElement.AbsoluteSize),
+                    tostring(guiElement.AbsolutePosition),
+                    additionalInfo)
                     
-                    updateDebugInfo("BUTTON CLICK", "Button: " .. guiElement.Name, clickInfo)
+                    -- Log aktivitas jika sedang merekam
+                    logActivity("BUTTON_CLICK", "Button: " .. guiElement.Name, buttonInfo)
+                    
+                    updateDebugInfo("BUTTON CLICK", "Button: " .. guiElement.Name, buttonInfo)
                     
                     -- Highlight effect
                     local originalBg = guiElement.BackgroundColor3
@@ -448,117 +669,124 @@ controlButtons["🔍 Scan Buttons"].MouseButton1Click:Connect(function()
                 buttonConnections[guiElement] = connection
                 buttonCount += 1
             end)
+            
+            if not success then
+                warn("Gagal connect ke button " .. guiElement.Name .. ": " .. errorMsg)
+            end
         end
     end
     
     updateDebugInfo("SYSTEM", "Button Scan Complete", 
         string.format("Total buttons connected: %d\nGUI elements scanned: %d", buttonCount, #guis))
-end)
+end
 
--- Tampilkan statistik button
-controlButtons["📊 Button Stats"].MouseButton1Click:Connect(function()
-    local buttonStats = {}
-    local guis = player.PlayerGui:GetDescendants()
-    
-    for _, guiElement in ipairs(guis) do
-        if guiElement:IsA("TextButton") or guiElement:IsA("ImageButton") then
-            local buttonType = guiElement.ClassName
-            buttonStats[buttonType] = (buttonStats[buttonType] or 0) + 1
-            
-            local parentName = guiElement.Parent and guiElement.Parent.Name or "Unknown"
-            buttonStats[parentName] = (buttonStats[parentName] or 0) + 1
-        end
-    end
-    
-    local statsText = "📊 BUTTON STATISTICS:\n\n"
-    statsText = statsText .. string.format("Total Buttons: %d\n", #buttonConnections)
-    statsText = statsText .. "By Type:\n"
-    
-    for btnType, count in pairs(buttonStats) do
-        if not string.find(btnType, "Gui") then
-            statsText = statsText .. string.format("- %s: %d\n", btnType, count)
-        end
-    end
-    
-    if lastButtonClick.timestamp then
-        statsText = statsText .. string.format("\n⏰ Last Click: %s", lastButtonClick.timestamp)
-    end
-    
-    updateDebugInfo("BUTTON STATS", "Button Statistics", statsText)
-end)
-
--- Tampilkan statistik remote event
-controlButtons["🔔 Event Stats"].MouseButton1Click:Connect(function()
-    local eventStats = {}
-    local totalEvents = 0
-    
-    for _, log in ipairs(remoteEventLogs) do
-        eventStats[log.event] = (eventStats[log.event] or 0) + 1
-        totalEvents += 1
-    end
-    
-    local statsText = "📡 REMOTEEVENT STATISTICS:\n\n"
-    statsText = statsText .. string.format("Total Events Logged: %d\n", totalEvents)
-    statsText = statsText .. "Events by Type:\n"
-    
-    for eventName, count in pairs(eventStats) do
-        statsText = statsText .. string.format("- %s: %d\n", eventName, count)
-    end
-    
-    statsText = statsText .. string.format("\nTracked Events: %d", #trackedRemoteEvents)
-    
-    if lastRemoteEvent.timestamp then
-        statsText = statsText .. string.format("\n⏰ Last Event: %s - %s", lastRemoteEvent.event, lastRemoteEvent.timestamp)
-    end
-    
-    updateDebugInfo("EVENT STATS", "RemoteEvent Statistics", statsText)
-end)
-
--- Tampilkan last events
-controlButtons["📝 Last Events"].MouseButton1Click:Connect(function()
-    if #remoteEventLogs == 0 then
-        updateDebugInfo("LAST EVENTS", "No Events", "No RemoteEvent activity recorded yet")
-        return
-    end
-    
-    local lastEventsText = "📝 LAST 10 REMOTEEVENTS:\n\n"
-    local startIndex = math.max(1, #remoteEventLogs - 9)
-    
-    for i = startIndex, #remoteEventLogs do
-        local log = remoteEventLogs[i]
-        lastEventsText = lastEventsText .. string.format("[%d] %s - %s\n", 
-            i, log.timestamp, log.event)
-        lastEventsText = lastEventsText .. string.format("   Args: %s\n\n", log.argsDetail)
-    end
-    
-    updateDebugInfo("LAST EVENTS", "Recent Activity", lastEventsText)
+buttonScanBtn.MouseButton1Click:Connect(function()
+    scanButtons()
 end)
 
 -- Clear logs
-controlButtons["🧹 Clear Logs"].MouseButton1Click:Connect(function()
+clearLogsBtn.MouseButton1Click:Connect(function()
     remoteEventLogs = {}
-    lastButtonClick = {}
-    lastRemoteEvent = {}
-    updateDebugInfo("SYSTEM", "Logs Cleared", "All logs and statistics have been cleared")
+    activityLog = {}
+    updateDebugInfo("SYSTEM", "Logs Cleared", "All event logs and activities have been cleared")
 end)
 
--- Auto-scan pada startup
-local function initializeSystem()
-    startMonitoring()
+-- Monitor untuk RemoteEvents baru
+ReplicatedStorage.DescendantAdded:Connect(function(descendant)
+    if descendant:IsA("RemoteEvent") then
+        wait(0.5)
+        trackRemoteEvent(descendant)
+    end
+end)
+
+-- Input detection untuk backup
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed or not isMonitoring then return end
     
-    -- Auto scan events dan buttons
-    spawn(function()
-        wait(2)
-        controlButtons["📡 Scan Events"].MouseButton1Click:Wait()
-        wait(1)
-        controlButtons["🔍 Scan Buttons"].MouseButton1Click:Wait()
-    end)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mousePos = UserInputService:GetMouseLocation()
+        
+        -- Log aktivitas jika sedang merekam
+        logActivity("MOUSE_CLICK", "Left Mouse Button", mousePos)
+        
+        updateDebugInfo("MOUSE CLICK", "Left Mouse Button", 
+            string.format("Mouse Position: %s", tostring(mousePos)))
+    end
+end)
+
+-- Hotkey system
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
     
-    updateDebugInfo("SYSTEM", "Initialization Complete", 
-        "Detailed debug system ready!\nUse the control buttons to explore features.")
-    
-    print("=== DETAILED DEBUG SYSTEM READY ===")
+    if input.KeyCode == Enum.KeyCode.F1 then
+        if #remoteEventLogs == 0 then
+            updateDebugInfo("REMOTEEVENT LOGS", "No events tracked", "No RemoteEvent activity recorded")
+            return
+        end
+        
+        local logText = "📊 REMOTEEVENT ACTIVITY LOG:\n\n"
+        for i, log in ipairs(remoteEventLogs) do
+            logText = logText .. string.format("[%d] %s - %s: %s\nArgs Count: %d\n\n", 
+                i, log.timestamp, log.type, log.event, #log.args)
+        end
+        updateDebugInfo("REMOTEEVENT LOGS", "Recent Activity", logText)
+        
+    elseif input.KeyCode == Enum.KeyCode.F5 then
+        -- Toggle monitoring dengan F5
+        if isMonitoring then
+            stopMonitoring()
+        else
+            startMonitoring()
+        end
+        
+    elseif input.KeyCode == Enum.KeyCode.F9 then
+        -- Hotkey untuk rekam dengan F9
+        toggleRecording()
+        
+    elseif input.KeyCode == Enum.KeyCode.F10 then
+        -- Hotkey untuk putar dengan F10
+        playRecording()
+    end
+end)
+
+-- System info display
+local function updateSystemInfo()
+    while true do
+        wait(3)
+        local success, fps = pcall(function()
+            return math.floor(1/RunService.Heartbeat:Wait())
+        end)
+        
+        if not success then fps = 0 end
+        
+        -- Update title dengan info real-time
+        local recordingInfo = isRecording and string.format(" | 🔴 Recording: %d", #activityLog) or ""
+        local playbackInfo = isPlayingBack and string.format(" | ▶ Playing: %d/%d", currentPlaybackIndex, #activityLog) or ""
+        
+        title.Text = string.format("⚡ DEBUG | FPS: %d | Events: %d%s%s ⚡", 
+            fps, #remoteEventLogs, recordingInfo, playbackInfo)
+    end
 end
 
+-- Initialize system
+local function initializeSystem()
+    -- Mulai dalam keadaan aktif
+    startMonitoring()
+    scanRemoteEvents()
+    scanButtons()
+    spawn(updateSystemInfo)
+    
+    updateDebugInfo("SYSTEM", "Initialization Complete", 
+        string.format("Debug system ready!\nHotkeys:\nF1 - Show Logs\nF5 - Toggle Monitoring\nF9 - Toggle Recording\nF10 - Play Recording"))
+    
+    print("=== ADVANCED DEBUG SYSTEM READY ===")
+    print("F1 - Show RemoteEvent Logs")
+    print("F5 - Toggle Monitoring")
+    print("F9 - Toggle Recording")
+    print("F10 - Play Recording")
+    print("===================================")
+end
+
+-- Tunggu sebentar sebelum initialize
 wait(2)
 initializeSystem()

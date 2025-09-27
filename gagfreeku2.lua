@@ -1,3 +1,4 @@
+-- cekk
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -26,7 +27,7 @@ local isSelling = false
 local byteNetReliable = ReplicatedStorage:FindFirstChild("ByteNetReliable")
 local autoBuyEnabled = false
 local lastShopStock = {}
-local isBuying = false -- Flag untuk menandai sedang membeli
+local isBuying = false
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
@@ -199,11 +200,9 @@ local function getPlantingBoundaries(farm)
 end
 
 local function collectPlant(plant)
-    -- Fixed collection method using proximity prompts instead of byteNetReliable
     if plant:FindFirstChild("ProximityPrompt") then
         fireproximityprompt(plant.ProximityPrompt)
     else
-        -- Check children for proximity prompts
         for _, child in pairs(plant:GetChildren()) do
             if child:FindFirstChild("ProximityPrompt") then
                 fireproximityprompt(child.ProximityPrompt)
@@ -231,7 +230,6 @@ local function CollectAllPlants()
     local plants = GetAllPlants()
     print("Got "..#plants.." Plants")
     
-    -- Shuffle the plants table to randomize collection order
     for i = #plants, 2, -1 do
         local j = math.random(i)
         plants[i], plants[j] = plants[j], plants[i]
@@ -256,7 +254,6 @@ spawn(function()
         if plantAura then
             local plants = GetAllPlants()
             
-            -- Shuffle the plants table to randomize collection order
             for i = #plants, 2, -1 do
                 local j = math.random(i)
                 plants[i], plants[j] = plants[j], plants[i]
@@ -300,9 +297,7 @@ local function getRandomPlantingLocation(edges)
     local minZ, maxZ = math.min(a.Z, b.Z), math.max(a.Z, b.Z)
     local Y = 0.13552704453468323
 
-    -- Add some randomness to the Y position as well
-    local randY = Y + (math.random() * 0.1 - 0.05) -- Small random variation
-    
+    local randY = Y + (math.random() * 0.1 - 0.05)
     local randX = math.random() * (maxX - minX) + minX
     local randZ = math.random() * (maxZ - minZ) + minZ
 
@@ -345,7 +340,7 @@ local function plantAllSeeds()
                 end
             end
         end
-        wait(0.5) -- Small delay to prevent infinite loop
+        wait(0.5)
     end
 end
 
@@ -408,52 +403,274 @@ testingTab:CreateButton({
     end,
 })
 
--- Fungsi untuk mencari BuyFrameTemplate berdasarkan nama seed
-local function findBuyFrameTemplate(seedName)
-    for _, child in pairs(SeedShopGUI:GetChildren()) do
-        if child:IsA("Frame") and child.Name == seedName then
-            if child:FindFirstChild("Main_Frame") then
-                local mainFrame = child.Main_Frame
-                if mainFrame:FindFirstChild("BuyButton") then
-                    return mainFrame.BuyButton
-                end
-            end
+-- ============================ AUTO-BUY SYSTEM ============================
+
+local function findButtonInFrame(frame)
+    local button = frame:FindFirstChild("BuyButton") or frame:FindFirstChild("Buy") or frame:FindFirstChild("Purchase")
+    if button then
+        print("Found button: " .. button.Name)
+        return button
+    end
+    
+    local textButton = frame:FindFirstChildOfClass("TextButton")
+    if textButton and (string.lower(textButton.Text):find("buy") or string.lower(textButton.Text):find("purchase")) then
+        print("Found text button: " .. textButton.Text)
+        return textButton
+    end
+    
+    local imageButton = frame:FindFirstChildOfClass("ImageButton")
+    if imageButton then
+        print("Found image button")
+        return imageButton
+    end
+    
+    if frame:FindFirstChild("Main_Frame") then
+        local mainFrame = frame.Main_Frame
+        local mainButton = mainFrame:FindFirstChild("BuyButton") or mainFrame:FindFirstChildOfClass("TextButton") or mainFrame:FindFirstChildOfClass("ImageButton")
+        if mainButton then
+            print("Found button in Main_Frame: " .. mainButton.Name)
+            return mainButton
         end
     end
+    
+    local function searchRecursive(obj)
+        for _, child in pairs(obj:GetChildren()) do
+            if child:IsA("TextButton") or child:IsA("ImageButton") then
+                if child.Name:lower():find("buy") or child.Name:lower():find("purchase") or 
+                   (child:IsA("TextButton") and child.Text:lower():find("buy")) then
+                    print("Found recursive button: " .. child.Name)
+                    return child
+                end
+            end
+            local result = searchRecursive(child)
+            if result then return result end
+        end
+        return nil
+    end
+    
+    local recursiveButton = searchRecursive(frame)
+    if recursiveButton then
+        return recursiveButton
+    end
+    
+    print("No button found in frame")
     return nil
 end
 
--- Fungsi untuk membeli seed menggunakan GUI button
-local function buySeedUsingGUI(seedName)
-    local buyButton = findBuyFrameTemplate(seedName)
-    if buyButton then
-        -- Simulate button click
-        local success = pcall(function()
-            -- Trigger the button's click event
-            if buyButton:FindFirstChild("TextButton") then
-                fireclickdetector(buyButton.TextButton:FindFirstChildOfClass("ClickDetector"), 0)
-            else
-                -- Try to activate the button directly
-                for _, connection in pairs(getconnections(buyButton.MouseButton1Click)) do
-                    connection:Fire()
+local function findBuyFrameTemplate(seedName)
+    print("Searching for seed frame: " .. seedName)
+    
+    local targetFrame = SeedShopGUI:FindFirstChild(seedName)
+    if targetFrame then
+        print("Found frame directly: " .. seedName)
+        local buyButton = findButtonInFrame(targetFrame)
+        if buyButton then
+            return buyButton
+        end
+    end
+    
+    for _, child in pairs(SeedShopGUI:GetChildren()) do
+        if child:IsA("Frame") then
+            if string.find(child.Name, seedName) then
+                print("Found matching frame: " .. child.Name)
+                local buyButton = findButtonInFrame(child)
+                if buyButton then
+                    return buyButton
                 end
             end
-        end)
-        
-        if success then
-            print("Successfully clicked buy button for: " .. seedName)
-            return true
-        else
-            print("Failed to click buy button for: " .. seedName)
-            return false
         end
-    else
-        print("Buy button not found for: " .. seedName)
-        return false
     end
+    
+    print("Frame not found for: " .. seedName)
+    return nil
 end
 
--- Fungsi utama untuk auto-buy
+local function clickButton(button)
+    print("Attempting to click button: " .. button.Name)
+    
+    local success1 = pcall(function()
+        for _, connection in pairs(getconnections(button.MouseButton1Click)) do
+            connection:Fire()
+            print("Fired MouseButton1Click event")
+            return true
+        end
+    end)
+    
+    if success1 then return true end
+    
+    local success2 = pcall(function()
+        for _, connection in pairs(getconnections(button.MouseButton1Down)) do
+            connection:Fire()
+            print("Fired MouseButton1Down event")
+            return true
+        end
+    end)
+    
+    if success2 then return true end
+    
+    local success3 = pcall(function()
+        for _, connection in pairs(getconnections(button.Activated)) do
+            connection:Fire()
+            print("Fired Activated event")
+            return true
+        end
+    end)
+    
+    if success3 then return true end
+    
+    local success4 = pcall(function()
+        local clickDetector = button:FindFirstChildOfClass("ClickDetector")
+        if clickDetector then
+            fireclickdetector(clickDetector)
+            print("Fired ClickDetector")
+            return true
+        end
+    end)
+    
+    if success4 then return true end
+    
+    local success5 = pcall(function()
+        if button:IsA("TextButton") or button:IsA("ImageButton") then
+            button:SetAttribute("LastClicked", tick())
+            print("Set attribute for button")
+            return true
+        end
+    end)
+    
+    local success6 = pcall(function()
+        for _, child in pairs(button:GetDescendants()) do
+            if child:IsA("RemoteEvent") then
+                child:FireServer()
+                print("Fired RemoteEvent")
+                return true
+            end
+        end
+    end)
+    
+    return success1 or success2 or success3 or success4 or success5 or success6
+end
+
+local function buySeedUsingRemote(seedName)
+    print("Attempting remote purchase for: " .. seedName)
+    
+    local success1, result1 = pcall(function()
+        BuySeedStock:FireServer(seedName)
+        return true
+    end)
+    
+    if success1 then
+        print("Remote purchase successful")
+        return true
+    end
+    
+    local success2, result2 = pcall(function()
+        local alternativeRemote = ReplicatedStorage:FindFirstChild("PurchaseSeed") or 
+                                 ReplicatedStorage:FindFirstChild("BuySeed") or
+                                 ReplicatedStorage:FindFirstChild("SeedPurchase")
+        if alternativeRemote then
+            alternativeRemote:FireServer(seedName)
+            return true
+        end
+    end)
+    
+    if success2 then
+        print("Alternative remote purchase successful")
+        return true
+    end
+    
+    local success3, result3 = pcall(function()
+        BuySeedStock:FireServer(seedName, 1)
+        return true
+    end)
+    
+    if success3 then
+        print("Remote purchase with quantity successful")
+        return true
+    end
+    
+    print("All remote methods failed")
+    return false
+end
+
+local function buyWithGUIButton(seedName, stock)
+    local boughtCount = 0
+    
+    for i = 1, stock do
+        local button = findBuyFrameTemplate(seedName)
+        if button then
+            local success = clickButton(button)
+            if success then
+                boughtCount = boughtCount + 1
+                print("GUI Purchase " .. i .. "/" .. stock .. " SUCCESS")
+                
+                if CropsListAndStocks[seedName] then
+                    CropsListAndStocks[seedName] = CropsListAndStocks[seedName] - 1
+                end
+            else
+                print("GUI Purchase " .. i .. "/" .. stock .. " FAILED")
+            end
+        else
+            print("Button not found for: " .. seedName)
+            return boughtCount > 0
+        end
+        wait(0.2)
+    end
+    
+    return boughtCount > 0
+end
+
+local function buyWithDirectRemote(seedName, stock)
+    local boughtCount = 0
+    
+    for i = 1, stock do
+        local success = buySeedUsingRemote(seedName)
+        if success then
+            boughtCount = boughtCount + 1
+            print("Remote Purchase " .. i .. "/" .. stock .. " SUCCESS")
+            
+            if CropsListAndStocks[seedName] then
+                CropsListAndStocks[seedName] = CropsListAndStocks[seedName] - 1
+            end
+        else
+            print("Remote Purchase " .. i .. "/" .. stock .. " FAILED")
+        end
+        wait(0.2)
+    end
+    
+    return boughtCount > 0
+end
+
+local function buyWithHybridMethod(seedName, stock)
+    local boughtCount = 0
+    
+    for i = 1, stock do
+        local button = findBuyFrameTemplate(seedName)
+        local guiSuccess = false
+        
+        if button then
+            guiSuccess = clickButton(button)
+        end
+        
+        if not guiSuccess then
+            guiSuccess = buySeedUsingRemote(seedName)
+        end
+        
+        if guiSuccess then
+            boughtCount = boughtCount + 1
+            print("Hybrid Purchase " .. i .. "/" .. stock .. " SUCCESS")
+            
+            if CropsListAndStocks[seedName] then
+                CropsListAndStocks[seedName] = CropsListAndStocks[seedName] - 1
+            end
+        else
+            print("Hybrid Purchase " .. i .. "/" .. stock .. " FAILED")
+        end
+        wait(0.3)
+    end
+    
+    return boughtCount > 0
+end
+
 function buyWantedCropSeeds()
     if #wantedFruits == 0 then
         print("No fruits selected to buy")
@@ -470,61 +687,81 @@ function buyWantedCropSeeds()
     local beforePos = HRP.CFrame
     local humanoid = Character:FindFirstChildOfClass("Humanoid")
     
-    -- Pastikan karakter bisa bergerak
-    if humanoid then
-        humanoid:ChangeState(Enum.HumanoidStateType.Running)
-    end
-    
-    -- Pergi ke NPC Sam
     HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
-    wait(1.5)
+    wait(2)
     
-    -- Pastikan kita menghadap ke NPC
     HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
-    wait(0.5)
+    wait(1)
     
     local boughtAny = false
     
     for _, fruitName in ipairs(wantedFruits) do
         local stock = tonumber(CropsListAndStocks[fruitName] or 0)
-        print("Trying to buy "..fruitName..", stock: "..tostring(stock))
+        print("=== Buying "..fruitName.." ===")
+        print("Stock available: "..tostring(stock))
         
         if stock > 0 then
-            for j = 1, stock do
-                local success = buySeedUsingGUI(fruitName)
-                if success then
+            local purchaseMethods = {
+                {"GUI Button Method", function() return buyWithGUIButton(fruitName, stock) end},
+                {"Direct Remote Method", function() return buyWithDirectRemote(fruitName, stock) end},
+                {"Hybrid Method", function() return buyWithHybridMethod(fruitName, stock) end}
+            }
+            
+            for _, method in ipairs(purchaseMethods) do
+                local methodName, methodFunc = method[1], method[2]
+                print("Trying " .. methodName)
+                local success, result = pcall(methodFunc)
+                if success and result then
                     boughtAny = true
-                    print("Bought "..fruitName.." seed "..j.."/"..stock)
-                    
-                    -- Update stock count after successful purchase
-                    if CropsListAndStocks[fruitName] then
-                        CropsListAndStocks[fruitName] = CropsListAndStocks[fruitName] - 1
-                    end
+                    print(methodName .. " SUCCESS for " .. fruitName)
+                    break
                 else
-                    print("Failed to buy "..fruitName)
-                    -- Fallback to remote method if GUI method fails
-                    local args = {[1] = fruitName}
-                    local remoteSuccess = pcall(function()
-                        BuySeedStock:FireServer(unpack(args))
-                    end)
-                    if remoteSuccess then
-                        boughtAny = true
-                        print("Bought "..fruitName.." using remote fallback")
-                    end
+                    print(methodName .. " FAILED for " .. fruitName)
                 end
-                wait(0.3) -- Tunggu sebentar antara pembelian
+                wait(0.5)
             end
         else
-            print("No stock for "..fruitName)
+            print("No stock for " .. fruitName)
         end
+        wait(1)
     end
     
-    -- Kembali ke posisi semula
-    wait(0.5)
+    wait(1)
     HRP.CFrame = beforePos
     
     isBuying = false
+    print("=== Auto-buy session completed ===")
     return boughtAny
+end
+
+local function debugSeedShopGUI()
+    print("=== DEBUG SEED SHOP GUI ===")
+    print("SeedShopGUI children count: " .. #SeedShopGUI:GetChildren())
+    
+    for i, child in pairs(SeedShopGUI:GetChildren()) do
+        print("Child " .. i .. ": " .. child.Name .. " (" .. child.ClassName .. ")")
+        
+        if child:IsA("Frame") then
+            local buttons = {}
+            for _, desc in pairs(child:GetDescendants()) do
+                if desc:IsA("TextButton") or desc:IsA("ImageButton") then
+                    table.insert(buttons, {
+                        Name = desc.Name,
+                        Class = desc.ClassName,
+                        Text = desc:IsA("TextButton") and desc.Text or "N/A"
+                    })
+                end
+            end
+            
+            if #buttons > 0 then
+                print("  Buttons found:")
+                for _, btn in ipairs(buttons) do
+                    print("    - " .. btn.Name .. " (" .. btn.Class .. ") Text: " .. btn.Text)
+                end
+            end
+        end
+    end
+    print("=== END DEBUG ===")
 end
 
 local function onShopRefresh()
@@ -532,8 +769,6 @@ local function onShopRefresh()
     getCropsListAndStock()
     if wantedFruits and #wantedFruits > 0 and autoBuyEnabled then
         print("Auto-buying selected fruits...")
-        
-        -- Tunggu sebentar sebelum membeli untuk memastikan UI sudah update
         wait(3)
         buyWantedCropSeeds()
     end
@@ -548,13 +783,12 @@ end
 
 local function sellAll()
     local OrgPos = HRP.CFrame
-    HRP.CFrame = Steven.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
+    HRP.CFrame = Steven.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
     wait(1.5)
     
     isSelling = true
     sellAllRemote:FireServer()
     
-    -- Wait until items are sold
     local startTime = tick()
     while #Backpack:GetChildren() >= AutoSellItems and tick() - startTime < 10 do
         sellAllRemote:FireServer()
@@ -572,7 +806,6 @@ spawn(function()
             local shopTimeText = "Shop Resets in " .. shopTime .. "s"
             RayFieldShopTimer:Set({Title = "Shop Timer", Content = shopTimeText})
             
-            -- Cek jika toko di-refresh dengan membandingkan stok
             local isRefreshed = getCropsListAndStock()
             
             if isRefreshed and autoBuyEnabled and not isBuying then
@@ -658,12 +891,10 @@ localPlayerTab:CreateButton({
 
 local seedsTab = Window:CreateTab("Seeds")
 
--- Function to refresh seed options
 local function refreshSeedOptions()
     return getAllIFromDict(CropsListAndStocks)
 end
 
--- Create the dropdown with refresh capability
 local seedDropdown = seedsTab:CreateDropdown({
    Name = "Fruits To Buy",
    Options = refreshSeedOptions(),
@@ -683,7 +914,6 @@ local seedDropdown = seedsTab:CreateDropdown({
    end,
 })
 
--- Add refresh button for seed options
 seedsTab:CreateButton({
     Name = "Refresh Seed List",
     Callback = function()
@@ -693,7 +923,6 @@ seedsTab:CreateButton({
     end,
 })
 
--- Tambahkan toggle untuk enable/disable auto-buy
 seedsTab:CreateToggle({
     Name = "Enable Auto-Buy",
     CurrentValue = false,
@@ -702,7 +931,6 @@ seedsTab:CreateToggle({
         autoBuyEnabled = Value
         print("Auto-Buy set to: "..tostring(Value))
         
-        -- Jika diaktifkan, langsung coba beli
         if Value and #wantedFruits > 0 then
             spawn(function()
                 wait(1)
@@ -716,6 +944,53 @@ seedsTab:CreateButton({
     Name = "Buy Selected Fruits Now",
     Callback = function()
         buyWantedCropSeeds()
+    end,
+})
+
+testingTab:CreateSection("Debug Tools")
+testingTab:CreateButton({
+    Name = "Debug Seed Shop GUI",
+    Callback = function()
+        debugSeedShopGUI()
+    end,
+})
+
+testingTab:CreateButton({
+    Name = "Test Single Seed Purchase",
+    Callback = function()
+        if #wantedFruits > 0 then
+            local testSeed = wantedFruits[1]
+            print("Testing purchase for: " .. testSeed)
+            buyWithGUIButton(testSeed, 1)
+        else
+            print("No seeds selected")
+        end
+    end,
+})
+
+testingTab:CreateButton({
+    Name = "Test All Purchase Methods",
+    Callback = function()
+        if #wantedFruits > 0 then
+            local testSeed = wantedFruits[1]
+            local stock = tonumber(CropsListAndStocks[testSeed] or 1)
+            
+            print("=== Testing All Methods ===")
+            local methods = {
+                {"GUI Method", buyWithGUIButton},
+                {"Remote Method", buyWithDirectRemote},
+                {"Hybrid Method", buyWithHybridMethod}
+            }
+            
+            for _, method in ipairs(methods) do
+                print("Testing: " .. method[1])
+                local success = pcall(function()
+                    return method[2](testSeed, math.min(stock, 1))
+                end)
+                print(method[1] .. " result: " .. tostring(success))
+                wait(1)
+            end
+        end
     end,
 })
 
@@ -750,10 +1025,9 @@ sellTab:CreateButton({
     end,
 })
 
--- Initialize the player farm reference
 playerFarm = findPlayerFarm()
 if not playerFarm then
     warn("Player farm not found!")
 end
 
-print("Grow A Garden script loaded successfully!")
+print("Grow A Garden script loaded successfully with enhanced auto-buy system!")

@@ -1,3 +1,4 @@
+-- v1
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -28,14 +29,9 @@ local autoBuyEnabled = false
 local lastShopStock = {}
 local isBuying = false -- Flag untuk menandai sedang membeli
 
--- OPTIMASI HARVEST: Variabel untuk kontrol kecepatan
-local harvestSpeed = 0.01 -- Default speed (lebih cepat dari sebelumnya)
-local maxHarvestDistance = 50 -- Jarak maksimum untuk harvest
-local harvestMultiThread = true -- Multi-threading untuk harvest
-
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
-   Name = "Grow A Garden - OPTIMIZED",
+   Name = "Grow A Garden",
    Icon = 0,
    LoadingTitle = "Rayfield Interface Suite",
    LoadingSubtitle = "by Sirius",
@@ -59,22 +55,6 @@ local function findPlayerFarm()
     return nil
 end
 
--- OPTIMASI: Fungsi untuk mendapatkan posisi tanaman dengan cepat
-local function getPlantPosition(plant)
-    if plant and plant.PrimaryPart then
-        return plant.PrimaryPart.Position
-    elseif plant and plant:FindFirstChild("HumanoidRootPart") then
-        return plant.HumanoidRootPart.Position
-    else
-        return plant and plant:GetPivot().Position or Vector3.new(0,0,0)
-    end
-end
-
--- OPTIMASI: Fungsi untuk cek jarak dengan cepat
-local function isWithinDistance(position1, position2, maxDistance)
-    return (position1 - position2).Magnitude <= maxDistance
-end
-
 local function removePlantsOfKind(kind)
     if not kind or kind[1] == "None Selected" then
         print("No plant selected to remove")
@@ -90,19 +70,16 @@ local function removePlantsOfKind(kind)
     end
     
     Shovel.Parent = Character
-    wait(0.3) -- Reduced wait time
+    wait(0.5) -- Wait for shovel to equip
     
-    local farm = findPlayerFarm()
-    if not farm then return end
-    
-    for _,plant in pairs(farm.Important.Plants_Physical:GetChildren()) do
+    for _,plant in pairs(findPlayerFarm().Important.Plants_Physical:GetChildren()) do
         if plant.Name == kind[1] then
             if plant:FindFirstChild("Fruit_Spawn") then
                 local spawnPoint = plant.Fruit_Spawn
-                HRP.CFrame = CFrame.new(getPlantPosition(plant)) + Vector3.new(0, 3, 0)
-                wait(0.1) -- Reduced wait time
+                HRP.CFrame = plant.PrimaryPart.CFrame
+                wait(0.2)
                 removeItem:FireServer(spawnPoint)
-                wait(0.05) -- Reduced wait time
+                wait(0.1)
             end
         end
     end 
@@ -170,32 +147,7 @@ Tab:CreateButton({
     end,
 })
 
-Tab:CreateSection("Harvesting Plants - OPTIMIZED")
-
--- OPTIMASI HARVEST: Slider untuk kontrol kecepatan harvest
-Tab:CreateSlider({
-   Name = "Harvest Speed (Lower = Faster)",
-   Range = {0.001, 0.1},
-   Increment = 0.001,
-   Suffix = "seconds",
-   CurrentValue = 0.01,
-   Flag = "HarvestSpeed",
-   Callback = function(Value)
-        harvestSpeed = Value
-        print("Harvest speed set to: " .. Value .. " seconds")
-   end,
-})
-
--- OPTIMASI HARVEST: Toggle untuk multi-threading
-Tab:CreateToggle({
-   Name = "Multi-Thread Harvest (Experimental)",
-   CurrentValue = true,
-   Flag = "MultiThreadHarvest",
-   Callback = function(Value)
-        harvestMultiThread = Value
-        print("Multi-thread harvest: " .. tostring(Value))
-   end,
-})
+Tab:CreateSection("Harvesting Plants")
 
 local function printCropStocks()
     for i,v in pairs(CropsListAndStocks) do
@@ -219,6 +171,7 @@ function getCropsListAndStock()
         end
     end
     
+    -- Cek jika stok berubah (toko di-refresh)
     local isRefreshed = false
     for cropName, stock in pairs(CropsListAndStocks) do
         if oldStock[cropName] ~= stock then
@@ -231,7 +184,7 @@ function getCropsListAndStock()
 end
 
 local playerFarm = findPlayerFarm()
-getCropsListAndStocks()
+getCropsListAndStock()
 
 local function getPlantingBoundaries(farm)
     local offset = Vector3.new(15.2844,0,28.356)
@@ -246,177 +199,93 @@ local function getPlantingBoundaries(farm)
     return edges
 end
 
--- OPTIMASI HARVEST: Fungsi collectPlant yang lebih efisien
 local function collectPlant(plant)
-    local playerPos = HRP.Position
-    
-    -- Cek jarak sebelum harvest
-    local plantPos = getPlantPosition(plant)
-    if not isWithinDistance(playerPos, plantPos, maxHarvestDistance) then
-        -- Teleport ke tanaman jika terlalu jauh
-        HRP.CFrame = CFrame.new(plantPos + Vector3.new(0, 3, 0))
-        wait(0.1)
-    end
-    
-    -- Metode collection yang lebih agresif
+    -- Fixed collection method using proximity prompts instead of byteNetReliable
     if plant:FindFirstChild("ProximityPrompt") then
-        for i = 1, 3 do -- Multiple clicks untuk memastikan
-            fireproximityprompt(plant.ProximityPrompt)
-            wait(0.01)
-        end
+        fireproximityprompt(plant.ProximityPrompt)
     else
+        -- Check children for proximity prompts
         for _, child in pairs(plant:GetChildren()) do
             if child:FindFirstChild("ProximityPrompt") then
-                for i = 1, 3 do
-                    fireproximityprompt(child.ProximityPrompt)
-                    wait(0.01)
-                end
+                fireproximityprompt(child.ProximityPrompt)
                 break
             end
         end
     end
 end
 
--- OPTIMASI HARVEST: Fungsi GetAllPlants yang lebih cepat
 local function GetAllPlants()
     local plantsTable = {}
-    local farm = findPlayerFarm()
-    if not farm then return plantsTable end
-    
-    -- Gunakan lebih sedikit iterasi
-    local plantsFolder = farm.Important.Plants_Physical
-    for _, Plant in pairs(plantsFolder:GetChildren()) do
+    for _, Plant in pairs(playerFarm.Important.Plants_Physical:GetChildren()) do
         if Plant:FindFirstChild("Fruits") then
-            local fruits = Plant.Fruits:GetChildren()
-            for i = 1, #fruits do
-                plantsTable[#plantsTable + 1] = fruits[i]
+            for _, miniPlant in pairs(Plant.Fruits:GetChildren()) do
+                table.insert(plantsTable, miniPlant)
             end
         else
-            plantsTable[#plantsTable + 1] = Plant
+            table.insert(plantsTable, Plant)
         end
     end
     return plantsTable
 end
 
--- OPTIMASI HARVEST: Fungsi CollectAllPlants yang jauh lebih cepat
 local function CollectAllPlants()
     local plants = GetAllPlants()
     print("Got "..#plants.." Plants")
     
-    if #plants == 0 then return end
-    
-    -- OPTIMASI: Group plants by position untuk mengurangi teleportasi
-    local positionGroups = {}
-    for _, plant in pairs(plants) do
-        local pos = getPlantPosition(plant)
-        local roundedPos = Vector3.new(
-            math.floor(pos.X / 10) * 10,
-            math.floor(pos.Y / 10) * 10,
-            math.floor(pos.Z / 10) * 10
-        )
-        
-        if not positionGroups[roundedPos] then
-            positionGroups[roundedPos] = {}
-        end
-        table.insert(positionGroups[roundedPos], plant)
+    -- Shuffle the plants table to randomize collection order
+    for i = #plants, 2, -1 do
+        local j = math.random(i)
+        plants[i], plants[j] = plants[j], plants[i]
     end
     
-    -- OPTIMASI: Process plants by groups
-    for groupPos, groupPlants in pairs(positionGroups) do
-        -- Teleport ke tengah group
-        HRP.CFrame = CFrame.new(groupPos + Vector3.new(0, 3, 0))
-        wait(0.1)
-        
-        -- Harvest semua tanaman dalam group
-        for _, plant in pairs(groupPlants) do
-            collectPlant(plant)
-            wait(harvestSpeed) -- Gunakan speed yang bisa diatur
-        end
+    for _,plant in pairs(plants) do
+        collectPlant(plant)
+        task.wait(0.05)
     end
-    
-    print("Harvest completed!")
 end
 
--- OPTIMASI HARVEST: Plant Aura yang lebih efisien
+Tab:CreateButton({
+    Name = "Collect All Plants",
+    Callback = function()
+        CollectAllPlants()
+        print("Collecting All Plants")
+    end,
+})
+
 spawn(function()
     while true do
         if plantAura then
             local plants = GetAllPlants()
             
-            if #plants > 0 then
-                -- OPTIMASI: Group plants by position
-                local positionGroups = {}
-                for _, plant in pairs(plants) do
-                    local pos = getPlantPosition(plant)
-                    local roundedPos = Vector3.new(
-                        math.floor(pos.X / 10) * 10,
-                        math.floor(pos.Y / 10) * 10,
-                        math.floor(pos.Z / 10) * 10
-                    )
-                    
-                    if not positionGroups[roundedPos] then
-                        positionGroups[roundedPos] = {}
-                    end
-                    table.insert(positionGroups[roundedPos], plant)
-                end
-                
-                -- OPTIMASI: Multi-threading jika diaktifkan
-                if harvestMultiThread then
-                    local threads = {}
-                    
-                    for groupPos, groupPlants in pairs(positionGroups) do
-                        local thread = spawn(function()
-                            -- Teleport ke group
-                            HRP.CFrame = CFrame.new(groupPos + Vector3.new(0, 3, 0))
-                            wait(0.05)
-                            
-                            for _, plant in pairs(groupPlants) do
-                                collectPlant(plant)
-                                wait(harvestSpeed)
+            -- Shuffle the plants table to randomize collection order
+            for i = #plants, 2, -1 do
+                local j = math.random(i)
+                plants[i], plants[j] = plants[j], plants[i]
+            end
+            
+            for _, plant in pairs(plants) do
+                if plant:FindFirstChild("Fruits") then
+                    for _, miniPlant in pairs(plant.Fruits:GetChildren()) do
+                        for _, child in pairs(miniPlant:GetChildren()) do
+                            if child:FindFirstChild("ProximityPrompt") then
+                                fireproximityprompt(child.ProximityPrompt)
                             end
-                        end)
-                        table.insert(threads, thread)
-                    end
-                    
-                    -- Tunggu semua thread selesai
-                    for _, thread in pairs(threads) do
-                        coroutine.resume(thread)
+                        end
+                        task.wait(0.01)
                     end
                 else
-                    -- Single-thread approach
-                    for groupPos, groupPlants in pairs(positionGroups) do
-                        HRP.CFrame = CFrame.new(groupPos + Vector3.new(0, 3, 0))
-                        wait(0.1)
-                        
-                        for _, plant in pairs(groupPlants) do
-                            collectPlant(plant)
-                            wait(harvestSpeed)
+                    for _, child in pairs(plant:GetChildren()) do
+                        if child:FindFirstChild("ProximityPrompt") then
+                            fireproximityprompt(child.ProximityPrompt)
                         end
+                        task.wait(0.01)
                     end
                 end
             end
         end
-        wait(0.1)
+        task.wait(0.1)
     end
 end)
-
-Tab:CreateButton({
-    Name = "Collect All Plants (OPTIMIZED)",
-    Callback = function()
-        CollectAllPlants()
-        print("Collecting All Plants with optimized method")
-    end,
-})
-
-Tab:CreateToggle({
-   Name = "Harvest Plants Aura (OPTIMIZED)",
-   CurrentValue = false,
-   Flag = "Toggle1",
-   Callback = function(Value)
-    plantAura = Value
-    print("Optimized Plant Aura Set To: ".. tostring(Value))
-   end,
-})
 
 local function getRandomPlantingLocation(edges)
     local rectangles = {
@@ -432,7 +301,9 @@ local function getRandomPlantingLocation(edges)
     local minZ, maxZ = math.min(a.Z, b.Z), math.max(a.Z, b.Z)
     local Y = 0.13552704453468323
 
-    local randY = Y + (math.random() * 0.1 - 0.05)
+    -- Add some randomness to the Y position as well
+    local randY = Y + (math.random() * 0.1 - 0.05) -- Small random variation
+    
     local randX = math.random() * (maxX - minX) + minX
     local randZ = math.random() * (maxZ - minZ) + minZ
 
@@ -451,74 +322,375 @@ end
 
 local function plantAllSeeds()
     print("Planting All Seeds...")
-    task.wait(0.5) -- Reduced wait time
+    task.wait(1)
     
     local edges = getPlantingBoundaries(playerFarm)
-    local plantedCount = 0
     
     while areThereSeeds() do
         print("There Are Seeds!")
         for _,Item in pairs(Backpack:GetChildren()) do
             if Item:FindFirstChild("Seed Local Script") then
                 Item.Parent = Character
-                wait(0.05) -- Reduced wait time
+                wait(0.1)
                 local location = getRandomPlantingLocation(edges)
                 local args = {
                     [1] = location.Position,
                     [2] = Item:GetAttribute("Seed")
                 }
                 Plant:FireServer(unpack(args))
-                plantedCount = plantedCount + 1
-                wait(0.05) -- Reduced wait time
+                wait(0.1)
                 if Item and Item:IsDescendantOf(game) and Item.Parent ~= Backpack then
                     pcall(function()
                         Item.Parent = Backpack
-                    end
+                    end)
                 end
             end
         end
-        wait(0.2) -- Reduced delay
+        wait(0.5) -- Small delay to prevent infinite loop
     end
-    print("Planted " .. plantedCount .. " seeds total!")
 end
 
--- ... (rest of the code remains similar but with optimized wait times)
+Tab:CreateToggle({
+   Name = "Harvest Plants Aura",
+   CurrentValue = false,
+   Flag = "Toggle1",
+   Callback = function(Value)
+    plantAura = Value
+    print("Plant Aura Set To: ".. tostring(Value))
+   end,
+})
 
--- Tambahkan section khusus untuk optimasi
-local optimizationTab = Window:CreateTab("Optimization", "settings")
-optimizationTab:CreateSection("Harvest Optimization Settings")
+local testingTab = Window:CreateTab("Testing","rewind")
+testingTab:CreateSection("List Crops Names And Prices")
+testingTab:CreateButton({
+    Name = "Print Out All Crops Names And Stocks",
+    Callback = function()
+        printCropStocks()
+        print("Printed")
+    end,
+})
 
-optimizationTab:CreateSlider({
-   Name = "Max Harvest Distance",
-   Range = {10, 100},
+Tab:CreateSection("Plant")
+Tab:CreateButton({
+    Name = "Plant all Seeds",
+    Callback = function()
+        plantAllSeeds()
+    end,
+})
+
+Tab:CreateToggle({
+    Name = "Auto Plant",
+    CurrentValue = false,
+    flag = "ToggleAutoPlant",
+    Callback = function(Value)
+        shouldAutoPlant = Value
+    end,
+})
+
+testingTab:CreateSection("Shop")
+local RayFieldShopTimer = testingTab:CreateParagraph({Title = "Shop Timer", Content = "Waiting..."})
+
+testingTab:CreateSection("Plot Corners")
+testingTab:CreateButton({
+    Name = "Teleport edges",
+    Callback = function()
+        local edges = getPlantingBoundaries(playerFarm)
+        for i,v in pairs(edges) do
+            HRP.CFrame = CFrame.new(v)
+            wait(2)
+        end
+    end,
+})
+
+testingTab:CreateButton({
+    Name = "Teleport random plantable position",
+    Callback = function()
+        HRP.CFrame = getRandomPlantingLocation(getPlantingBoundaries(playerFarm))
+    end,
+})
+
+local function buyCropSeeds(cropName)
+    local args = {[1] = cropName}
+    local success, errorMsg = pcall(function()
+        BuySeedStock:FireServer(unpack(args))
+    end)
+    
+    if not success then
+        print("Error buying seeds:", errorMsg)
+        return false
+    end
+    return true
+end
+
+function buyWantedCropSeeds()
+    if #wantedFruits == 0 then
+        print("No fruits selected to buy")
+        return false
+    end
+    
+    if isBuying then
+        print("Already buying seeds, please wait...")
+        return false
+    end
+    
+    isBuying = true
+    
+    local beforePos = HRP.CFrame
+    local humanoid = Character:FindFirstChildOfClass("Humanoid")
+    
+    -- Pastikan karakter bisa bergerak
+    if humanoid then
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end
+    
+    -- Pergi ke NPC Sam
+    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
+    wait(1.5) -- Tunggu sampai sampai di lokasi
+    
+    -- Pastikan kita menghadap ke NPC
+    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
+    wait(0.5)
+    
+    local boughtAny = false
+    
+    for _, fruitName in ipairs(wantedFruits) do
+        local stock = tonumber(CropsListAndStocks[fruitName] or 0)
+        print("Trying to buy "..fruitName..", stock: "..tostring(stock))
+        
+        if stock > 0 then
+            for j = 1, stock do
+                local success = buyCropSeeds(fruitName)
+                if success then
+                    boughtAny = true
+                    print("Bought "..fruitName.." seed "..j.."/"..stock)
+                else
+                    print("Failed to buy "..fruitName)
+                end
+                wait(0.2) -- Tunggu sebentar antara pembelian
+            end
+        else
+            print("No stock for "..fruitName)
+        end
+    end
+    
+    -- Kembali ke posisi semula
+    wait(0.5)
+    HRP.CFrame = beforePos
+    
+    isBuying = false
+    return boughtAny
+end
+
+local function onShopRefresh()
+    print("Shop Refreshed")
+    getCropsListAndStock()
+    if wantedFruits and #wantedFruits > 0 and autoBuyEnabled then
+        print("Auto-buying selected fruits...")
+        
+        -- Tunggu sebentar sebelum membeli untuk memastikan UI sudah update
+        wait(2)
+        buyWantedCropSeeds()
+    end
+end
+
+local function getTimeInSeconds(input)
+    if not input then return 0 end
+    local minutes = tonumber(input:match("(%d+)m")) or 0
+    local seconds = tonumber(input:match("(%d+)s")) or 0
+    return minutes * 60 + seconds
+end
+
+local function sellAll()
+    local OrgPos = HRP.CFrame
+    HRP.CFrame = Steven.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
+    wait(1.5)
+    
+    isSelling = true
+    sellAllRemote:FireServer()
+    
+    -- Wait until items are sold
+    local startTime = tick()
+    while #Backpack:GetChildren() >= AutoSellItems and tick() - startTime < 10 do
+        sellAllRemote:FireServer()
+        wait(0.5)
+    end
+    
+    HRP.CFrame = OrgPos
+    isSelling = false
+end
+
+spawn(function() 
+    while true do
+        if shopTimer and shopTimer.Text then
+            shopTime = getTimeInSeconds(shopTimer.Text)
+            local shopTimeText = "Shop Resets in " .. shopTime .. "s"
+            RayFieldShopTimer:Set({Title = "Shop Timer", Content = shopTimeText})
+            
+            -- Cek jika toko di-refresh dengan membandingkan stok
+            local isRefreshed = getCropsListAndStock()
+            
+            if isRefreshed and autoBuyEnabled and not isBuying then
+                print("Shop refreshed, auto-buying...")
+                onShopRefresh()
+                wait(5)
+            end
+        end
+        
+        if shouldSell and #(Backpack:GetChildren()) >= AutoSellItems and not isSelling then
+            sellAll()
+        end
+        
+        wait(0.5)
+    end
+end)
+
+localPlayerTab = Window:CreateTab("LocalPlayer")
+localPlayerTab:CreateButton({
+    Name = "TP Wand",
+    Callback = function()
+        local mouse = Players.LocalPlayer:GetMouse()
+        local TPWand = Instance.new("Tool", Backpack)
+        TPWand.Name = "TP Wand"
+        TPWand.RequiresHandle = false
+        mouse.Button1Down:Connect(function()
+            if Character:FindFirstChild("TP Wand") then
+                HRP.CFrame = mouse.Hit + Vector3.new(0, 3, 0)
+            end
+        end)
+    end,    
+})
+
+localPlayerTab:CreateButton({
+    Name = "Destroy TP Wand",
+    Callback = function()
+        if Backpack:FindFirstChild("TP Wand") then
+            Backpack:FindFirstChild("TP Wand"):Destroy()
+        end
+        if Character:FindFirstChild("TP Wand") then
+            Character:FindFirstChild("TP Wand"):Destroy()
+        end
+    end,    
+})
+
+local speedSlider = localPlayerTab:CreateSlider({
+   Name = "Speed",
+   Range = {1, 500},
    Increment = 5,
-   Suffix = "studs",
+   Suffix = "Speed",
+   CurrentValue = 20,
+   Flag = "Slider1",
+   Callback = function(Value)
+        Humanoid.WalkSpeed = Value
+   end,
+})
+
+localPlayerTab:CreateButton({
+    Name = "Default Speed",
+    Callback = function()
+        speedSlider:Set(20)
+    end,
+})
+
+local jumpSlider = localPlayerTab:CreateSlider({
+   Name = "Jump Power",
+   Range = {1, 500},
+   Increment = 5,
+   Suffix = "Jump Power",
    CurrentValue = 50,
-   Flag = "HarvestDistance",
+   Flag = "Slider2",
    Callback = function(Value)
-        maxHarvestDistance = Value
-        print("Max harvest distance set to: " .. Value)
+        Humanoid.JumpPower = Value
    end,
 })
 
-optimizationTab:CreateToggle({
-   Name = "Aggressive Harvest (Multiple Clicks)",
-   CurrentValue = true,
-   Flag = "AggressiveHarvest",
+localPlayerTab:CreateButton({
+    Name = "Default Jump Power",
+    Callback = function()
+        jumpSlider:Set(50)
+    end,
+})
+
+local seedsTab = Window:CreateTab("Seeds")
+seedsTab:CreateDropdown({
+   Name = "Fruits To Buy",
+   Options = getAllIFromDict(CropsListAndStocks),
+   CurrentOption = {"None Selected"},
+   MultipleOptions = true,
+   Flag = "Dropdown1", 
+   Callback = function(Options)
+        local filtered = {}
+        for _, fruit in ipairs(Options) do
+            if fruit ~= "None Selected" then
+                table.insert(filtered, fruit)
+            end
+        end
+        print("Selected:", table.concat(filtered, ", "))
+        wantedFruits = filtered
+        print("Updated!")
+   end,
+})
+
+-- Tambahkan toggle untuk enable/disable auto-buy
+seedsTab:CreateToggle({
+    Name = "Enable Auto-Buy",
+    CurrentValue = false,
+    Flag = "AutoBuyToggle",
+    Callback = function(Value)
+        autoBuyEnabled = Value
+        print("Auto-Buy set to: "..tostring(Value))
+        
+        -- Jika diaktifkan, langsung coba beli
+        if Value and #wantedFruits > 0 then
+            spawn(function()
+                wait(1)
+                buyWantedCropSeeds()
+            end)
+        end
+    end,
+})
+
+seedsTab:CreateButton({
+    Name = "Buy Selected Fruits Now",
+    Callback = function()
+        buyWantedCropSeeds()
+    end,
+})
+
+local sellTab = Window:CreateTab("Sell")
+sellTab:CreateToggle({
+    Name = "Should Sell?",
+    CurrentValue = false,
+    flag = "Toggle2",
+    Callback = function(Value)
+        print("set shouldSell to: "..tostring(Value))
+        shouldSell = Value
+    end,
+})
+
+sellTab:CreateSlider({
+   Name = "Minimum Items to auto sell",
+   Range = {1, 200},
+   Increment = 1,
+   Suffix = "Items",
+   CurrentValue = 70,
+   Flag = "Slider2",
    Callback = function(Value)
-        print("Aggressive harvest: " .. tostring(Value))
+        print("AutoSellItems updated to: "..Value)
+        AutoSellItems = Value
    end,
 })
 
-optimizationTab:CreateButton({
-   Name = "Optimize Performance",
-   Callback = function()
-        -- Reduce graphics settings for better performance
-        settings().Rendering.QualityLevel = 1
-        game:GetService("Lighting").GlobalShadows = false
-        game:GetService("Lighting").FogEnd = 100000
-        print("Performance optimized!")
-   end,
+sellTab:CreateButton({
+    Name = "Sell All Now",
+    Callback = function()
+        sellAll()
+    end,
 })
 
-print("OPTIMIZED Grow A Garden script loaded successfully!")
+-- Initialize the player farm reference
+playerFarm = findPlayerFarm()
+if not playerFarm then
+    warn("Player farm not found!")
+end
+
+print("Grow A Garden script loaded successfully!")

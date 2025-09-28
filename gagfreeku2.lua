@@ -1,4 +1,3 @@
--- v1nnmmmnn
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FarmsFolder = Workspace.Farm
@@ -29,9 +28,15 @@ local autoBuyEnabled = false
 local lastShopStock = {}
 local isBuying = false -- Flag untuk menandai sedang membeli
 
+-- Variabel baru untuk harvest cepat
+local fastHarvest = false
+local harvestSpeed = 0.01 -- Default speed
+local autoHarvest = false
+local harvestInterval = 5 -- seconds
+
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
-   Name = "Grow A Garden",
+   Name = "Grow A Garden - Fast Harvest",
    Icon = 0,
    LoadingTitle = "Rayfield Interface Suite",
    LoadingSubtitle = "by Sirius",
@@ -120,7 +125,104 @@ local function getPlantedFruitTypes()
     return list
 end
 
+-- Fungsi harvest yang dioptimalkan
+local function collectPlantFast(plant)
+    -- Method yang lebih cepat untuk collect plants
+    if plant:FindFirstChild("ProximityPrompt") then
+        for i = 1, 3 do -- Multiple clicks untuk memastikan terkumpul
+            fireproximityprompt(plant.ProximityPrompt)
+        end
+    end
+    
+    -- Cek semua children untuk proximity prompts
+    for _, child in pairs(plant:GetChildren()) do
+        if child:IsA("ProximityPrompt") then
+            for i = 1, 3 do
+                fireproximityprompt(child)
+            end
+        elseif child:FindFirstChild("ProximityPrompt") then
+            for i = 1, 3 do
+                fireproximityprompt(child.ProximityPrompt)
+            end
+        end
+    end
+end
+
+local function GetAllPlantsOptimized()
+    local plantsTable = {}
+    local farm = findPlayerFarm()
+    if not farm then return plantsTable end
+    
+    local plantsFolder = farm.Important.Plants_Physical
+    
+    -- Optimized collection
+    for _, plant in pairs(plantsFolder:GetChildren()) do
+        if plant:FindFirstChild("Fruits") then
+            for _, miniPlant in pairs(plant.Fruits:GetChildren()) do
+                table.insert(plantsTable, miniPlant)
+            end
+        else
+            table.insert(plantsTable, plant)
+        end
+    end
+    
+    return plantsTable
+end
+
+local GetAllPlants = GetAllPlantsOptimized
+
+local function CollectAllPlantsFast()
+    local plants = GetAllPlants()
+    print("Fast Collecting "..#plants.." Plants")
+    
+    -- Gunakan task.spawn untuk parallel processing
+    local tasks = {}
+    
+    for _, plant in pairs(plants) do
+        local task = task.spawn(function()
+            collectPlantFast(plant)
+        end)
+        table.insert(tasks, task)
+    end
+    
+    -- Tunggu semua task selesai
+    for _, t in ipairs(tasks) do
+        task.wait(t)
+    end
+end
+
+local function SuperFastHarvest()
+    local plants = GetAllPlants()
+    print("⚡ Super Fast Collecting "..#plants.." Plants")
+    
+    -- Gunakan parallel processing untuk speed maksimal
+    for _, plant in pairs(plants) do
+        task.spawn(function()
+            -- Multiple rapid clicks per plant
+            if plant:FindFirstChild("ProximityPrompt") then
+                for i = 1, 5 do
+                    fireproximityprompt(plant.ProximityPrompt)
+                    task.wait(0.001)
+                end
+            end
+            
+            -- Check all children
+            for _, child in pairs(plant:GetChildren()) do
+                if child:IsA("ProximityPrompt") then
+                    for i = 1, 5 do
+                        fireproximityprompt(child)
+                        task.wait(0.001)
+                    end
+                end
+            end
+        end)
+    end
+    
+    task.wait(0.1) -- Brief wait for all tasks to complete
+end
+
 local Tab = Window:CreateTab("Plants", "rewind")
+
 Tab:CreateSection("Remove Plants")
 local PlantToRemoveDropdown = Tab:CreateDropdown({
    Name = "Choose A Plant To Remove",
@@ -147,7 +249,139 @@ Tab:CreateButton({
     end,
 })
 
-Tab:CreateSection("Harvesting Plants")
+Tab:CreateSection("⚡ Fast Harvest Options")
+
+Tab:CreateToggle({
+   Name = "Harvest Plants Aura",
+   CurrentValue = false,
+   Flag = "Toggle1",
+   Callback = function(Value)
+    plantAura = Value
+    print("Plant Aura Set To: ".. tostring(Value))
+   end,
+})
+
+Tab:CreateToggle({
+   Name = "⚡ Fast Harvest Aura",
+   CurrentValue = false,
+   Flag = "FastHarvestToggle",
+   Callback = function(Value)
+        fastHarvest = Value
+        print("Fast Harvest Aura: "..tostring(Value))
+   end,
+})
+
+Tab:CreateSlider({
+   Name = "Harvest Speed",
+   Range = {0.001, 0.1},
+   Increment = 0.001,
+   Suffix = "seconds",
+   CurrentValue = 0.01,
+   Flag = "HarvestSpeedSlider",
+   Callback = function(Value)
+        harvestSpeed = Value
+        print("Harvest speed set to: "..Value.."s")
+   end,
+})
+
+Tab:CreateToggle({
+    Name = "Auto Harvest Interval",
+    CurrentValue = false,
+    Flag = "AutoHarvestToggle",
+    Callback = function(Value)
+        autoHarvest = Value
+        if Value then
+            print("Auto Harvest started every "..harvestInterval.."s")
+        else
+            print("Auto Harvest stopped")
+        end
+    end,
+})
+
+Tab:CreateSlider({
+    Name = "Harvest Interval",
+    Range = {1, 60},
+    Increment = 1,
+    Suffix = "seconds",
+    CurrentValue = 5,
+    Flag = "HarvestIntervalSlider",
+    Callback = function(Value)
+        harvestInterval = Value
+        print("Harvest interval set to: "..Value.."s")
+    end,
+})
+
+Tab:CreateButton({
+    Name = "Collect All Plants",
+    Callback = function()
+        CollectAllPlantsFast()
+        print("Collecting All Plants")
+    end,
+})
+
+Tab:CreateButton({
+    Name = "⚡ Super Fast Harvest",
+    Callback = function()
+        SuperFastHarvest()
+    end,
+})
+
+-- Harvest Aura Loop yang Dioptimalkan
+spawn(function()
+    while true do
+        if plantAura then
+            local plants = GetAllPlants()
+            
+            if fastHarvest then
+                -- Mode cepat: kurang delay antara plants
+                for _, plant in pairs(plants) do
+                    if plant:FindFirstChild("Fruits") then
+                        for _, miniPlant in pairs(plant.Fruits:GetChildren()) do
+                            collectPlantFast(miniPlant)
+                            task.wait(harvestSpeed / 2) -- Separuh delay untuk fruits
+                        end
+                    else
+                        collectPlantFast(plant)
+                        task.wait(harvestSpeed)
+                    end
+                end
+            else
+                -- Mode normal (original code)
+                for _, plant in pairs(plants) do
+                    if plant:FindFirstChild("Fruits") then
+                        for _, miniPlant in pairs(plant.Fruits:GetChildren()) do
+                            for _, child in pairs(miniPlant:GetChildren()) do
+                                if child:FindFirstChild("ProximityPrompt") then
+                                    fireproximityprompt(child.ProximityPrompt)
+                                end
+                            end
+                            task.wait(0.01)
+                        end
+                    else
+                        for _, child in pairs(plant:GetChildren()) do
+                            if child:FindFirstChild("ProximityPrompt") then
+                                fireproximityprompt(child.ProximityPrompt)
+                            end
+                            task.wait(0.01)
+                        end
+                    end
+                end
+            end
+        end
+        task.wait(0.05) -- Reduced from 0.1
+    end
+end)
+
+-- Auto Harvest Loop
+spawn(function()
+    while true do
+        if autoHarvest then
+            CollectAllPlantsFast()
+            print("Auto Harvest completed. Next in "..harvestInterval.."s")
+        end
+        task.wait(harvestInterval)
+    end
+end)
 
 local function printCropStocks()
     for i,v in pairs(CropsListAndStocks) do
@@ -198,94 +432,6 @@ local function getPlantingBoundaries(farm)
     edges["2BottomRight"] = rect2Center - offset
     return edges
 end
-
-local function collectPlant(plant)
-    -- Fixed collection method using proximity prompts instead of byteNetReliable
-    if plant:FindFirstChild("ProximityPrompt") then
-        fireproximityprompt(plant.ProximityPrompt)
-    else
-        -- Check children for proximity prompts
-        for _, child in pairs(plant:GetChildren()) do
-            if child:FindFirstChild("ProximityPrompt") then
-                fireproximityprompt(child.ProximityPrompt)
-                break
-            end
-        end
-    end
-end
-
-local function GetAllPlants()
-    local plantsTable = {}
-    for _, Plant in pairs(playerFarm.Important.Plants_Physical:GetChildren()) do
-        if Plant:FindFirstChild("Fruits") then
-            for _, miniPlant in pairs(Plant.Fruits:GetChildren()) do
-                table.insert(plantsTable, miniPlant)
-            end
-        else
-            table.insert(plantsTable, Plant)
-        end
-    end
-    return plantsTable
-end
-
-local function CollectAllPlants()
-    local plants = GetAllPlants()
-    print("Got "..#plants.." Plants")
-    
-    -- Shuffle the plants table to randomize collection order
-    for i = #plants, 2, -1 do
-        local j = math.random(i)
-        plants[i], plants[j] = plants[j], plants[i]
-    end
-    
-    for _,plant in pairs(plants) do
-        collectPlant(plant)
-        task.wait(0.05)
-    end
-end
-
-Tab:CreateButton({
-    Name = "Collect All Plants",
-    Callback = function()
-        CollectAllPlants()
-        print("Collecting All Plants")
-    end,
-})
-
-spawn(function()
-    while true do
-        if plantAura then
-            local plants = GetAllPlants()
-            
-            -- Shuffle the plants table to randomize collection order
-            for i = #plants, 2, -1 do
-                local j = math.random(i)
-                plants[i], plants[j] = plants[j], plants[i]
-            end
-            
-            for _, plant in pairs(plants) do
-                if plant:FindFirstChild("Fruits") then
-                    for _, miniPlant in pairs(plant.Fruits:GetChildren()) do
-                        for _, child in pairs(miniPlant:GetChildren()) do
-                            if child:FindFirstChild("ProximityPrompt") then
-                                fireproximityprompt(child.ProximityPrompt)
-                            end
-                        end
-                        task.wait(0.01)
-                    end
-                else
-                    for _, child in pairs(plant:GetChildren()) do
-                        if child:FindFirstChild("ProximityPrompt") then
-                            fireproximityprompt(child.ProximityPrompt)
-                        end
-                        task.wait(0.01)
-                    end
-                end
-            end
-        end
-        task.wait(0.1)
-    end
-end)
 
 local function getRandomPlantingLocation(edges)
     local rectangles = {
@@ -350,26 +496,6 @@ local function plantAllSeeds()
     end
 end
 
-Tab:CreateToggle({
-   Name = "Harvest Plants Aura",
-   CurrentValue = false,
-   Flag = "Toggle1",
-   Callback = function(Value)
-    plantAura = Value
-    print("Plant Aura Set To: ".. tostring(Value))
-   end,
-})
-
-local testingTab = Window:CreateTab("Testing","rewind")
-testingTab:CreateSection("List Crops Names And Prices")
-testingTab:CreateButton({
-    Name = "Print Out All Crops Names And Stocks",
-    Callback = function()
-        printCropStocks()
-        print("Printed")
-    end,
-})
-
 Tab:CreateSection("Plant")
 Tab:CreateButton({
     Name = "Plant all Seeds",
@@ -384,6 +510,16 @@ Tab:CreateToggle({
     flag = "ToggleAutoPlant",
     Callback = function(Value)
         shouldAutoPlant = Value
+    end,
+})
+
+local testingTab = Window:CreateTab("Testing","rewind")
+testingTab:CreateSection("List Crops Names And Prices")
+testingTab:CreateButton({
+    Name = "Print Out All Crops Names And Stocks",
+    Callback = function()
+        printCropStocks()
+        print("Printed")
     end,
 })
 
@@ -693,4 +829,4 @@ if not playerFarm then
     warn("Player farm not found!")
 end
 
-print("Grow A Garden script loaded successfully!")
+print("Grow A Garden FAST HARVEST script loaded successfully! 🚀")

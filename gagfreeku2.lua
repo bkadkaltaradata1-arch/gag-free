@@ -1,5 +1,5 @@
 -- Auto Pet Seller & Buyer - One Click Farm Script
--- Automatically enables all functions for farming
+-- Automatically enables all functions for farming1
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

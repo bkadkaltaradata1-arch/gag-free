@@ -1,697 +1,522 @@
-
--- v1nnmmmnn
-local Workspace = game:GetService("Workspace")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local FarmsFolder = Workspace.Farm
+-- LocalScript di StarterPlayerScripts
 local Players = game:GetService("Players")
-local BuySeedStock = ReplicatedStorage.GameEvents.BuySeedStock
-local Plant = ReplicatedStorage.GameEvents.Plant_RE
-local Backpack = Players.LocalPlayer.Backpack
-local Character = Players.LocalPlayer.Character
-local sellAllRemote = ReplicatedStorage.GameEvents.Sell_Inventory
-local Steven = Workspace.NPCS.Steven
-local Sam = Workspace.NPCS.Sam
-local HRP = Players.LocalPlayer.Character.HumanoidRootPart
-local CropsListAndStocks = {}
-local SeedShopGUI = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.ScrollingFrame
-local shopTimer = Players.LocalPlayer.PlayerGui.Seed_Shop.Frame.Frame.Timer
-local shopTime = 0
-local Humanoid = Character:WaitForChild("Humanoid")
-wantedFruits = {}
-local plantAura = false
-local AutoSellItems = 70
-local shouldSell = false
-local removeItem = ReplicatedStorage.GameEvents.Remove_Item
-local plantToRemove
-local shouldAutoPlant = false
-local isSelling = false
-local byteNetReliable = ReplicatedStorage:FindFirstChild("ByteNetReliable")
-local autoBuyEnabled = false
-local lastShopStock = {}
-local isBuying = false -- Flag untuk menandai sedang membeli
+local player = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local Window = Rayfield:CreateWindow({
-   Name = "Grow A Garden",
-   Icon = 0,
-   LoadingTitle = "Rayfield Interface Suite",
-   LoadingSubtitle = "by Sirius",
-   Theme = "Default",
-   ToggleUIKeybind = "K",
-   DisableRayfieldPrompts = false,
-   DisableBuildWarnings = false,
-   ConfigurationSaving = {
-      Enabled = true,
-      FolderName = nil,
-      FileName = "GAGscript"
-   },
-})
+-- Tunggu sampai player ready
+if not player then
+    player = Players.LocalPlayer
+end
 
-local function findPlayerFarm()
-    for i,v in pairs(FarmsFolder:GetChildren()) do
-        if v.Important.Data.Owner.Value == Players.LocalPlayer.Name then
-            return v
+player:WaitForChild("PlayerGui")
+
+-- Variabel sistem
+local trackedRemoteEvents = {}
+local remoteEventLogs = {}
+local isMonitoring = true
+local buttonConnections = {}
+local remoteEventConnections = {}
+
+-- Buat UI debug yang lebih besar dengan kontrol
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AdvancedDebugGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player.PlayerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 450, 0, 250)
+mainFrame.Position = UDim2.new(0, 10, 0, 10)
+mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+mainFrame.BackgroundTransparency = 0.2
+mainFrame.BorderSizePixel = 2
+mainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
+mainFrame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = mainFrame
+
+-- Header dengan kontrol
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0.18, 0)
+header.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+header.BackgroundTransparency = 0.1
+header.Parent = mainFrame
+
+local cornerHeader = Instance.new("UICorner")
+cornerHeader.CornerRadius = UDim.new(0, 8)
+cornerHeader.Parent = header
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(0.6, 0, 1, 0)
+title.BackgroundTransparency = 1
+title.TextColor3 = Color3.fromRGB(255, 255, 0)
+title.Text = "⚡ DEBUG SYSTEM ⚡"
+title.Font = Enum.Font.Code
+title.TextSize = 16
+title.Parent = header
+
+-- Tombol Start/Stop
+local startStopButton = Instance.new("TextButton")
+startStopButton.Size = UDim2.new(0.35, 0, 0.6, 0)
+startStopButton.Position = UDim2.new(0.63, 0, 0.2, 0)
+startStopButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+startStopButton.Text = "STOP"
+startStopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+startStopButton.Font = Enum.Font.Code
+startStopButton.TextSize = 14
+startStopButton.Parent = header
+
+local buttonCorner = Instance.new("UICorner")
+buttonCorner.CornerRadius = UDim.new(0, 6)
+buttonCorner.Parent = startStopButton
+
+-- Status indicator
+local statusIndicator = Instance.new("Frame")
+statusIndicator.Size = UDim2.new(0.02, 0, 0.4, 0)
+statusIndicator.Position = UDim2.new(0.59, 0, 0.3, 0)
+statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+statusIndicator.Parent = header
+
+local statusCorner = Instance.new("UICorner")
+statusCorner.CornerRadius = UDim.new(0, 4)
+statusCorner.Parent = statusIndicator
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(0.1, 0, 0.4, 0)
+statusLabel.Position = UDim2.new(0.5, 0, 0.3, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "ON"
+statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+statusLabel.Font = Enum.Font.Code
+statusLabel.TextSize = 12
+statusLabel.Parent = header
+
+-- Kontrol panel
+local controlFrame = Instance.new("Frame")
+controlFrame.Size = UDim2.new(1, 0, 0.15, 0)
+controlFrame.Position = UDim2.new(0, 0, 0.18, 0)
+controlFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+controlFrame.BackgroundTransparency = 0.3
+controlFrame.Parent = mainFrame
+
+local controlCorner = Instance.new("UICorner")
+controlCorner.CornerRadius = UDim.new(0, 6)
+controlCorner.Parent = controlFrame
+
+-- Tombol kontrol
+local buttonScanBtn = Instance.new("TextButton")
+buttonScanBtn.Size = UDim2.new(0.3, 0, 0.7, 0)
+buttonScanBtn.Position = UDim2.new(0.02, 0, 0.15, 0)
+buttonScanBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 200)
+buttonScanBtn.Text = "🔍 Scan Buttons"
+buttonScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+buttonScanBtn.Font = Enum.Font.Code
+buttonScanBtn.TextSize = 12
+buttonScanBtn.Parent = controlFrame
+
+local eventScanBtn = Instance.new("TextButton")
+eventScanBtn.Size = UDim2.new(0.3, 0, 0.7, 0)
+eventScanBtn.Position = UDim2.new(0.34, 0, 0.15, 0)
+eventScanBtn.BackgroundColor3 = Color3.fromRGB(200, 70, 70)
+eventScanBtn.Text = "📡 Scan Events"
+eventScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+eventScanBtn.Font = Enum.Font.Code
+eventScanBtn.TextSize = 12
+eventScanBtn.Parent = controlFrame
+
+local clearLogsBtn = Instance.new("TextButton")
+clearLogsBtn.Size = UDim2.new(0.3, 0, 0.7, 0)
+clearLogsBtn.Position = UDim2.new(0.66, 0, 0.15, 0)
+clearLogsBtn.BackgroundColor3 = Color3.fromRGB(200, 200, 70)
+clearLogsBtn.Text = "🧹 Clear Logs"
+clearLogsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+clearLogsBtn.Font = Enum.Font.Code
+clearLogsBtn.TextSize = 12
+clearLogsBtn.Parent = controlFrame
+
+-- Area display
+local displayFrame = Instance.new("Frame")
+displayFrame.Size = UDim2.new(1, 0, 0.67, 0)
+displayFrame.Position = UDim2.new(0, 0, 0.33, 0)
+displayFrame.BackgroundTransparency = 1
+displayFrame.Parent = mainFrame
+
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(0.95, 0, 1, 0)
+label.Position = UDim2.new(0.025, 0, 0, 0)
+label.BackgroundTransparency = 1
+label.TextColor3 = Color3.fromRGB(255, 255, 255)
+label.Text = "System ready. Click START to begin monitoring..."
+label.TextWrapped = true
+label.Font = Enum.Font.Code
+label.TextSize = 14
+label.TextXAlignment = Enum.TextXAlignment.Left
+label.TextYAlignment = Enum.TextYAlignment.Top
+label.Parent = displayFrame
+
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Size = UDim2.new(0.95, 0, 1, 0)
+scrollFrame.Position = UDim2.new(0.025, 0, 0, 0)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.ScrollBarThickness = 6
+scrollFrame.Visible = false
+scrollFrame.Parent = displayFrame
+
+local scrollLabel = Instance.new("TextLabel")
+scrollLabel.Size = UDim2.new(1, 0, 2, 0)
+scrollLabel.BackgroundTransparency = 1
+scrollLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+scrollLabel.Text = ""
+scrollLabel.TextWrapped = true
+scrollLabel.Font = Enum.Font.Code
+scrollLabel.TextSize = 12
+scrollLabel.TextXAlignment = Enum.TextXAlignment.Left
+scrollLabel.TextYAlignment = Enum.TextYAlignment.Top
+scrollLabel.Parent = scrollFrame
+
+print("Advanced Debug GUI dengan kontrol berhasil dibuat!")
+
+-- Fungsi untuk update debug info
+local function updateDebugInfo(debugType, details, data)
+    if not isMonitoring then return end
+    
+    local character = player.Character
+    local charName = "No Character"
+    local position = "Unknown"
+    local health = "N/A"
+    
+    if character then
+        charName = character.Name
+        if character:FindFirstChild("HumanoidRootPart") then
+            local pos = character.HumanoidRootPart.Position
+            position = string.format("X:%.1f, Y:%.1f, Z:%.1f", pos.X, pos.Y, pos.Z)
+        end
+        if character:FindFirstChild("Humanoid") then
+            health = string.format("%.0f/%.0f", character.Humanoid.Health, character.Humanoid.MaxHealth)
         end
     end
-    return nil
-end
-
-local function removePlantsOfKind(kind)
-    if not kind or kind[1] == "None Selected" then
-        print("No plant selected to remove")
-        return
-    end
     
-    print("Kind: "..kind[1])
-    local Shovel = Backpack:FindFirstChild("Shovel [Destroy Plants]") or Backpack:FindFirstChild("Shovel")
+    local fps = math.floor(1/RunService.Heartbeat:Wait())
     
-    if not Shovel then
-        print("Shovel not found in backpack")
-        return
-    end
+    local debugText = string.format([[
+🔍 DEBUG TYPE: %s
+📋 DETAILS: %s
+
+👤 CHARACTER INFO:
+- Name: %s
+- Health: %s
+- Position: %s
+
+⚡ PERFORMANCE:
+- FPS: %d
+- Time: %s
+- Status: %s
+
+📊 DATA:
+%s
+    ]], 
+    debugType, 
+    details,
+    charName,
+    health,
+    position,
+    fps,
+    os.date("%H:%M:%S"),
+    isMonitoring and "ACTIVE" or "PAUSED",
+    data or "No additional data")
     
-    Shovel.Parent = Character
-    wait(0.5) -- Wait for shovel to equip
-    
-    for _,plant in pairs(findPlayerFarm().Important.Plants_Physical:GetChildren()) do
-        if plant.Name == kind[1] then
-            if plant:FindFirstChild("Fruit_Spawn") then
-                local spawnPoint = plant.Fruit_Spawn
-                HRP.CFrame = plant.PrimaryPart.CFrame
-                wait(0.2)
-                removeItem:FireServer(spawnPoint)
-                wait(0.1)
-            end
-        end
-    end 
-    
-    -- Return shovel to backpack
-    if Shovel and Shovel.Parent == Character then
-        Shovel.Parent = Backpack
-    end
-end
-
-local function getAllIFromDict(Dict)
-    local newList = {}
-    for i,_ in pairs(Dict) do
-        table.insert(newList, i)
-    end
-    return newList
-end
-
-local function isInTable(table,value)
-    for _,i in pairs(table) do
-        if i==value then
-            return true
-        end
-    end
-    return false
-end
-
-local function getPlantedFruitTypes()
-    local list = {}
-    local farm = findPlayerFarm()
-    if not farm then return list end
-    
-    for _,plant in pairs(farm.Important.Plants_Physical:GetChildren()) do
-        if not(isInTable(list, plant.Name)) then
-            table.insert(list, plant.Name)
-        end
-    end
-    return list
-end
-
-local Tab = Window:CreateTab("Plants", "rewind")
-Tab:CreateSection("Remove Plants")
-local PlantToRemoveDropdown = Tab:CreateDropdown({
-   Name = "Choose A Plant To Remove",
-   Options = getPlantedFruitTypes(),
-   CurrentOption = {"None Selected"},
-   MultipleOptions = false,
-   Flag = "Dropdown1", 
-   Callback = function(Options)
-    plantToRemove = Options
-   end,
-})
-
-Tab:CreateButton({
-    Name = "Refresh Selection",
-    Callback = function()
-        PlantToRemoveDropdown:Refresh(getPlantedFruitTypes())
-    end,
-})
-
-Tab:CreateButton({
-    Name = "Remove Selected Plant",
-    Callback = function()
-        removePlantsOfKind(plantToRemove)
-    end,
-})
-
-Tab:CreateSection("Harvesting Plants")
-
-local function printCropStocks()
-    for i,v in pairs(CropsListAndStocks) do
-        print(i.."'s Stock Is:", v)
-    end
-end
-
-local function StripPlantStock(UnstrippedStock)
-    local num = string.match(UnstrippedStock, "%d+")
-    return num
-end
-
-function getCropsListAndStock()
-    local oldStock = CropsListAndStocks
-    CropsListAndStocks = {} -- Reset the table
-    for _,Plant in pairs(SeedShopGUI:GetChildren()) do
-        if Plant:FindFirstChild("Main_Frame") and Plant.Main_Frame:FindFirstChild("Stock_Text") then
-            local PlantName = Plant.Name
-            local PlantStock = StripPlantStock(Plant.Main_Frame.Stock_Text.Text)
-            CropsListAndStocks[PlantName] = PlantStock
-        end
-    end
-    
-    -- Cek jika stok berubah (toko di-refresh)
-    local isRefreshed = false
-    for cropName, stock in pairs(CropsListAndStocks) do
-        if oldStock[cropName] ~= stock then
-            isRefreshed = true
-            break
-        end
-    end
-    
-    return isRefreshed
-end
-
-local playerFarm = findPlayerFarm()
-getCropsListAndStock()
-
-local function getPlantingBoundaries(farm)
-    local offset = Vector3.new(15.2844,0,28.356)
-    local edges = {}
-    local PlantingLocations = farm.Important.Plant_Locations:GetChildren()
-    local rect1Center = PlantingLocations[1].Position
-    local rect2Center = PlantingLocations[2].Position
-    edges["1TopLeft"] = rect1Center + offset
-    edges["1BottomRight"] = rect1Center - offset
-    edges["2TopLeft"] = rect2Center + offset
-    edges["2BottomRight"] = rect2Center - offset
-    return edges
-end
-
-local function collectPlant(plant)
-    -- Fixed collection method using proximity prompts instead of byteNetReliable
-    if plant:FindFirstChild("ProximityPrompt") then
-        fireproximityprompt(plant.ProximityPrompt)
+    -- Tampilkan di scrolling frame untuk data panjang
+    if #debugText > 500 then
+        label.Visible = false
+        scrollFrame.Visible = true
+        scrollLabel.Text = debugText
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, scrollLabel.TextBounds.Y + 20)
     else
-        -- Check children for proximity prompts
-        for _, child in pairs(plant:GetChildren()) do
-            if child:FindFirstChild("ProximityPrompt") then
-                fireproximityprompt(child.ProximityPrompt)
-                break
-            end
-        end
-    end
-end
-
-local function GetAllPlants()
-    local plantsTable = {}
-    for _, Plant in pairs(playerFarm.Important.Plants_Physical:GetChildren()) do
-        if Plant:FindFirstChild("Fruits") then
-            for _, miniPlant in pairs(Plant.Fruits:GetChildren()) do
-                table.insert(plantsTable, miniPlant)
-            end
-        else
-            table.insert(plantsTable, Plant)
-        end
-    end
-    return plantsTable
-end
-
-local function CollectAllPlants()
-    local plants = GetAllPlants()
-    print("Got "..#plants.." Plants")
-    
-    -- Shuffle the plants table to randomize collection order
-    for i = #plants, 2, -1 do
-        local j = math.random(i)
-        plants[i], plants[j] = plants[j], plants[i]
+        scrollFrame.Visible = false
+        label.Visible = true
+        label.Text = debugText
     end
     
-    for _,plant in pairs(plants) do
-        collectPlant(plant)
-        task.wait(0.05)
-    end
+    -- Print ke console juga
+    print("=== DEBUG ===")
+    print("Type: " .. debugType)
+    print("Details: " .. details)
+    print("Status: " .. (isMonitoring and "ACTIVE" or "PAUSED"))
+    print("=============")
 end
 
-Tab:CreateButton({
-    Name = "Collect All Plants",
-    Callback = function()
-        CollectAllPlants()
-        print("Collecting All Plants")
-    end,
-})
+-- Fungsi untuk memulai monitoring
+local function startMonitoring()
+    if isMonitoring then return end
+    
+    isMonitoring = true
+    startStopButton.Text = "STOP"
+    startStopButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+    statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    statusLabel.Text = "ON"
+    statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+    
+    updateDebugInfo("SYSTEM", "Monitoring Started", "All monitoring functions are now ACTIVE")
+    
+    -- Animasi
+    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(statusIndicator, tweenInfo, {BackgroundColor3 = Color3.fromRGB(0, 255, 0)})
+    tween:Play()
+end
 
-spawn(function()
-    while true do
-        if plantAura then
-            local plants = GetAllPlants()
-            
-            -- Shuffle the plants table to randomize collection order
-            for i = #plants, 2, -1 do
-                local j = math.random(i)
-                plants[i], plants[j] = plants[j], plants[i]
-            end
-            
-            for _, plant in pairs(plants) do
-                if plant:FindFirstChild("Fruits") then
-                    for _, miniPlant in pairs(plant.Fruits:GetChildren()) do
-                        for _, child in pairs(miniPlant:GetChildren()) do
-                            if child:FindFirstChild("ProximityPrompt") then
-                                fireproximityprompt(child.ProximityPrompt)
-                            end
-                        end
-                        task.wait(0.01)
-                    end
-                else
-                    for _, child in pairs(plant:GetChildren()) do
-                        if child:FindFirstChild("ProximityPrompt") then
-                            fireproximityprompt(child.ProximityPrompt)
-                        end
-                        task.wait(0.01)
-                    end
-                end
-            end
-        end
-        task.wait(0.1)
+-- Fungsi untuk menghentikan monitoring
+local function stopMonitoring()
+    if not isMonitoring then return end
+    
+    isMonitoring = false
+    startStopButton.Text = "START"
+    startStopButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+    statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    statusLabel.Text = "OFF"
+    statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+    
+    updateDebugInfo("SYSTEM", "Monitoring Stopped", "All monitoring functions are now PAUSED")
+    
+    -- Animasi
+    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(statusIndicator, tweenInfo, {BackgroundColor3 = Color3.fromRGB(255, 0, 0)})
+    tween:Play()
+end
+
+-- Toggle monitoring
+startStopButton.MouseButton1Click:Connect(function()
+    if isMonitoring then
+        stopMonitoring()
+    else
+        startMonitoring()
     end
 end)
 
-local function getRandomPlantingLocation(edges)
-    local rectangles = {
-        {edges["1TopLeft"], edges["1BottomRight"]},
-        {edges["2TopLeft"], edges["2BottomRight"]}
-    }
-
-    local chosen = rectangles[math.random(1, #rectangles)]
-    local a = chosen[1]
-    local b = chosen[2]
-
-    local minX, maxX = math.min(a.X, b.X), math.max(a.X, b.X)
-    local minZ, maxZ = math.min(a.Z, b.Z), math.max(a.Z, b.Z)
-    local Y = 0.13552704453468323
-
-    -- Add some randomness to the Y position as well
-    local randY = Y + (math.random() * 0.1 - 0.05) -- Small random variation
+-- Fungsi untuk melacak RemoteEvent
+local function trackRemoteEvent(remoteEvent)
+    if trackedRemoteEvents[remoteEvent] then return end
     
-    local randX = math.random() * (maxX - minX) + minX
-    local randZ = math.random() * (maxZ - minZ) + minZ
-
-    return CFrame.new(randX, randY, randZ)
-end
-
-local function areThereSeeds()
-    for _,Item in pairs(Backpack:GetChildren()) do
-        if Item:FindFirstChild("Seed Local Script") then
-            return true
-        end
-    end
-    print("Seeds Not Found!")
-    return false
-end
-
-local function plantAllSeeds()
-    print("Planting All Seeds...")
-    task.wait(1)
+    trackedRemoteEvents[remoteEvent] = true
+    local eventName = remoteEvent.Name
     
-    local edges = getPlantingBoundaries(playerFarm)
-    
-    while areThereSeeds() do
-        print("There Are Seeds!")
-        for _,Item in pairs(Backpack:GetChildren()) do
-            if Item:FindFirstChild("Seed Local Script") then
-                Item.Parent = Character
-                wait(0.1)
-                local location = getRandomPlantingLocation(edges)
-                local args = {
-                    [1] = location.Position,
-                    [2] = Item:GetAttribute("Seed")
-                }
-                Plant:FireServer(unpack(args))
-                wait(0.1)
-                if Item and Item:IsDescendantOf(game) and Item.Parent ~= Backpack then
-                    pcall(function()
-                        Item.Parent = Backpack
-                    end)
-                end
-            end
-        end
-        wait(0.5) -- Small delay to prevent infinite loop
-    end
-end
-
-Tab:CreateToggle({
-   Name = "Harvest Plants Aura",
-   CurrentValue = false,
-   Flag = "Toggle1",
-   Callback = function(Value)
-    plantAura = Value
-    print("Plant Aura Set To: ".. tostring(Value))
-   end,
-})
-
-local testingTab = Window:CreateTab("Testing","rewind")
-testingTab:CreateSection("List Crops Names And Prices")
-testingTab:CreateButton({
-    Name = "Print Out All Crops Names And Stocks",
-    Callback = function()
-        printCropStocks()
-        print("Printed")
-    end,
-})
-
-Tab:CreateSection("Plant")
-Tab:CreateButton({
-    Name = "Plant all Seeds",
-    Callback = function()
-        plantAllSeeds()
-    end,
-})
-
-Tab:CreateToggle({
-    Name = "Auto Plant",
-    CurrentValue = false,
-    flag = "ToggleAutoPlant",
-    Callback = function(Value)
-        shouldAutoPlant = Value
-    end,
-})
-
-testingTab:CreateSection("Shop")
-local RayFieldShopTimer = testingTab:CreateParagraph({Title = "Shop Timer", Content = "Waiting..."})
-
-testingTab:CreateSection("Plot Corners")
-testingTab:CreateButton({
-    Name = "Teleport edges",
-    Callback = function()
-        local edges = getPlantingBoundaries(playerFarm)
-        for i,v in pairs(edges) do
-            HRP.CFrame = CFrame.new(v)
-            wait(2)
-        end
-    end,
-})
-
-testingTab:CreateButton({
-    Name = "Teleport random plantable position",
-    Callback = function()
-        HRP.CFrame = getRandomPlantingLocation(getPlantingBoundaries(playerFarm))
-    end,
-})
-
-local function buyCropSeeds(cropName)
-    local args = {[1] = cropName}
     local success, errorMsg = pcall(function()
-        BuySeedStock:FireServer(unpack(args))
+        local connection = remoteEvent.OnClientEvent:Connect(function(...)
+            if not isMonitoring then return end
+            
+            local args = {...}
+            local logEntry = {
+                type = "RECEIVED_FROM_SERVER",
+                event = eventName,
+                args = args,
+                timestamp = os.date("%H:%M:%S"),
+                player = player.Name
+            }
+            
+            table.insert(remoteEventLogs, logEntry)
+            
+            updateDebugInfo("REMOTEEVENT RECEIVED", 
+                "Server → Client: " .. eventName,
+                string.format("Arguments Count: %d\nEvent: %s", #args, eventName))
+        end)
+        
+        remoteEventConnections[remoteEvent] = connection
     end)
     
-    if not success then
-        print("Error buying seeds:", errorMsg)
-        return false
+    if success then
+        print("Now tracking RemoteEvent: " .. eventName)
+    else
+        warn("Gagal melacak RemoteEvent " .. eventName .. ": " .. errorMsg)
     end
-    return true
 end
 
-function buyWantedCropSeeds()
-    if #wantedFruits == 0 then
-        print("No fruits selected to buy")
-        return false
+-- Scan RemoteEvents
+local function scanRemoteEvents()
+    trackedRemoteEvents = {}
+    remoteEventConnections = {}
+    
+    -- Putuskan koneksi lama
+    for _, connection in pairs(remoteEventConnections) do
+        connection:Disconnect()
     end
     
-    if isBuying then
-        print("Already buying seeds, please wait...")
-        return false
-    end
-    
-    isBuying = true
-    
-    local beforePos = HRP.CFrame
-    local humanoid = Character:FindFirstChildOfClass("Humanoid")
-    
-    -- Pastikan karakter bisa bergerak
-    if humanoid then
-        humanoid:ChangeState(Enum.HumanoidStateType.Running)
-    end
-    
-    -- Pergi ke NPC Sam
-    HRP.CFrame = Sam.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
-    wait(1.5) -- Tunggu sampai sampai di lokasi
-    
-    -- Pastikan kita menghadap ke NPC
-    HRP.CFrame = CFrame.new(HRP.Position, Sam.HumanoidRootPart.Position)
-    wait(0.5)
-    
-    local boughtAny = false
-    
-    for _, fruitName in ipairs(wantedFruits) do
-        local stock = tonumber(CropsListAndStocks[fruitName] or 0)
-        print("Trying to buy "..fruitName..", stock: "..tostring(stock))
-        
-        if stock > 0 then
-            for j = 1, stock do
-                local success = buyCropSeeds(fruitName)
-                if success then
-                    boughtAny = true
-                    print("Bought "..fruitName.." seed "..j.."/"..stock)
-                else
-                    print("Failed to buy "..fruitName)
-                end
-                wait(0.2) -- Tunggu sebentar antara pembelian
-            end
-        else
-            print("No stock for "..fruitName)
+    -- Scan ReplicatedStorage
+    for _, remoteEvent in ipairs(ReplicatedStorage:GetDescendants()) do
+        if remoteEvent:IsA("RemoteEvent") then
+            trackRemoteEvent(remoteEvent)
         end
     end
     
-    -- Kembali ke posisi semula
-    wait(0.5)
-    HRP.CFrame = beforePos
-    
-    isBuying = false
-    return boughtAny
-end
-
-local function onShopRefresh()
-    print("Shop Refreshed")
-    getCropsListAndStock()
-    if wantedFruits and #wantedFruits > 0 and autoBuyEnabled then
-        print("Auto-buying selected fruits...")
-        
-        -- Tunggu sebentar sebelum membeli untuk memastikan UI sudah update
-        wait(2)
-        buyWantedCropSeeds()
-    end
-end
-
-local function getTimeInSeconds(input)
-    if not input then return 0 end
-    local minutes = tonumber(input:match("(%d+)m")) or 0
-    local seconds = tonumber(input:match("(%d+)s")) or 0
-    return minutes * 60 + seconds
-end
-
-local function sellAll()
-    local OrgPos = HRP.CFrame
-    HRP.CFrame = Steven.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4) -- Berdiri di depan NPC
-    wait(1.5)
-    
-    isSelling = true
-    sellAllRemote:FireServer()
-    
-    -- Wait until items are sold
-    local startTime = tick()
-    while #Backpack:GetChildren() >= AutoSellItems and tick() - startTime < 10 do
-        sellAllRemote:FireServer()
-        wait(0.5)
+    -- Scan workspace
+    for _, remoteEvent in ipairs(workspace:GetDescendants()) do
+        if remoteEvent:IsA("RemoteEvent") then
+            trackRemoteEvent(remoteEvent)
+        end
     end
     
-    HRP.CFrame = OrgPos
-    isSelling = false
+    updateDebugInfo("SYSTEM", "RemoteEvent Scan Complete", 
+        string.format("Total RemoteEvents tracked: %d", table.getn(trackedRemoteEvents)))
 end
 
-spawn(function() 
-    while true do
-        if shopTimer and shopTimer.Text then
-            shopTime = getTimeInSeconds(shopTimer.Text)
-            local shopTimeText = "Shop Resets in " .. shopTime .. "s"
-            RayFieldShopTimer:Set({Title = "Shop Timer", Content = shopTimeText})
+eventScanBtn.MouseButton1Click:Connect(function()
+    scanRemoteEvents()
+end)
+
+-- Scan buttons
+local function scanButtons()
+    -- Putuskan koneksi lama
+    for _, connection in pairs(buttonConnections) do
+        connection:Disconnect()
+    end
+    
+    buttonConnections = {}
+    wait(1)
+    
+    local guis = player.PlayerGui:GetDescendants()
+    local buttonCount = 0
+    
+    for _, guiElement in ipairs(guis) do
+        if guiElement:IsA("TextButton") or guiElement:IsA("ImageButton") then
+            local success, errorMsg = pcall(function()
+                local connection = guiElement.MouseButton1Click:Connect(function()
+                    if not isMonitoring then return end
+                    
+                    local additionalInfo = ""
+                    if guiElement:IsA("TextButton") then
+                        additionalInfo = "Teks: " .. (guiElement.Text or "N/A")
+                    end
+                    
+                    local buttonInfo = string.format([[
+Button Name: %s
+Parent: %s
+Visible: %s
+Size: %s
+Position: %s
+%s
+                    ]],
+                    guiElement.Name,
+                    guiElement.Parent and guiElement.Parent.Name or "N/A",
+                    tostring(guiElement.Visible),
+                    tostring(guiElement.AbsoluteSize),
+                    tostring(guiElement.AbsolutePosition),
+                    additionalInfo)
+                    
+                    updateDebugInfo("BUTTON CLICK", "Button: " .. guiElement.Name, buttonInfo)
+                    
+                    -- Highlight effect
+                    local originalBg = guiElement.BackgroundColor3
+                    guiElement.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+                    wait(0.1)
+                    guiElement.BackgroundColor3 = originalBg
+                end)
+                
+                buttonConnections[guiElement] = connection
+                buttonCount += 1
+            end)
             
-            -- Cek jika toko di-refresh dengan membandingkan stok
-            local isRefreshed = getCropsListAndStock()
-            
-            if isRefreshed and autoBuyEnabled and not isBuying then
-                print("Shop refreshed, auto-buying...")
-                onShopRefresh()
-                wait(5)
+            if not success then
+                warn("Gagal connect ke button " .. guiElement.Name .. ": " .. errorMsg)
             end
         end
-        
-        if shouldSell and #(Backpack:GetChildren()) >= AutoSellItems and not isSelling then
-            sellAll()
-        end
-        
+    end
+    
+    updateDebugInfo("SYSTEM", "Button Scan Complete", 
+        string.format("Total buttons connected: %d\nGUI elements scanned: %d", buttonCount, #guis))
+end
+
+buttonScanBtn.MouseButton1Click:Connect(function()
+    scanButtons()
+end)
+
+-- Clear logs
+clearLogsBtn.MouseButton1Click:Connect(function()
+    remoteEventLogs = {}
+    updateDebugInfo("SYSTEM", "Logs Cleared", "All event logs have been cleared")
+end)
+
+-- Monitor untuk RemoteEvents baru
+ReplicatedStorage.DescendantAdded:Connect(function(descendant)
+    if descendant:IsA("RemoteEvent") then
         wait(0.5)
+        trackRemoteEvent(descendant)
     end
 end)
 
-localPlayerTab = Window:CreateTab("LocalPlayer")
-localPlayerTab:CreateButton({
-    Name = "TP Wand",
-    Callback = function()
-        local mouse = Players.LocalPlayer:GetMouse()
-        local TPWand = Instance.new("Tool", Backpack)
-        TPWand.Name = "TP Wand"
-        TPWand.RequiresHandle = false
-        mouse.Button1Down:Connect(function()
-            if Character:FindFirstChild("TP Wand") then
-                HRP.CFrame = mouse.Hit + Vector3.new(0, 3, 0)
-            end
-        end)
-    end,    
-})
+-- Input detection untuk backup
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed or not isMonitoring then return end
+    
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mousePos = UserInputService:GetMouseLocation()
+        updateDebugInfo("MOUSE CLICK", "Left Mouse Button", 
+            string.format("Mouse Position: %s", tostring(mousePos)))
+    end
+end)
 
-localPlayerTab:CreateButton({
-    Name = "Destroy TP Wand",
-    Callback = function()
-        if Backpack:FindFirstChild("TP Wand") then
-            Backpack:FindFirstChild("TP Wand"):Destroy()
+-- Hotkey system
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.F1 then
+        if #remoteEventLogs == 0 then
+            updateDebugInfo("REMOTEEVENT LOGS", "No events tracked", "No RemoteEvent activity recorded")
+            return
         end
-        if Character:FindFirstChild("TP Wand") then
-            Character:FindFirstChild("TP Wand"):Destroy()
-        end
-    end,    
-})
-
-local speedSlider = localPlayerTab:CreateSlider({
-   Name = "Speed",
-   Range = {1, 500},
-   Increment = 5,
-   Suffix = "Speed",
-   CurrentValue = 20,
-   Flag = "Slider1",
-   Callback = function(Value)
-        Humanoid.WalkSpeed = Value
-   end,
-})
-
-localPlayerTab:CreateButton({
-    Name = "Default Speed",
-    Callback = function()
-        speedSlider:Set(20)
-    end,
-})
-
-local jumpSlider = localPlayerTab:CreateSlider({
-   Name = "Jump Power",
-   Range = {1, 500},
-   Increment = 5,
-   Suffix = "Jump Power",
-   CurrentValue = 50,
-   Flag = "Slider2",
-   Callback = function(Value)
-        Humanoid.JumpPower = Value
-   end,
-})
-
-localPlayerTab:CreateButton({
-    Name = "Default Jump Power",
-    Callback = function()
-        jumpSlider:Set(50)
-    end,
-})
-
-local seedsTab = Window:CreateTab("Seeds")
-seedsTab:CreateDropdown({
-   Name = "Fruits To Buy",
-   Options = getAllIFromDict(CropsListAndStocks),
-   CurrentOption = {"None Selected"},
-   MultipleOptions = true,
-   Flag = "Dropdown1", 
-   Callback = function(Options)
-        local filtered = {}
-        for _, fruit in ipairs(Options) do
-            if fruit ~= "None Selected" then
-                table.insert(filtered, fruit)
-            end
-        end
-        print("Selected:", table.concat(filtered, ", "))
-        wantedFruits = filtered
-        print("Updated!")
-   end,
-})
-
--- Tambahkan toggle untuk enable/disable auto-buy
-seedsTab:CreateToggle({
-    Name = "Enable Auto-Buy",
-    CurrentValue = false,
-    Flag = "AutoBuyToggle",
-    Callback = function(Value)
-        autoBuyEnabled = Value
-        print("Auto-Buy set to: "..tostring(Value))
         
-        -- Jika diaktifkan, langsung coba beli
-        if Value and #wantedFruits > 0 then
-            spawn(function()
-                wait(1)
-                buyWantedCropSeeds()
-            end)
+        local logText = "📊 REMOTEEVENT ACTIVITY LOG:\n\n"
+        for i, log in ipairs(remoteEventLogs) do
+            logText = logText .. string.format("[%d] %s - %s: %s\nArgs Count: %d\n\n", 
+                i, log.timestamp, log.type, log.event, #log.args)
         end
-    end,
-})
+        updateDebugInfo("REMOTEEVENT LOGS", "Recent Activity", logText)
+        
+    elseif input.KeyCode == Enum.KeyCode.F5 then
+        -- Toggle monitoring dengan F5
+        if isMonitoring then
+            stopMonitoring()
+        else
+            startMonitoring()
+        end
+    end
+end)
 
-seedsTab:CreateButton({
-    Name = "Buy Selected Fruits Now",
-    Callback = function()
-        buyWantedCropSeeds()
-    end,
-})
-
-local sellTab = Window:CreateTab("Sell")
-sellTab:CreateToggle({
-    Name = "Should Sell?",
-    CurrentValue = false,
-    flag = "Toggle2",
-    Callback = function(Value)
-        print("set shouldSell to: "..tostring(Value))
-        shouldSell = Value
-    end,
-})
-
-sellTab:CreateSlider({
-   Name = "Minimum Items to auto sell",
-   Range = {1, 200},
-   Increment = 1,
-   Suffix = "Items",
-   CurrentValue = 70,
-   Flag = "Slider2",
-   Callback = function(Value)
-        print("AutoSellItems updated to: "..Value)
-        AutoSellItems = Value
-   end,
-})
-
-sellTab:CreateButton({
-    Name = "Sell All Now",
-    Callback = function()
-        sellAll()
-    end,
-})
-
--- Initialize the player farm reference
-playerFarm = findPlayerFarm()
-if not playerFarm then
-    warn("Player farm not found!")
+-- System info display
+local function updateSystemInfo()
+    while true do
+        wait(3)
+        local success, fps = pcall(function()
+            return math.floor(1/RunService.Heartbeat:Wait())
+        end)
+        
+        if not success then fps = 0 end
+        
+        -- Update title dengan info real-time
+        title.Text = string.format("⚡ DEBUG | FPS: %d | Events: %d | %s ⚡", 
+            fps, #remoteEventLogs, isMonitoring and "ACTIVE" or "PAUSED")
+    end
 end
 
-print("Grow A Garden script loaded successfully!")
+-- Initialize system
+local function initializeSystem()
+    -- Mulai dalam keadaan aktif
+    startMonitoring()
+    scanRemoteEvents()
+    scanButtons()
+    spawn(updateSystemInfo)
+    
+    updateDebugInfo("SYSTEM", "Initialization Complete", 
+        string.format("Debug system ready!\nUse F5 to toggle monitoring\nF1 to view logs"))
+    
+    print("=== ADVANCED DEBUG SYSTEM READY ===")
+    print("F1 - Show RemoteEvent Logs")
+    print("F5 - Toggle Monitoring")
+    print("Click STOP button to pause monitoring")
+    print("===================================")
+end
+
+-- Tunggu sebentar sebelum initialize
+wait(2)
+initializeSystem()

@@ -1,4 +1,3 @@
-
 -- Auto Pet Seller & Buyer - One Click Farm Script
 -- Automatically enables all functions for farming
 

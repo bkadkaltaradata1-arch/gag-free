@@ -1,5 +1,3 @@
-[file name]: PVP1.txt
-[file content begin]
 -- Auto Pet Seller & Buyer - One Click Farm Script
 -- Automatically enables all functions for farming
 
